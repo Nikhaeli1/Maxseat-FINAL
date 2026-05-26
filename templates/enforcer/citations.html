@@ -1,0 +1,70 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-row">
+    <div>
+        <h1 class="page-title">Digital Citation Database</h1>
+        <p class="page-subtitle">Central repository of issued tickets and administrative sanctions.</p>
+    </div>
+    <div style="display:flex;gap:10px;">
+        <span class="badge badge-red" style="padding:8px 14px;font-size:12px;">
+            {{ citations | selectattr('status', 'equalto', 'PENDING') | list | length }} Pending
+        </span>
+        <span class="badge badge-green" style="padding:8px 14px;font-size:12px;">
+            {{ citations | selectattr('status', 'equalto', 'RESOLVED') | list | length }} Resolved
+        </span>
+    </div>
+</div>
+
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Citation Serial</th>
+                <th>Violator Vehicle</th>
+                <th>Enforcing Officer</th>
+                <th>Fine Amount</th>
+                <th>Date Issued</th>
+                <th>Resolution Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in citations %}
+            <tr>
+                <td><code style="font-family:monospace;font-weight:700;font-size:13px;color:var(--primary);">#{{ c.serial }}</code></td>
+                <td>
+                    <div style="font-weight:700;">{{ c.plate }}</div>
+                    <div style="font-size:12px;color:var(--text-muted);">{{ c.company }}</div>
+                </td>
+                <td>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <div style="width:28px;height:28px;border-radius:50%;background:rgba(239,68,68,0.1);display:flex;justify-content:center;align-items:center;color:#ef4444;font-size:12px;">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                        {{ c.officer }}
+                    </div>
+                </td>
+                <td style="font-weight:700;">{{ c.fine }}</td>
+                <td style="font-size:13px;color:var(--text-muted);">{{ c.date }}</td>
+                <td>
+                    {% if c.status == 'RESOLVED' %}
+                    <span class="badge badge-green"><i class="fa-solid fa-circle-check"></i> Resolved</span>
+                    {% else %}
+                    <span class="badge badge-red"><i class="fa-solid fa-clock"></i> Pending Payment</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6">
+                    <div class="empty-state">
+                        <i class="fa-solid fa-folder-open"></i>
+                        <h3>No Citations Found</h3>
+                        <p>Issued citations will appear here.</p>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-row">
+    <div>
+        <h1 class="page-title" style="color:#ef4444;">Priority Intercept Targets</h1>
+        <p class="page-subtitle">Units violating maximum load capacity via live GNSS sensor data.</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;background:rgba(239,68,68,0.06);border:1.5px solid rgba(239,68,68,0.2);border-radius:var(--radius);">
+        <i class="fa-solid fa-tower-broadcast" style="color:#ef4444;font-size:18px;animation:pulse 1.5s infinite;"></i>
+        <span style="font-weight:800;font-size:16px;color:#ef4444;">{{ stats.active_violations }} TARGET{{ 's' if stats.active_violations != 1 else '' }} DETECTED</span>
+    </div>
+</div>
+
+<!-- MAP -->
+<div class="card" style="padding:12px;margin-bottom:22px;display:flex;flex-direction:column;">
+    <div style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-weight:700;font-size:15px;"><i class="fa-solid fa-map" style="margin-right:8px;color:var(--primary);"></i>GNSS Tactical Map</span>
+    </div>
+    <div id="map" style="height:300px;border-radius:14px;border:2px solid var(--border-color);z-index:1;"></div>
+</div>
+
+<!-- VEHICLE CARDS -->
+<h3 style="font-size:17px;font-weight:700;margin-bottom:16px;">
+    <i class="fa-solid fa-list-check" style="margin-right:9px;color:var(--primary);"></i>Deployment Queue
+</h3>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px;">
+    {% for puv in puvs %}
+    {% set is_danger = puv.passengers > puv.capacity or puv.temp >= 37.5 %}
+    <div class="card" style="padding:22px;margin-bottom:0;border-left:4px solid {{ '#ef4444' if is_danger else '#10b981' }};">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
+            <div>
+                <div style="font-size:20px;font-weight:800;">{{ puv.plate }}</div>
+                <div style="font-size:13px;color:var(--text-muted);">{{ puv.company }}</div>
+            </div>
+            <span class="badge {{ 'badge-red' if is_danger else 'badge-green' }}">
+                {{ 'CRITICAL' if is_danger else 'SAFE' }}
+            </span>
+        </div>
+        <div style="background:var(--hover-bg);padding:13px;border-radius:12px;margin-bottom:16px;font-size:13.5px;display:flex;flex-direction:column;gap:6px;">
+            <div>
+                <strong>Load:</strong> {{ puv.passengers }}/{{ puv.capacity }} PAX
+                {% if puv.passengers > puv.capacity %}
+                <span style="color:#ef4444;font-weight:700;"> — Overloaded</span>
+                {% endif %}
+            </div>
+            <div>
+                <strong>Cabin Temp:</strong> {{ puv.temp }}°C
+                {% if puv.temp >= 37.5 %}
+                <span style="color:#f59e0b;font-weight:700;"> — Overheating</span>
+                {% endif %}
+            </div>
+            <div><strong>Location:</strong> {{ puv.loc_name }}</div>
+        </div>
+        {% if is_danger %}
+        <a href="/dispatch_orders" class="btn btn-danger" style="display:flex;justify-content:center;">
+            <i class="fa-solid fa-triangle-exclamation"></i> View Dispatch Details
+        </a>
+        {% else %}
+        <div style="text-align:center;padding:10px;background:var(--hover-bg);border-radius:var(--radius-sm);font-size:13px;color:var(--text-muted);font-weight:600;">
+            <i class="fa-solid fa-circle-check" style="color:#10b981;margin-right:6px;"></i> Monitoring Normal
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<script id="enforcer-puv-data" type="application/json">{{ puvs | tojson | safe if puvs else '[]' }}</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const map = L.map('map').setView([8.486, 124.65], 13);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+    const pd = JSON.parse(document.getElementById('enforcer-puv-data').textContent);
+    pd.forEach(p => {
+        L.circleMarker([p.lat, p.lng], {radius:12, fillColor: p.is_violator ? '#ef4444' : '#10b981', color:'#fff', weight:3, fillOpacity:1})
+         .addTo(map)
+         .bindPopup(`<div style="text-align:center;"><b>${p.company}</b><br>Load: <b>${p.passengers}/${p.capacity}</b></div>`);
+    });
+</script>
+<style>@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }</style>
+{% endblock %}

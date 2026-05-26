@@ -1,0 +1,112 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">System Configuration</h1>
+    <p class="page-subtitle">Manage profile, appearance, notifications, and account security.</p>
+</div>
+
+{% if messages %}
+<div class="flash-ok"><i class="fa-solid fa-circle-check"></i> {{ messages[0] }}</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+    <!-- LEFT COLUMN -->
+    <div>
+        <div class="card">
+            <h3 style="font-size:16px;font-weight:700;margin-bottom:18px;padding-bottom:13px;border-bottom:1px solid var(--border-color);">
+                <i class="fa-solid fa-user-circle" style="margin-right:8px;color:var(--primary);"></i>Profile Information
+            </h3>
+            <form action="/update_settings" method="POST">
+                <div class="form-group">
+                    <label class="form-label">Username</label>
+                    <input type="text" value="{{ request.session.get('username') }}" disabled class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Contact Email</label>
+                    <input type="email" name="email" value="{{ user_data.get('email','') }}" class="form-control" placeholder="update@email.com">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">
+                    <i class="fa-solid fa-floppy-disk"></i> Save Changes
+                </button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3 style="font-size:16px;font-weight:700;margin-bottom:18px;padding-bottom:13px;border-bottom:1px solid var(--border-color);">
+                <i class="fa-solid fa-moon" style="margin-right:8px;color:var(--primary);"></i>Appearance
+            </h3>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <div style="font-weight:700;font-size:15px;">Dark Mode</div>
+                    <div style="font-size:13px;color:var(--text-muted);margin-top:3px;">Toggle low-light interface</div>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div>
+        <div class="card">
+            <h3 style="font-size:16px;font-weight:700;margin-bottom:18px;padding-bottom:13px;border-bottom:1px solid var(--border-color);">
+                <i class="fa-solid fa-bell" style="margin-right:8px;color:var(--primary);"></i>Notification Preferences
+            </h3>
+            <div style="display:flex;flex-direction:column;gap:0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--border-color);">
+                    <div>
+                        <div style="font-weight:600;"><i class="fa-solid fa-envelope" style="color:var(--text-muted);margin-right:8px;"></i>Email Alerts</div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Receive violation summaries via email</div>
+                    </div>
+                    <label class="switch"><input type="checkbox" checked onchange="popAlert('Saved','Email preferences updated.','success')"><span class="slider"></span></label>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--border-color);">
+                    <div>
+                        <div style="font-weight:600;"><i class="fa-solid fa-mobile-screen" style="color:var(--text-muted);margin-right:8px;"></i>SMS Push Notifications</div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Receive SMS for critical alerts</div>
+                    </div>
+                    <label class="switch"><input type="checkbox" onchange="popAlert('Saved','SMS preferences updated.','success')"><span class="slider"></span></label>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;">
+                    <div>
+                        <div style="font-weight:600;"><i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;margin-right:8px;"></i>Critical Overload Pings</div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Always active — cannot be disabled</div>
+                    </div>
+                    <label class="switch"><input type="checkbox" checked disabled><span class="slider"></span></label>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 style="font-size:16px;font-weight:700;margin-bottom:18px;padding-bottom:13px;border-bottom:1px solid var(--border-color);">
+                <i class="fa-solid fa-shield-halved" style="margin-right:8px;color:var(--primary);"></i>Account Security
+            </h3>
+            <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--hover-bg);border-radius:14px;margin-bottom:18px;border:1px solid var(--border-color);">
+                <div style="width:52px;height:52px;background:var(--primary);color:white;border-radius:50%;display:flex;justify-content:center;align-items:center;font-size:22px;font-weight:800;flex-shrink:0;">
+                    {{ request.session.get('username','?')[0]|upper }}
+                </div>
+                <div>
+                    <div style="font-weight:800;font-size:16px;">{{ request.session.get('username') }}</div>
+                    <span class="badge badge-blue" style="margin-top:4px;text-transform:capitalize;">{{ request.session.get('role') }} Access</span>
+                </div>
+            </div>
+            <div style="display:flex;gap:10px;">
+                <button onclick="popAlert('Check Email','Password reset instructions sent.','info')"
+                        class="btn btn-outline" style="flex:1;">
+                    <i class="fa-solid fa-key"></i> Reset Password
+                </button>
+                <button onclick="triggerLogout()" class="btn btn-danger" style="flex:1;">
+                    <i class="fa-solid fa-power-off"></i> Terminate Session
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const t = document.getElementById('theme-toggle');
+if (localStorage.getItem('theme') === 'dark') t.checked = true;
+</script>
+{% endblock %}

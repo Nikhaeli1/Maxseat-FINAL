@@ -1,0 +1,83 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">System Reports</h1>
+    <p class="page-subtitle">Generate analytics and compliance documentation.</p>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 2fr;gap:24px;">
+    <div class="card" style="margin-bottom:0;align-self:start;">
+        <h3 style="font-size:16px;font-weight:700;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border-color);">Query Parameters</h3>
+        <form onsubmit="generateReport(event)">
+            <div class="form-group">
+                <label class="form-label">Report Type</label>
+                <select id="report-type" class="form-control">
+                    <option value="violations">Overload Violation Summary</option>
+                    <option value="thermal">Thermal Hazard Log</option>
+                    <option value="enforcer">Enforcer Activity Report</option>
+                    <option value="citations">Citation Database Export</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Start Date</label>
+                <input type="date" class="form-control" id="start-date">
+            </div>
+            <div class="form-group">
+                <label class="form-label">End Date</label>
+                <input type="date" class="form-control" id="end-date">
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%;">
+                <i class="fa-solid fa-file-export"></i> Generate Report
+            </button>
+        </form>
+    </div>
+
+    <div class="card" style="margin-bottom:0;" id="report-preview">
+        <div class="empty-state" id="empty-preview">
+            <i class="fa-solid fa-file-pdf"></i>
+            <h3>Document Preview</h3>
+            <p>Configure parameters and click Generate to preview your report.</p>
+        </div>
+        <div id="report-content" style="display:none;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border-color);">
+                <h3 style="font-size:16px;font-weight:700;" id="report-title">Report</h3>
+                <button onclick="popAlert('Export', 'PDF generation coming soon.','info')" class="btn btn-outline">
+                    <i class="fa-solid fa-download"></i> Download PDF
+                </button>
+            </div>
+            <div id="report-data"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+function generateReport(e) {
+    e.preventDefault();
+    const type = document.getElementById('report-type').value;
+    const titles = {
+        violations: 'Overload Violation Summary',
+        thermal: 'Thermal Hazard Log',
+        enforcer: 'Enforcer Activity Report',
+        citations: 'Citation Database Export'
+    };
+    document.getElementById('empty-preview').style.display = 'none';
+    document.getElementById('report-content').style.display = 'block';
+    document.getElementById('report-title').textContent = titles[type];
+    const citations = {{ citations | tojson | safe }};
+    let html = `<table><thead><tr><th>Serial</th><th>Plate</th><th>Officer</th><th>Fine</th><th>Status</th><th>Date</th></tr></thead><tbody>`;
+    citations.forEach(c => {
+        const badge = c.status === 'RESOLVED' ? 'badge-green' : 'badge-red';
+        html += `<tr>
+            <td><code style="font-family:monospace;font-weight:700;">#${c.serial}</code></td>
+            <td><strong>${c.plate}</strong><br><small style="color:var(--text-muted);">${c.company}</small></td>
+            <td>${c.officer}</td>
+            <td style="font-weight:700;">${c.fine}</td>
+            <td><span class="badge ${badge}">${c.status}</span></td>
+            <td>${c.date}</td>
+        </tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById('report-data').innerHTML = html;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-row">
+    <div>
+        <h1 class="page-title">Active Dispatch Orders</h1>
+        <p class="page-subtitle">Real-time interception targets based on confirmed sensor violations.</p>
+    </div>
+    {% if puvs %}
+    <span class="badge badge-red" style="padding:8px 16px;font-size:13px;animation:pulse 1.5s infinite;">
+        <i class="fa-solid fa-siren-on"></i> {{ puvs|length }} Active Order{{ 's' if puvs|length != 1 else '' }}
+    </span>
+    {% endif %}
+</div>
+
+{% if puvs %}
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:18px;">
+    {% for puv in puvs %}
+    <div class="card" style="padding:24px;margin-bottom:0;border-left:4px solid #ef4444;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
+            <div>
+                <div style="font-size:20px;font-weight:800;">{{ puv.plate }}</div>
+                <div style="font-size:13px;color:var(--text-muted);">{{ puv.company }}</div>
+            </div>
+            <span class="badge badge-red"><i class="fa-solid fa-triangle-exclamation"></i> Priority</span>
+        </div>
+        <div style="background:var(--hover-bg);padding:14px;border-radius:12px;margin-bottom:16px;font-size:13.5px;display:flex;flex-direction:column;gap:8px;border:1px solid var(--border-color);">
+            <div><i class="fa-solid fa-location-dot" style="color:var(--primary);margin-right:7px;width:14px;"></i><strong>{{ puv.loc_name }}</strong></div>
+            {% if puv.passengers > puv.capacity %}
+            <div><i class="fa-solid fa-users" style="color:#ef4444;margin-right:7px;width:14px;"></i>
+                <span style="color:#ef4444;font-weight:700;">Overloaded — {{ puv.passengers }}/{{ puv.capacity }} PAX</span>
+            </div>
+            {% endif %}
+            {% if puv.temp >= 37.5 %}
+            <div><i class="fa-solid fa-thermometer-half" style="color:#f59e0b;margin-right:7px;width:14px;"></i>
+                <span style="color:#f59e0b;font-weight:700;">Thermal Limit — {{ puv.temp }}°C</span>
+            </div>
+            {% endif %}
+        </div>
+        <a href="/interception_status" class="btn btn-danger" style="display:flex;justify-content:center;">
+            <i class="fa-solid fa-crosshairs"></i> Respond &amp; Intercept
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card">
+    <div class="empty-state">
+        <i class="fa-solid fa-circle-check" style="color:#10b981;opacity:1;font-size:48px;"></i>
+        <h3>No Active Dispatch Orders</h3>
+        <p>The fleet is currently operating within safety parameters.</p>
+    </div>
+</div>
+{% endif %}
+<style>@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.5;} }</style>
+{% endblock %}

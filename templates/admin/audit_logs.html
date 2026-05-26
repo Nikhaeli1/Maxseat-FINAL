@@ -1,0 +1,58 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-row">
+    <div>
+        <h1 class="page-title">Cryptographic Audit Trail</h1>
+        <p class="page-subtitle">Immutable records of system access and network commands.</p>
+    </div>
+    <span class="badge badge-green" style="padding:8px 14px;font-size:12px;">
+        <i class="fa-solid fa-lock"></i> {{ logs|length }} Entries Secured
+    </span>
+</div>
+
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Timestamp (UTC+8)</th>
+                <th>Actor Identity</th>
+                <th>Event Designation</th>
+                <th>Origin IP</th>
+                <th>Integrity</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td style="font-family:monospace;font-size:13px;">
+                    <i class="fa-regular fa-clock" style="color:var(--text-muted);margin-right:6px;"></i>
+                    {{ log.timestamp }}
+                </td>
+                <td><span style="font-weight:700;">{{ log.actor }}</span></td>
+                <td>
+                    {% if log.category == 'green' %}
+                    <span class="badge badge-green">{{ log.event }}</span>
+                    {% elif log.category == 'red' %}
+                    <span class="badge badge-red">{{ log.event }}</span>
+                    {% else %}
+                    <span class="badge badge-blue">{{ log.event }}</span>
+                    {% endif %}
+                </td>
+                <td style="font-family:monospace;font-size:13px;color:var(--text-muted);">{{ log.ip }}</td>
+                <td><i class="fa-solid fa-lock" style="color:#10b981;"></i></td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5">
+                    <div class="empty-state">
+                        <i class="fa-solid fa-shield-check"></i>
+                        <h3>No Audit Events</h3>
+                        <p>System activity will appear here.</p>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

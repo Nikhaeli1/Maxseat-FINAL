@@ -1,0 +1,64 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Intercept &amp; Apprehension Log</h1>
+    <p class="page-subtitle">Historical record of triggered network violations and enforcement responses.</p>
+</div>
+
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Target Entity</th>
+                <th>Infraction Type</th>
+                <th>GNSS Coordinate</th>
+                <th>Protocol Command</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in puvs %}
+            <tr>
+                <td>
+                    <div style="font-weight:700;font-size:14px;">{{ p.company }}</div>
+                    <div style="font-size:12px;color:var(--primary);font-weight:600;">{{ p.plate }}</div>
+                </td>
+                <td>
+                    {% if p.passengers > p.capacity %}
+                    <span class="badge badge-red">
+                        <i class="fa-solid fa-scale-unbalanced"></i> Capacity Exceeded ({{ p.passengers }}/{{ p.capacity }})
+                    </span>
+                    {% endif %}
+                    {% if p.temp >= 37.5 %}
+                    <span class="badge badge-yellow" style="margin-top:4px;">
+                        <i class="fa-solid fa-thermometer-half"></i> Thermal Alert ({{ p.temp }}°C)
+                    </span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div style="font-weight:600;">{{ p.loc_name }}</div>
+                    <div style="font-size:12px;color:var(--text-muted);">
+                        <i class="fa-solid fa-clock" style="margin-right:4px;"></i>Logged: {{ p.last_update }}
+                    </div>
+                </td>
+                <td>
+                    <button onclick="popAlert('Dispatch Initiated', 'Dispatching response unit to {{ p.loc_name }}', 'success')"
+                            class="btn btn-danger" style="padding:9px 16px;">
+                        <i class="fa-solid fa-location-crosshairs"></i> Dispatch Unit
+                    </button>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="4">
+                    <div class="empty-state">
+                        <i class="fa-solid fa-shield-check" style="color:#10b981;opacity:1;font-size:42px;"></i>
+                        <h3>No Active Violations</h3>
+                        <p>All units are operating within safety parameters.</p>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

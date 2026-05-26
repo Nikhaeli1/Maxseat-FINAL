@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MaxSeat Alert — {{ role|capitalize if role else 'System' }}</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb; --primary-dark: #1d4ed8; --primary-glow: rgba(37,99,235,0.12);
+            --sidebar-bg: #0f172a; --bg: #f1f5f9; --card-bg: #ffffff;
+            --text-main: #0f172a; --text-muted: #64748b;
+            --border-color: #e2e8f0; --hover-bg: #f8fafc;
+            --danger: #ef4444; --success: #10b981; --warning: #f59e0b;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.06); --shadow-md: 0 4px 14px rgba(0,0,0,0.08);
+            --radius: 16px; --radius-sm: 10px; --radius-lg: 24px;
+        }
+        body.dark-mode {
+            --bg: #020617; --card-bg: #0f172a; --text-main: #f1f5f9; --text-muted: #94a3b8;
+            --border-color: #1e293b; --hover-bg: #1e293b; --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; transition: background 0.3s, color 0.3s; }
+
+        /* SIDEBAR */
+        .sidebar { width: 256px; background: var(--sidebar-bg); display: flex; flex-direction: column; padding: 26px 14px; border-right: 1px solid rgba(255,255,255,0.04); flex-shrink: 0; z-index: 10; overflow-y: auto; }
+        .sidebar-logo { max-width: 136px; margin-bottom: 32px; margin-left: 8px; filter: brightness(0) invert(1); }
+        .nav-section { font-size: 10px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 1.2px; padding: 0 10px; margin: 18px 0 6px; }
+        .nav-link { display: flex; align-items: center; gap: 11px; padding: 10px 12px; color: #94a3b8; text-decoration: none; border-radius: var(--radius-sm); margin-bottom: 2px; font-weight: 600; font-size: 13.5px; transition: all 0.17s ease; }
+        .nav-link:hover { background: rgba(255,255,255,0.07); color: #e2e8f0; transform: translateX(3px); }
+        .nav-link.active { background: var(--primary); color: #fff; box-shadow: 0 4px 12px rgba(37,99,235,0.35); }
+        .nav-link.active:hover { transform: none; }
+        .nav-link i { width: 19px; font-size: 14px; text-align: center; flex-shrink: 0; }
+        .sidebar-user { padding: 13px 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.07); border-radius: var(--radius); margin-top: auto; margin-bottom: 8px; }
+        .sidebar-user-name { font-size: 13.5px; font-weight: 700; color: #f1f5f9; }
+        .sidebar-user-role { font-size: 11px; color: #64748b; text-transform: capitalize; margin-top: 2px; }
+        .nav-logout { color: #fca5a5 !important; background: rgba(239,68,68,0.08) !important; border: 1px solid rgba(239,68,68,0.1); }
+        .nav-logout:hover { background: rgba(239,68,68,0.16) !important; color: #f87171 !important; }
+
+        /* MAIN */
+        .main-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .top-nav { height: 62px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; padding: 0 34px; background: var(--card-bg); flex-shrink: 0; box-shadow: var(--shadow-sm); }
+        .top-nav-left { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); font-weight: 600; }
+        .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 6px var(--success); flex-shrink: 0; }
+        .main-content { flex: 1; overflow-y: auto; padding: 34px 38px; animation: fadeUp 0.38s cubic-bezier(0.16,1,0.3,1) forwards; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+
+        /* COMPONENTS */
+        .card { background: var(--card-bg); border-radius: var(--radius-lg); padding: 26px; box-shadow: var(--shadow-sm); margin-bottom: 22px; border: 1px solid var(--border-color); transition: box-shadow 0.2s, transform 0.2s; }
+        .card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+        .page-header { margin-bottom: 26px; }
+        .page-title { font-size: 28px; font-weight: 800; letter-spacing: -0.4px; }
+        .page-subtitle { color: var(--text-muted); font-size: 14px; margin-top: 4px; }
+        .page-row { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 26px; }
+
+        /* BADGES */
+        .badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 7px; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
+        .badge-red    { background: rgba(239,68,68,0.1);   color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+        .badge-green  { background: rgba(16,185,129,0.1);  color: #10b981; border: 1px solid rgba(16,185,129,0.2); }
+        .badge-blue   { background: rgba(37,99,235,0.1);   color: #2563eb; border: 1px solid rgba(37,99,235,0.2); }
+        .badge-yellow { background: rgba(245,158,11,0.1);  color: #f59e0b; border: 1px solid rgba(245,158,11,0.2); }
+        .badge-gray   { background: rgba(100,116,139,0.1); color: #64748b; border: 1px solid rgba(100,116,139,0.2); }
+
+        /* TABLE */
+        .table-wrap { overflow: hidden; border-radius: var(--radius-lg); border: 1px solid var(--border-color); background: var(--card-bg); margin-bottom: 22px; }
+        table { width: 100%; border-collapse: collapse; }
+        thead { background: var(--hover-bg); }
+        th { text-align: left; padding: 13px 17px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); border-bottom: 1px solid var(--border-color); }
+        td { padding: 15px 17px; border-bottom: 1px solid var(--border-color); font-size: 14px; vertical-align: middle; }
+        tbody tr:last-child td { border-bottom: none; }
+        tbody tr:hover td { background: var(--hover-bg); }
+
+        /* BUTTONS */
+        .btn { display: inline-flex; align-items: center; gap: 7px; padding: 10px 19px; border-radius: var(--radius-sm); font-weight: 700; font-size: 13px; font-family: inherit; cursor: pointer; border: none; transition: all 0.2s; text-decoration: none; white-space: nowrap; }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 6px 14px rgba(37,99,235,0.28); }
+        .btn-dark { background: #0f172a; color: #fff; }
+        .btn-dark:hover { background: var(--primary); transform: translateY(-2px); box-shadow: 0 6px 14px rgba(37,99,235,0.22); }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-danger:hover { background: #dc2626; transform: translateY(-2px); box-shadow: 0 6px 14px rgba(239,68,68,0.28); }
+        .btn-outline { background: transparent; color: var(--text-main); border: 1.5px solid var(--border-color); }
+        .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+        .btn-ghost { background: none; color: var(--primary); border: none; padding: 8px 12px; font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit; border-radius: 8px; transition: background 0.2s; }
+        .btn-ghost:hover { background: var(--primary-glow); }
+        .btn-action { background: #0f172a; color: #fff; border: none; padding: 10px 20px; border-radius: var(--radius-sm); font-weight: 700; cursor: pointer; transition: all 0.2s; font-family: inherit; font-size: 13px; }
+        .btn-action:hover { background: var(--primary); transform: translateY(-2px); box-shadow: 0 6px 14px rgba(37,99,235,0.22); }
+
+        /* FORMS */
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); margin-bottom: 6px; }
+        .form-control { width: 100%; padding: 12px 15px; border-radius: var(--radius-sm); border: 1.5px solid var(--border-color); background: var(--bg); color: var(--text-main); font-family: inherit; font-size: 14px; transition: border-color 0.2s, box-shadow 0.2s; }
+        .form-control:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+        .form-control:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* SWITCH */
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; inset: 0; background: var(--border-color); transition: 0.3s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background: #fff; transition: 0.3s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        input:checked + .slider { background: var(--success); }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        /* LOADER */
+        #loader-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.88); backdrop-filter: blur(8px); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; opacity: 0; visibility: hidden; transition: all 0.28s; }
+        #loader-overlay.active { opacity: 1; visibility: visible; }
+        .spinner { width: 50px; height: 50px; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.75s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #loader-text { color: #e2e8f0; margin-top: 14px; font-weight: 700; font-size: 14px; }
+
+        /* STAT CARDS */
+        .stat-card { background: var(--card-bg); border-radius: var(--radius-lg); padding: 22px 24px; display: flex; align-items: center; gap: 17px; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm); transition: box-shadow 0.2s, transform 0.2s; }
+        .stat-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+        .stat-icon { width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+        .stat-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); margin-bottom: 3px; }
+        .stat-value { font-size: 28px; font-weight: 800; line-height: 1; color: var(--text-main); }
+
+        /* MISC */
+        .progress-bar { height: 5px; background: var(--border-color); border-radius: 3px; overflow: hidden; width: 85px; margin-top: 4px; }
+        .progress-fill { height: 100%; border-radius: 3px; }
+        .empty-state { text-align: center; padding: 56px 20px; color: var(--text-muted); }
+        .empty-state i { font-size: 40px; margin-bottom: 12px; display: block; opacity: 0.35; }
+        .empty-state h3 { font-size: 17px; color: var(--text-main); margin-bottom: 5px; }
+        .flash-ok { display: flex; align-items: center; gap: 9px; padding: 13px 16px; border-radius: var(--radius-sm); margin-bottom: 18px; font-size: 14px; font-weight: 600; background: rgba(16,185,129,0.08); color: #059669; border: 1px solid rgba(16,185,129,0.18); }
+        .divider { height: 1px; background: var(--border-color); margin: 18px 0; }
+    </style>
+</head>
+<body>
+    <div id="loader-overlay">
+        <div class="spinner"></div>
+        <p id="loader-text">Loading...</p>
+    </div>
+
+    {% if role != 'driver' %}
+    <aside class="sidebar">
+        <img src="{{ url_for('static', path='logo.png') }}" class="sidebar-logo" alt="MaxSeat Alert">
+
+        <span class="nav-section">Navigation</span>
+        <a href="/dashboard" onclick="showLoader('Loading Dashboard...')" class="nav-link {{ 'active' if request.url.path == '/dashboard' }}">
+            <i class="fa-solid fa-house"></i> Dashboard
+        </a>
+
+        {% if role == 'admin' %}
+        <span class="nav-section">Fleet</span>
+        <a href="/fleet" onclick="showLoader('Loading Fleet...')" class="nav-link {{ 'active' if request.url.path == '/fleet' }}">
+            <i class="fa-solid fa-bus"></i> Fleet Registry
+        </a>
+        <a href="/configure_seating" onclick="showLoader('Configuring...')" class="nav-link {{ 'active' if request.url.path == '/configure_seating' }}">
+            <i class="fa-solid fa-sliders"></i> Seating Config
+        </a>
+        <span class="nav-section">Administration</span>
+        <a href="/user_management" onclick="showLoader('Loading Users...')" class="nav-link {{ 'active' if request.url.path == '/user_management' }}">
+            <i class="fa-solid fa-users-gear"></i> User Management
+        </a>
+        <a href="/audit_logs" onclick="showLoader('Loading Logs...')" class="nav-link {{ 'active' if request.url.path == '/audit_logs' }}">
+            <i class="fa-solid fa-file-invoice"></i> Audit Logs
+        </a>
+        <a href="/records" onclick="showLoader('Loading Records...')" class="nav-link {{ 'active' if request.url.path == '/records' }}">
+            <i class="fa-solid fa-database"></i> Violation Records
+        </a>
+        <a href="/admin_reports" onclick="showLoader('Loading Reports...')" class="nav-link {{ 'active' if request.url.path == '/admin_reports' }}">
+            <i class="fa-solid fa-chart-bar"></i> Reports
+        </a>
+
+        {% elif role == 'enforcer' %}
+        <span class="nav-section">Enforcement</span>
+        <a href="/intercepts" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/intercepts' }}">
+            <i class="fa-solid fa-shield-halved"></i> Live Intercepts
+        </a>
+        <a href="/dispatch_orders" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/dispatch_orders' }}">
+            <i class="fa-solid fa-location-crosshairs"></i> Dispatch Orders
+        </a>
+        <a href="/interception_status" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/interception_status' }}">
+            <i class="fa-solid fa-clipboard-check"></i> Submit Report
+        </a>
+        <span class="nav-section">Records</span>
+        <a href="/citations" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/citations' }}">
+            <i class="fa-solid fa-ticket"></i> Citations
+        </a>
+        <a href="/records" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/records' }}">
+            <i class="fa-solid fa-database"></i> Violation Records
+        </a>
+        <a href="/reports" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/reports' }}">
+            <i class="fa-solid fa-chart-bar"></i> Reports
+        </a>
+        {% endif %}
+
+        <span class="nav-section">Account</span>
+        <a href="/settings" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/settings' }}">
+            <i class="fa-solid fa-gear"></i> Settings
+        </a>
+
+        <div class="sidebar-user">
+            <div class="sidebar-user-name">{{ request.session.get('username') }}</div>
+            <div class="sidebar-user-role">{{ role }} access</div>
+        </div>
+        <a href="#" onclick="triggerLogout()" class="nav-link nav-logout">
+            <i class="fa-solid fa-power-off"></i> Logout
+        </a>
+    </aside>
+    {% endif %}
+
+    <div class="main-wrapper">
+        {% if role != 'driver' %}
+        <header class="top-nav">
+            <div class="top-nav-left">
+                <span class="status-dot"></span>
+                GNSS Tracking Active
+                <span style="margin:0 10px;color:var(--border-color)">|</span>
+                <i class="fa-regular fa-clock" style="margin-right:4px;"></i>
+                <span id="live-clock"></span>
+            </div>
+            <div style="font-size:13px;color:var(--text-muted);font-weight:600;">
+                <i class="fa-solid fa-user-circle" style="margin-right:5px;color:var(--primary);"></i>
+                {{ request.session.get('username') }}
+            </div>
+        </header>
+        {% endif %}
+
+        <main class="main-content" {% if role == 'driver' %}style="padding:0;overflow:hidden;"{% endif %}>
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <script>
+        if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark-mode');
+        (function tick() {
+            const el = document.getElementById('live-clock');
+            if (el) el.textContent = new Date().toLocaleString('en-US', { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit', second:'2-digit', hour12:true });
+            setTimeout(tick, 1000);
+        })();
+        function showLoader(t='Loading...') { document.getElementById('loader-text').textContent=t; document.getElementById('loader-overlay').classList.add('active'); }
+        function hideLoader() { document.getElementById('loader-overlay').classList.remove('active'); }
+        function triggerLogout() { showLoader('Logging out...'); setTimeout(()=>window.location.href='/logout',700); }
+        function popAlert(title,text,icon) { Swal.fire({title,text,icon,confirmButtonColor:'#2563eb',background:'var(--card-bg)',color:'var(--text-main)'}); }
+        function toggleTheme() { document.body.classList.toggle('dark-mode'); localStorage.setItem('theme',document.body.classList.contains('dark-mode')?'dark':'light'); }
+        window.addEventListener('load', hideLoader);
+    </script>
+</body>
+</html>

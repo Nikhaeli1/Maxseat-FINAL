@@ -1,0 +1,166 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-row">
+    <div>
+        <h1 class="page-title">User Access Provisioning</h1>
+        <p class="page-subtitle">Manage identities and clearance levels across the system.</p>
+    </div>
+    <button onclick="showCreateModal()" class="btn btn-dark">
+        <i class="fa-solid fa-user-plus"></i> Create Identity
+    </button>
+</div>
+
+{% if messages %}
+<div class="flash-ok"><i class="fa-solid fa-circle-check"></i> {{ messages[0] }}</div>
+{% endif %}
+
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>System Identifier</th>
+                <th>Full Name</th>
+                <th>Contact Email</th>
+                <th>Clearance Level</th>
+                <th>Auth Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="users-tbody">
+            {% for username, data in users_db.items() %}
+            <tr id="row-{{ username }}">
+                <td><span style="font-weight:700;font-size:14px;">{{ username }}</span></td>
+                <td>{{ data.get('full_name','—') }}</td>
+                <td><i class="fa-solid fa-envelope" style="color:var(--text-muted);margin-right:5px;"></i>{{ data.get('email','—') }}</td>
+                <td>
+                    {% if data.role == 'admin' %}
+                    <span class="badge badge-blue"><i class="fa-solid fa-shield"></i> Admin</span>
+                    {% elif data.role == 'enforcer' %}
+                    <span class="badge badge-red"><i class="fa-solid fa-shield-halved"></i> Enforcer</span>
+                    {% else %}
+                    <span class="badge badge-gray"><i class="fa-solid fa-user"></i> Driver</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if data.get('must_change_password') %}
+                    <span style="color:#f59e0b;font-weight:700;font-size:12px;"><i class="fa-solid fa-key"></i> PENDING RESET</span>
+                    {% else %}
+                    <span style="color:#10b981;font-weight:700;font-size:12px;"><i class="fa-solid fa-circle-check"></i> AUTHENTICATED</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <button onclick="deleteUser('{{ username }}')" class="btn-ghost" style="color:#ef4444;">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- CREATE USER MODAL -->
+<div id="create-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);z-index:500;justify-content:center;align-items:center;">
+    <div style="background:var(--card-bg);border-radius:var(--radius-lg);padding:32px;width:460px;max-width:95vw;box-shadow:0 20px 50px rgba(0,0,0,0.2);border:1px solid var(--border-color);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;">
+            <h3 style="font-size:20px;font-weight:800;">Create New Identity</h3>
+            <button onclick="closeCreateModal()" style="background:none;border:none;color:var(--text-muted);font-size:22px;cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="modal-error" style="display:none;" class="flash-ok" style="background:rgba(239,68,68,0.08);color:#dc2626;border-color:rgba(239,68,68,0.18);margin-bottom:12px;"></div>
+        <div class="form-group">
+            <label class="form-label">Username</label>
+            <input id="new-username" type="text" class="form-control" placeholder="e.g. EMP-002">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Full Name</label>
+            <input id="new-fullname" type="text" class="form-control" placeholder="Juan Dela Cruz">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Email Address</label>
+            <input id="new-email" type="email" class="form-control" placeholder="user@maxseat.ph">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Role</label>
+            <select id="new-role" class="form-control">
+                <option value="driver">Driver</option>
+                <option value="enforcer">Enforcer</option>
+                <option value="admin">Admin</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Initial Password</label>
+            <input id="new-password" type="password" class="form-control" placeholder="Min. 6 characters">
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:18px;"><i class="fa-solid fa-circle-info" style="margin-right:4px;"></i> User will be prompted to change password on first login.</p>
+        <div style="display:flex;gap:10px;">
+            <button onclick="closeCreateModal()" class="btn btn-outline" style="flex:1;">Cancel</button>
+            <button onclick="submitCreateUser()" class="btn btn-primary" style="flex:1;">
+                <i class="fa-solid fa-user-plus"></i> Create User
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function showCreateModal() { document.getElementById('create-modal').style.display='flex'; }
+function closeCreateModal() { document.getElementById('create-modal').style.display='none'; document.getElementById('modal-error').style.display='none'; }
+document.getElementById('create-modal').addEventListener('click', function(e){ if(e.target===this)closeCreateModal(); });
+
+async function submitCreateUser() {
+    const username = document.getElementById('new-username').value.trim();
+    const fullname = document.getElementById('new-fullname').value.trim();
+    const email = document.getElementById('new-email').value.trim();
+    const role = document.getElementById('new-role').value;
+    const password = document.getElementById('new-password').value;
+    if (!username || !password || password.length < 6) {
+        showModalError('Username and password (min 6 chars) are required.'); return;
+    }
+    const res = await fetch('/api/create_user', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({username, full_name:fullname, email, role, password})
+    });
+    const data = await res.json();
+    if (data.success) {
+        closeCreateModal();
+        popAlert('User Created', `${username} has been added to the system.`, 'success');
+        setTimeout(()=>location.reload(), 1500);
+    } else {
+        showModalError(data.error || 'Failed to create user.');
+    }
+}
+function showModalError(msg) {
+    const el = document.getElementById('modal-error');
+    el.textContent = msg;
+    el.style.display='flex';
+    el.style.background='rgba(239,68,68,0.08)';
+    el.style.color='#dc2626';
+    el.style.borderColor='rgba(239,68,68,0.18)';
+}
+async function deleteUser(username) {
+    const result = await Swal.fire({
+        title: 'Delete ' + username + '?',
+        text: 'This action cannot be undone.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'Yes, delete',
+        background: 'var(--card-bg)',
+        color: 'var(--text-main)'
+    });
+    if (result.isConfirmed) {
+        const res = await fetch('/api/delete_user', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({username})
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('row-'+username)?.remove();
+            popAlert('Deleted', username+' has been removed.', 'success');
+        } else {
+            popAlert('Error', data.error, 'error');
+        }
+    }
+}
+</script>
+{% endblock %}

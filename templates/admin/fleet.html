@@ -1,0 +1,124 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-row">
+    <div>
+        <h1 class="page-title">Master Fleet Registry</h1>
+        <p class="page-subtitle">Comprehensive list of all registered transport vehicles.</p>
+    </div>
+    <input type="text" id="search-input" placeholder="Search plate or driver..." onkeyup="filterTable()"
+           style="padding:11px 16px;border-radius:var(--radius-sm);border:1.5px solid var(--border-color);background:var(--card-bg);color:var(--text-main);font-family:inherit;width:280px;font-size:13.5px;">
+</div>
+
+<div class="table-wrap">
+    <table id="fleet-table">
+        <thead>
+            <tr>
+                <th>Identification</th>
+                <th>Assigned Driver</th>
+                <th>Passenger Load</th>
+                <th>GNSS Location</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in puvs %}
+            {% set load_pct = (p.passengers / p.capacity * 100)|int if p.capacity > 0 else 0 %}
+            {% set overloaded = p.passengers > p.capacity %}
+            <tr>
+                <td>
+                    <div style="font-weight:700;font-size:14px;color:var(--primary);">{{ p.plate }}</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">{{ p.company }}</div>
+                </td>
+                <td>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <div style="width:32px;height:32px;border-radius:50%;background:var(--primary-glow);display:flex;justify-content:center;align-items:center;color:var(--primary);font-size:13px;flex-shrink:0;">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+                        <span style="font-weight:600;">{{ p.driver }}</span>
+                    </div>
+                </td>
+                <td>
+                    <span class="badge {{ 'badge-red' if overloaded else 'badge-blue' }}" style="margin-bottom:6px;">
+                        {{ p.passengers }}/{{ p.capacity }} PAX
+                    </span>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width:{{ [load_pct,100]|min }}%;background:{{ '#ef4444' if overloaded else '#2563eb' }};"></div>
+                    </div>
+                </td>
+                <td>
+                    <div style="font-weight:600;">{{ p.loc_name }}</div>
+                    <div style="font-size:12px;color:var(--text-muted);">{{ p.speed }} · {{ p.last_update }}</div>
+                </td>
+                <td>
+                    {% if p.status == 'Active' %}
+                    <span class="badge badge-green"><i class="fa-solid fa-circle" style="font-size:7px;"></i> Active</span>
+                    {% else %}
+                    <span class="badge badge-gray"><i class="fa-solid fa-circle" style="font-size:7px;"></i> Idle</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <button onclick="showVehicleModal('{{ p.plate }}','{{ p.company }}','{{ p.driver }}',{{ p.passengers }},{{ p.capacity }},'{{ p.loc_name }}',{{ p.temp }})"
+                            class="btn-ghost">
+                        <i class="fa-solid fa-chart-simple"></i> Details
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- VEHICLE DETAIL MODAL -->
+<div id="vehicle-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);z-index:500;justify-content:center;align-items:center;">
+    <div style="background:var(--card-bg);border-radius:var(--radius-lg);padding:32px;width:480px;max-width:95vw;box-shadow:0 20px 50px rgba(0,0,0,0.2);border:1px solid var(--border-color);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;">
+            <h3 style="font-size:20px;font-weight:800;" id="modal-title">Vehicle Details</h3>
+            <button onclick="closeModal()" style="background:none;border:none;color:var(--text-muted);font-size:22px;cursor:pointer;padding:4px;border-radius:8px;">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div id="modal-body" style="display:flex;flex-direction:column;gap:12px;"></div>
+        <div style="margin-top:22px;display:flex;gap:10px;">
+            <button onclick="closeModal()" class="btn btn-outline" style="flex:1;">Close</button>
+            <a href="/configure_seating" class="btn btn-primary" style="flex:1;justify-content:center;">
+                <i class="fa-solid fa-sliders"></i> Edit Capacity
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+function filterTable() {
+    const q = document.getElementById('search-input').value.toLowerCase();
+    document.querySelectorAll('#fleet-table tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+}
+function showVehicleModal(plate, company, driver, passengers, capacity, location, temp) {
+    document.getElementById('modal-title').textContent = plate + ' — Details';
+    const overloaded = passengers > capacity;
+    const overheating = temp >= 37.5;
+    document.getElementById('modal-body').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            ${infoBox('Plate Number', plate, 'fa-id-card')}
+            ${infoBox('Operator', company, 'fa-building')}
+            ${infoBox('Driver', driver, 'fa-user')}
+            ${infoBox('Location', location, 'fa-location-dot')}
+            ${infoBox('Passenger Load', passengers+'/'+capacity+' PAX', 'fa-users', overloaded ? '#ef4444' : '')}
+            ${infoBox('Cabin Temp', temp+'°C', 'fa-thermometer-half', overheating ? '#ef4444' : '')}
+        </div>`;
+    document.getElementById('vehicle-modal').style.display = 'flex';
+}
+function infoBox(label, value, icon, color='') {
+    return `<div style="background:var(--hover-bg);padding:14px;border-radius:12px;border:1px solid var(--border-color);">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);margin-bottom:5px;">
+            <i class="fa-solid ${icon}" style="margin-right:5px;"></i>${label}
+        </div>
+        <div style="font-weight:700;font-size:15px;color:${color || 'var(--text-main)'};">${value}</div>
+    </div>`;
+}
+function closeModal() { document.getElementById('vehicle-modal').style.display = 'none'; }
+document.getElementById('vehicle-modal').addEventListener('click', function(e) { if (e.target===this) closeModal(); });
+</script>
+{% endblock %}

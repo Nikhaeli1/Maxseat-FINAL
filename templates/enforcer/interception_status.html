@@ -1,0 +1,81 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Interception Report</h1>
+    <p class="page-subtitle">Submit the official status of a field apprehension.</p>
+</div>
+
+{% if messages %}
+<div class="flash-ok"><i class="fa-solid fa-circle-check"></i> {{ messages[0] }}</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+    <div class="card" style="margin-bottom:0;">
+        <h3 style="font-size:16px;font-weight:700;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--border-color);">
+            <i class="fa-solid fa-clipboard-check" style="margin-right:8px;color:var(--primary);"></i> Field Report Form
+        </h3>
+        <form method="POST" action="/submit_interception">
+            <div class="form-group">
+                <label class="form-label">Target Vehicle Plate</label>
+                <select name="plate" class="form-control" required>
+                    <option value="" disabled selected>Select vehicle…</option>
+                    {% for puv in puvs %}
+                    <option value="{{ puv.plate }}">{{ puv.plate }} — {{ puv.company }}</option>
+                    {% endfor %}
+                    <option value="OTHER">Other / Manual Entry</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Action Taken</label>
+                <select name="action" class="form-control" required>
+                    <option value="" disabled selected>Select enforcement action…</option>
+                    <option value="ticket">Citation Ticket Issued</option>
+                    <option value="warning">Verbal Warning Given</option>
+                    <option value="impound">Vehicle Impounded</option>
+                    <option value="cleared">Cleared (False Alarm)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Field Notes / Remarks</label>
+                <textarea name="notes" rows="5" class="form-control" placeholder="Enter details regarding passenger offloading, driver response, or other observations…" required style="resize:vertical;"></textarea>
+            </div>
+            <button type="submit" class="btn btn-danger" style="width:100%;">
+                <i class="fa-solid fa-paper-plane"></i> Submit Official Report
+            </button>
+        </form>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px;">
+        <div class="card" style="margin-bottom:0;background:rgba(239,68,68,0.03);border-color:rgba(239,68,68,0.15);">
+            <h4 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#ef4444;">
+                <i class="fa-solid fa-triangle-exclamation" style="margin-right:7px;"></i>Currently Active Violations
+            </h4>
+            {% if puvs %}
+            {% for puv in puvs %}
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 13px;background:var(--card-bg);border-radius:10px;margin-bottom:8px;border:1px solid var(--border-color);">
+                <div>
+                    <div style="font-weight:700;font-size:14px;">{{ puv.plate }}</div>
+                    <div style="font-size:12px;color:var(--text-muted);">{{ puv.loc_name }}</div>
+                </div>
+                <span class="badge badge-red">{{ puv.passengers }}/{{ puv.capacity }}</span>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p style="color:var(--text-muted);font-size:13.5px;">No active violations at this time.</p>
+            {% endif %}
+        </div>
+
+        <div class="card" style="margin-bottom:0;background:rgba(37,99,235,0.03);border-color:rgba(37,99,235,0.12);">
+            <h4 style="font-size:14px;font-weight:700;margin-bottom:10px;">
+                <i class="fa-solid fa-circle-info" style="margin-right:7px;color:var(--primary);"></i>Reporting Guidelines
+            </h4>
+            <ul style="font-size:13px;color:var(--text-muted);line-height:1.9;padding-left:16px;">
+                <li>Confirm vehicle identity before submitting.</li>
+                <li>All ticket issuances are recorded in the Citation Database.</li>
+                <li>Include passenger count observed at time of interception.</li>
+                <li>Mark as "Cleared" only if sensor reading was erroneous.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

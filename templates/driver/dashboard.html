@@ -1,0 +1,232 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+    .driver-wrap { height: 100vh; display: flex; flex-direction: column; gap: 0; background: var(--bg); overflow: hidden; }
+
+    /* TOP BAR */
+    .driver-topbar {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 16px 28px; background: var(--card-bg);
+        border-bottom: 1px solid var(--border-color);
+        box-shadow: var(--shadow-sm); flex-shrink: 0;
+    }
+    .driver-topbar-left { display: flex; align-items: center; gap: 16px; }
+    .driver-logo { height: 36px; }
+    .driver-divider { width: 1px; height: 32px; background: var(--border-color); }
+    .driver-vehicle { font-size: 20px; font-weight: 800; color: var(--primary); }
+    .driver-route { font-size: 13px; color: var(--text-muted); font-weight: 600; margin-top: 2px; }
+    .driver-clock { font-size: 26px; font-weight: 800; font-family: monospace; color: var(--text-main); }
+    .driver-schedule { font-size: 12px; color: var(--text-muted); text-align: right; margin-top: 2px; }
+
+    /* MAIN BODY */
+    .driver-body { flex: 1; display: flex; gap: 18px; padding: 18px 24px; min-height: 0; }
+
+    /* PASSENGER PANEL */
+    .passenger-panel {
+        flex: 1.1; background: var(--card-bg); border-radius: 24px;
+        border: 1px solid var(--border-color); display: flex; flex-direction: column;
+        align-items: center; justify-content: center; text-align: center;
+        padding: 28px; position: relative; box-shadow: var(--shadow-sm);
+    }
+    .panel-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); margin-bottom: 8px; }
+    .passenger-count { font-size: 110px; font-weight: 800; line-height: 1; }
+    .passenger-count.safe    { color: var(--primary); }
+    .passenger-count.danger  { color: #ef4444; animation: blink 1s ease-in-out infinite; }
+    .passenger-denom { font-size: 42px; color: var(--text-muted); font-weight: 700; }
+    .status-pill {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 10px 20px; border-radius: 40px; font-weight: 800; font-size: 15px; margin-top: 14px;
+    }
+    .status-pill.safe   { background: rgba(16,185,129,0.1); color: #10b981; border: 1.5px solid rgba(16,185,129,0.25); }
+    .status-pill.danger { background: rgba(239,68,68,0.1);  color: #ef4444;  border: 1.5px solid rgba(239,68,68,0.25); }
+    .sensor-controls {
+        position: absolute; bottom: 20px; right: 20px;
+        display: flex; align-items: center; gap: 10px;
+        background: var(--hover-bg); padding: 10px 14px;
+        border-radius: 40px; border: 1px solid var(--border-color);
+    }
+    .sensor-btn {
+        width: 42px; height: 42px; border-radius: 50%; border: 1.5px solid var(--border-color);
+        background: var(--card-bg); color: var(--text-main); font-size: 18px;
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        transition: all 0.2s; font-family: inherit;
+    }
+    .sensor-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 4px 12px rgba(37,99,235,0.25); }
+    .sensor-hint { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); text-align: center; line-height: 1.4; }
+
+    /* RIGHT COLUMN */
+    .driver-right { flex: 1; display: flex; flex-direction: column; gap: 16px; }
+
+    /* TEMP CARD */
+    .temp-card {
+        background: var(--card-bg); border-radius: 20px; border: 1px solid var(--border-color);
+        padding: 20px 24px; display: flex; align-items: center; gap: 20px;
+        box-shadow: var(--shadow-sm); flex-shrink: 0;
+    }
+    .temp-icon { width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+    .temp-icon.safe     { background: rgba(16,185,129,0.1); color: #10b981; }
+    .temp-icon.warning  { background: rgba(245,158,11,0.1);  color: #f59e0b; }
+    .temp-icon.danger   { background: rgba(239,68,68,0.1);   color: #ef4444; }
+    .temp-value { font-size: 36px; font-weight: 800; line-height: 1; }
+    .temp-value.safe    { color: #10b981; }
+    .temp-value.warning { color: #f59e0b; }
+    .temp-value.danger  { color: #ef4444; }
+    .temp-status { font-size: 12px; color: var(--text-muted); font-weight: 600; margin-top: 3px; }
+
+    /* MAP */
+    .map-card { flex: 1; background: var(--card-bg); border-radius: 20px; border: 2px solid var(--border-color); overflow: hidden; min-height: 0; box-shadow: var(--shadow-sm); }
+    #driver-map { height: 100%; width: 100%; }
+
+    /* DRIVER INFO */
+    .driver-info-card {
+        background: var(--card-bg); border-radius: 20px; border: 1px solid var(--border-color);
+        padding: 16px 22px; display: flex; justify-content: space-between; align-items: center;
+        box-shadow: var(--shadow-sm); flex-shrink: 0;
+    }
+    .driver-info-left { display: flex; align-items: center; gap: 14px; }
+    .driver-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--primary-glow); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .driver-name-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); }
+    .driver-name-value { font-size: 17px; font-weight: 800; color: var(--text-main); }
+    .toggle-btn { background: none; border: 1.5px solid var(--border-color); color: var(--text-muted); padding: 8px 16px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 12px; font-family: inherit; transition: all 0.2s; }
+    .toggle-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+    @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+</style>
+
+<div class="driver-wrap">
+    <!-- TOP BAR -->
+    <div class="driver-topbar">
+        <div class="driver-topbar-left">
+            <img src="{{ url_for('static', path='logo.png') }}" class="driver-logo" alt="MaxSeat Alert">
+            <div class="driver-divider"></div>
+            <div>
+                <div class="driver-vehicle">{{ puv.plate }} — {{ puv.company }}</div>
+                <div class="driver-route"><i class="fa-solid fa-location-dot" style="margin-right:5px;color:var(--primary);"></i>{{ puv.loc_name }}</div>
+            </div>
+        </div>
+        <div style="text-align:right;">
+            <div id="lcd-clock" class="driver-clock"></div>
+            <div class="driver-schedule"><i class="fa-solid fa-clock" style="margin-right:4px;"></i>{{ puv.schedule }}</div>
+        </div>
+    </div>
+
+    <!-- BODY -->
+    <div class="driver-body">
+
+        <!-- PASSENGER COUNT PANEL -->
+        <div class="passenger-panel">
+            <div class="panel-label">Current Passengers</div>
+            <div id="pass-count" class="passenger-count {{ 'danger' if puv.passengers > puv.capacity else 'safe' }}">
+                <span id="curr-val">{{ puv.passengers }}</span>
+                <span class="passenger-denom">/{{ puv.capacity }}</span>
+            </div>
+            <div id="status-pill" class="status-pill {{ 'danger' if puv.passengers > puv.capacity else 'safe' }}">
+                {% if puv.passengers > puv.capacity %}
+                <i class="fa-solid fa-triangle-exclamation"></i> OVERLOAD WARNING
+                {% else %}
+                <i class="fa-solid fa-circle-check"></i> SEATS AVAILABLE
+                {% endif %}
+            </div>
+
+            <div class="sensor-controls">
+                <button onclick="updateSensor('sub')" class="sensor-btn"><i class="fa-solid fa-minus"></i></button>
+                <div class="sensor-hint">Sensor<br>Override</div>
+                <button onclick="updateSensor('add')" class="sensor-btn"><i class="fa-solid fa-plus"></i></button>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div class="driver-right">
+            <!-- CABIN TEMPERATURE -->
+            {% set temp = puv.temp %}
+            {% if temp >= 37.5 %}
+                {% set temp_class = 'danger' %}
+                {% set temp_label = 'Thermal Alert — Cabin Overheating' %}
+            {% elif temp >= 35.0 %}
+                {% set temp_class = 'warning' %}
+                {% set temp_label = 'Elevated — Monitor Cabin Heat' %}
+            {% else %}
+                {% set temp_class = 'safe' %}
+                {% set temp_label = 'Normal — Cabin Temperature OK' %}
+            {% endif %}
+
+            <div class="temp-card" style="border-left: 4px solid {{ '#ef4444' if temp_class == 'danger' else ('#f59e0b' if temp_class == 'warning' else '#10b981') }};">
+                <div class="temp-icon {{ temp_class }}">
+                    <i class="fa-solid fa-thermometer-half"></i>
+                </div>
+                <div style="flex:1;">
+                    <div class="panel-label" style="margin-bottom:4px;">Cabin Temperature</div>
+                    <div class="temp-value {{ temp_class }}">{{ temp }}°C</div>
+                    <div class="temp-status">{{ temp_label }}</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px;">Threshold</div>
+                    <div style="font-size:18px;font-weight:800;color:var(--text-muted);">37.5°C</div>
+                </div>
+            </div>
+
+            <!-- MAP -->
+            <div class="map-card">
+                <div id="driver-map"></div>
+            </div>
+
+            <!-- DRIVER INFO -->
+            <div class="driver-info-card">
+                <div class="driver-info-left">
+                    <div class="driver-avatar"><i class="fa-solid fa-user"></i></div>
+                    <div>
+                        <div class="driver-name-label">Authorized Operator</div>
+                        <div id="driver-name" class="driver-name-value">
+                            {% if puv.show_name %}{{ puv.driver }}{% else %}Protected ID{% endif %}
+                        </div>
+                    </div>
+                </div>
+                <button onclick="toggleName()" class="toggle-btn">
+                    <i class="fa-solid fa-eye" style="margin-right:5px;"></i>Toggle Visibility
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script id="driver-puv-data" type="application/json">
+    {"lat": {{ puv.lat }}, "lng": {{ puv.lng }}, "driver": "{{ puv.driver }}"}
+</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // Clock
+    (function tick() {
+        document.getElementById('lcd-clock').textContent = new Date().toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', second:'2-digit', hour12:true});
+        setTimeout(tick, 1000);
+    })();
+
+    // Map
+    const pd = JSON.parse(document.getElementById('driver-puv-data').textContent);
+    const map = L.map('driver-map', {zoomControl: false, attributionControl: false}).setView([pd.lat, pd.lng], 16);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+    L.circleMarker([pd.lat, pd.lng], {radius: 14, fillColor: '#2563eb', color: '#fff', weight: 4, fillOpacity: 1}).addTo(map);
+
+    // Sensor override
+    async function updateSensor(action) {
+        const res  = await fetch('/api/update_sensor', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({action})});
+        const data = await res.json();
+        if (!data.success) return;
+        document.getElementById('curr-val').textContent = data.passengers;
+        const overload = data.passengers > data.capacity;
+        const cnt  = document.getElementById('pass-count');
+        const pill = document.getElementById('status-pill');
+        cnt.className  = 'passenger-count ' + (overload ? 'danger' : 'safe');
+        pill.className = 'status-pill '      + (overload ? 'danger' : 'safe');
+        pill.innerHTML = overload
+            ? '<i class="fa-solid fa-triangle-exclamation"></i> OVERLOAD WARNING'
+            : '<i class="fa-solid fa-circle-check"></i> SEATS AVAILABLE';
+    }
+
+    // Toggle name
+    async function toggleName() {
+        const res  = await fetch('/api/toggle_name', {method: 'POST'});
+        const data = await res.json();
+        if (data.success) document.getElementById('driver-name').textContent = data.show_name ? pd.driver : 'Protected ID';
+    }
+</script>
+{% endblock %}
