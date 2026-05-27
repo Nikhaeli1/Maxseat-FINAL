@@ -4,10 +4,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from typing import List
-import json, datetime, secrets
+import json, datetime, secrets, uuid
 
-# In-memory mobile token store: { token: username }
-mobile_tokens: dict = {}
+# In-memory mobile token stores
+mobile_tokens:    dict = {}   # enforcer Bearer tokens
+passenger_tokens: dict = {}   # passenger Bearer tokens
+
+# In-memory complaint store
+complaints_db: list = []
 
 app = FastAPI(title="MaxSeat Alert System")
 
@@ -69,7 +73,11 @@ users = {
         "organization": "Oro Transport Service Cooperative (OROTSCO)",
         "position": "General Manager", "mobile": "0912-345-6789",
         "address": "Bugo-Igpit Route, Cagayan de Oro City"
-    }
+    },
+    "passenger01": {
+        "password": "pass123", "role": "passenger",
+        "full_name": "Juan dela Cruz", "mobile": "09171234567",
+    },
 }
 
 puv_database = [
@@ -78,21 +86,24 @@ puv_database = [
         "plate": "KVR-102", "driver": "Juan Dela Cruz", "passengers": 14,
         "capacity": 22, "loc_name": "Bulua Highway", "lat": 8.4965, "lng": 124.6235,
         "status": "Active", "speed": "45 km/h", "temp": 32.5,
-        "last_update": "Just now", "show_name": True, "schedule": "06:00 AM - 08:00 PM"
+        "last_update": "Just now", "show_name": True, "schedule": "06:00 AM - 08:00 PM",
+        "route": "Bugo–Igpit"
     },
     {
         "id": 2, "username": "dummy2", "company": "Oro Transit",
         "plate": "AAB-5501", "driver": "Ricardo Dalisay", "passengers": 25,
         "capacity": 22, "loc_name": "CM Recto Ave", "lat": 8.4865, "lng": 124.6508,
         "status": "Active", "speed": "30 km/h", "temp": 38.0,
-        "last_update": "1 min ago", "show_name": False, "schedule": "05:00 AM - 09:00 PM"
+        "last_update": "1 min ago", "show_name": False, "schedule": "05:00 AM - 09:00 PM",
+        "route": "Bugo–Igpit"
     },
     {
         "id": 3, "username": "dummy3", "company": "Bukidnon Express",
         "plate": "XYZ-998", "driver": "Pedro Santos", "passengers": 18,
         "capacity": 22, "loc_name": "Lapasan, CDO", "lat": 8.5012, "lng": 124.6310,
         "status": "Active", "speed": "38 km/h", "temp": 30.1,
-        "last_update": "2 mins ago", "show_name": True, "schedule": "05:30 AM - 08:30 PM"
+        "last_update": "2 mins ago", "show_name": True, "schedule": "05:30 AM - 08:30 PM",
+        "route": "Bugo–Igpit"
     }
 ]
 
@@ -472,7 +483,7 @@ async def coop_update_driver(request: Request):
 # MOBILE API  (React Native — Field Enforcer)
 # ==========================================
 def get_mobile_user(request: Request):
-    """Extract and validate Bearer token from Authorization header."""
+    """Extract and validate Bearer token for enforcer role."""
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
         return None
@@ -548,20 +559,20 @@ async def mobile_dispatch(request: Request):
             })
         if violations:
             orders.append({
-                "puv_id":        p["id"],
-                "plate":         p["plate"],
-                "company":       p["company"],
-                "driver":        p["driver"],
-                "loc_name":      p["loc_name"],
-                "lat":           p["lat"],
-                "lng":           p["lng"],
-                "passengers":    p["passengers"],
-                "capacity":      p["capacity"],
-                "temp":          p.get("temp", 0),
-                "speed":         p.get("speed", "—"),
-                "last_update":   p.get("last_update", "—"),
-                "schedule":      p.get("schedule", "—"),
-                "violations":    violations,
+                "puv_id":      p["id"],
+                "plate":       p["plate"],
+                "company":     p["company"],
+                "driver":      p["driver"],
+                "loc_name":    p["loc_name"],
+                "lat":         p["lat"],
+                "lng":         p["lng"],
+                "passengers":  p["passengers"],
+                "capacity":    p["capacity"],
+                "temp":        p.get("temp", 0),
+                "speed":       p.get("speed", "—"),
+                "last_update": p.get("last_update", "—"),
+                "schedule":    p.get("schedule", "—"),
+                "violations":  violations,
             })
     return JSONResponse({"success": True, "dispatch_orders": orders, "total": len(orders)})
 
@@ -597,6 +608,147 @@ async def mobile_intercept(request: Request):
         "plate":   plate,
         "action":  action,
         "message": f"Interception report {serial} submitted successfully.",
+    })
+
+# ==========================================
+# MOBILE API  (React Native — Passenger)
+# ==========================================
+def get_passenger_user(request: Request):
+    """Extract and validate Bearer token for passenger role."""
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return None
+    token = auth[7:]
+    return passenger_tokens.get(token)
+
+@app.post("/api/passenger/login")
+async def passenger_login(request: Request):
+    """Authenticate a passenger and return a bearer token."""
+    data     = await request.json()
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+    user     = users.get(username)
+    if not user or user["password"] != password or user["role"] != "passenger":
+        return JSONResponse({"error": "Invalid credentials."}, status_code=401)
+    token = secrets.token_hex(32)
+    passenger_tokens[token] = {
+        "username":  username,
+        "full_name": user.get("full_name", username),
+        "mobile":    user.get("mobile", ""),
+        "role":      "passenger",
+    }
+    log_audit(username, "PASSENGER_LOGIN", request.client.host if request.client else "unknown", "green")
+    return JSONResponse({
+        "token":     token,
+        "username":  username,
+        "full_name": user.get("full_name", username),
+        "mobile":    user.get("mobile", ""),
+        "role":      "passenger",
+    })
+
+@app.post("/api/passenger/logout")
+async def passenger_logout(request: Request):
+    """Revoke the passenger bearer token."""
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        passenger_tokens.pop(auth[7:], None)
+    return JSONResponse({"ok": True})
+
+@app.get("/api/passenger/puvs")
+async def passenger_list_puvs(request: Request):
+    """Return a lightweight list of all active PUVs."""
+    pax_user = get_passenger_user(request)
+    if not pax_user:
+        return JSONResponse({"error": "Unauthorized."}, status_code=401)
+    result = []
+    for puv in puv_database:
+        if puv.get("status", "Active") != "Active":
+            continue
+        load_pct   = round((puv["passengers"] / puv["capacity"]) * 100) if puv["capacity"] else 0
+        overloaded = puv["passengers"] > puv["capacity"]
+        result.append({
+            "puv_id":      puv["id"],
+            "plate":       puv["plate"],
+            "company":     puv.get("company", "OROTSCO"),
+            "route":       puv.get("route", "Bugo–Igpit"),
+            "driver":      puv.get("driver", "—"),
+            "capacity":    puv["capacity"],
+            "passengers":  puv["passengers"],
+            "load_pct":    load_pct,
+            "overloaded":  overloaded,
+            "temp":        puv["temp"],
+            "hot":         puv["temp"] >= 37.5,
+            "loc_name":    puv.get("loc_name", "—"),
+            "last_update": puv.get("last_update", "—"),
+        })
+    return JSONResponse({"puvs": result})
+
+@app.get("/api/passenger/puv/{plate}")
+async def passenger_puv_detail(plate: str, request: Request):
+    """Return full detail for a single PUV by plate number."""
+    pax_user = get_passenger_user(request)
+    if not pax_user:
+        return JSONResponse({"error": "Unauthorized."}, status_code=401)
+    plate_up = plate.upper()
+    puv = next((p for p in puv_database if p["plate"].upper() == plate_up), None)
+    if not puv:
+        return JSONResponse({"error": f"PUV '{plate_up}' not found."}, status_code=404)
+    load_pct   = round((puv["passengers"] / puv["capacity"]) * 100) if puv["capacity"] else 0
+    overloaded = puv["passengers"] > puv["capacity"]
+    hot        = puv["temp"] >= 37.5
+    return JSONResponse({
+        "puv_id":      puv["id"],
+        "plate":       puv["plate"],
+        "company":     puv.get("company", "OROTSCO"),
+        "route":       puv.get("route", "Bugo–Igpit"),
+        "driver":      puv.get("driver", "—"),
+        "schedule":    puv.get("schedule", "—"),
+        "capacity":    puv["capacity"],
+        "passengers":  puv["passengers"],
+        "load_pct":    load_pct,
+        "overloaded":  overloaded,
+        "temp":        puv["temp"],
+        "hot":         hot,
+        "speed":       puv.get("speed", "—"),
+        "lat":         puv.get("lat", 8.4822),
+        "lng":         puv.get("lng", 124.6472),
+        "loc_name":    puv.get("loc_name", "—"),
+        "status":      puv.get("status", "Active"),
+        "last_update": puv.get("last_update", "—"),
+    })
+
+@app.post("/api/passenger/complaint")
+async def passenger_complaint(request: Request):
+    """Submit a passenger complaint about a PUV."""
+    pax_user = get_passenger_user(request)
+    if not pax_user:
+        return JSONResponse({"error": "Unauthorized."}, status_code=401)
+    body        = await request.json()
+    plate       = body.get("plate", "").strip().upper()
+    complaint   = body.get("complaint", "").strip()   # overload | thermal | other
+    description = body.get("description", "").strip()
+    if not plate or not complaint:
+        return JSONResponse({"error": "plate and complaint type are required."}, status_code=400)
+    puv    = next((p for p in puv_database if p["plate"].upper() == plate), None)
+    serial = f"CMP-{uuid.uuid4().hex[:8].upper()}"
+    record = {
+        "serial":      serial,
+        "plate":       plate,
+        "puv_id":      puv["id"]         if puv else None,
+        "complaint":   complaint,
+        "description": description,
+        "passengers":  puv["passengers"] if puv else None,
+        "capacity":    puv["capacity"]   if puv else None,
+        "temp":        puv["temp"]       if puv else None,
+        "reporter":    pax_user["username"],
+        "timestamp":   datetime.datetime.now().isoformat(timespec="seconds"),
+        "status":      "open",
+    }
+    complaints_db.append(record)
+    log_audit(pax_user["username"], f"PASSENGER_COMPLAINT: {plate} — {complaint.upper()}", request.client.host if request.client else "unknown", "blue")
+    return JSONResponse({
+        "message": "Complaint submitted successfully. Thank you for your report.",
+        "serial":  serial,
     })
 
 # --- SENSOR APIs ---
