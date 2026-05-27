@@ -9,15 +9,17 @@
         body { margin: 0; font-family: 'Plus Jakarta Sans'; display: flex; justify-content: center; align-items: center; height: 100vh; overflow:hidden; background: #0f172a; }
         .theme-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; transition: opacity 0.8s cubic-bezier(0.25, 1, 0.5, 1); opacity: 0; }
         .theme-layer.active { opacity: 1; }
-        #bg-admin { background: linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%); }
-        #bg-enforcer { background: linear-gradient(135deg, #fff1f2 0%, #fecaca 100%); }
-        #bg-driver { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); }
+        #bg-admin       { background: linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%); }
+        #bg-enforcer    { background: linear-gradient(135deg, #fff1f2 0%, #fecaca 100%); }
+        #bg-driver      { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); }
+        #bg-cooperative { background: linear-gradient(135deg, #ecfdf5 0%, #a7f3d0 100%); }
         .glass-card { background: rgba(255,255,255,0.95); backdrop-filter: blur(25px); padding: 45px; border-radius: 32px; width: 420px; box-shadow: 0 30px 60px -15px rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.6); animation: cardEnter 0.6s cubic-bezier(0.16, 1, 0.3, 1); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes cardEnter { from { opacity: 0; transform: translateY(30px); filter: blur(5px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }
         .alert { background: #fee2e2; color: #ef4444; padding: 15px; border-radius: 16px; margin-bottom: 20px; font-size: 14px; font-weight: 600; display:flex; gap:10px; align-items:center; }
         .input-group { position: relative; margin-bottom: 20px; width: 100%; }
         select, input { width: 100%; padding: 18px 20px; border: 2px solid #e2e8f0; border-radius: 16px; box-sizing: border-box; font-family: inherit; transition: 0.3s; font-size: 15px; background: #f8fafc; }
         select:focus, input:focus { outline: none; border-color: #2563eb; background: #fff; box-shadow: 0 0 0 4px rgba(37,99,235,0.1); }
+        .select-divider { color: #94a3b8; font-size: 12px; font-weight: 700; background: #f1f5f9; }
         .peek-btn { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); color: #94a3b8; cursor: pointer; border: none; background: none; font-size: 18px; padding: 0; }
         button[type="submit"] { width: 100%; padding: 18px; background: #0f172a; color: white; border: none; border-radius: 16px; font-weight: 800; font-size: 16px; cursor: pointer; transition: 0.3s cubic-bezier(0.25, 1, 0.5, 1); margin-top: 10px; }
         button[type="submit"]:hover { background: #2563eb; transform: translateY(-4px); box-shadow: 0 15px 25px rgba(37,99,235,0.25); }
@@ -25,28 +27,48 @@
         #loader-overlay.active { opacity: 1; visibility: visible; }
         .spinner { width: 60px; height: 60px; border: 4px solid rgba(255,255,255,0.1); border-top-color: #2563eb; border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        .role-badge { display: inline-flex; align-items: center; gap: 7px; padding: 5px 13px; border-radius: 30px; font-size: 12px; font-weight: 700; margin-bottom: 18px; }
+        .role-badge.admin       { background: rgba(37,99,235,0.1);   color: #2563eb; }
+        .role-badge.enforcer    { background: rgba(239,68,68,0.1);   color: #ef4444; }
+        .role-badge.driver      { background: rgba(245,158,11,0.1);  color: #d97706; }
+        .role-badge.cooperative { background: rgba(16,185,129,0.1);  color: #059669; }
     </style>
 </head>
 <body>
-    <div id="bg-admin" class="theme-layer active"></div>
-    <div id="bg-enforcer" class="theme-layer"></div>
-    <div id="bg-driver" class="theme-layer"></div>
-    <div id="loader-overlay"><div class="spinner"></div><p style="color:white; margin-top:20px; font-weight:800; font-size:18px;">Authenticating...</p></div>
+    <div id="bg-admin"       class="theme-layer active"></div>
+    <div id="bg-enforcer"    class="theme-layer"></div>
+    <div id="bg-driver"      class="theme-layer"></div>
+    <div id="bg-cooperative" class="theme-layer"></div>
+
+    <div id="loader-overlay">
+        <div class="spinner"></div>
+        <p style="color:white; margin-top:20px; font-weight:800; font-size:18px;">Authenticating...</p>
+    </div>
+
     <div class="glass-card" id="main-card">
-        <div style="text-align: center; margin-bottom: 25px;"><img src="/static/logo.png" style="max-width: 170px;"></div>
+        <div style="text-align:center; margin-bottom:25px;">
+            <img src="/static/logo.png" style="max-width:170px;">
+        </div>
 
         {% for m in messages %}
             <div class="alert"><i class="fa-solid fa-triangle-exclamation"></i> {{ m }}</div>
         {% endfor %}
 
+        <span id="role-badge" class="role-badge admin"><i class="fa-solid fa-shield-halved"></i> System Administrator</span>
         <h2 id="role-title" style="margin: 0 0 5px 0; font-weight: 800; font-size: 26px; color: #0f172a; transition:0.3s;">Admin Hub</h2>
         <p style="color: #64748b; font-size: 14px; margin-bottom: 30px;">Provide secured credentials to proceed.</p>
+
         <form method="POST" onsubmit="showLoader()">
             <div class="input-group">
                 <select name="role" id="role-select" onchange="updateUI()">
-                    <option value="admin">System Administrator</option>
-                    <option value="enforcer">Law Enforcement</option>
-                    <option value="driver">PUV Driver Operations</option>
+                    <optgroup label="── Authority & Enforcement ──">
+                        <option value="admin">System Administrator</option>
+                        <option value="enforcer">Field Enforcer (PNP / LTFRB)</option>
+                    </optgroup>
+                    <optgroup label="── Transport Operations ──">
+                        <option value="cooperative">Transport Cooperative (OROTSCO)</option>
+                        <option value="driver">PUV Driver</option>
+                    </optgroup>
                 </select>
             </div>
             <div class="input-group">
@@ -54,32 +76,55 @@
             </div>
             <div class="input-group">
                 <input type="password" id="pwd" name="password" placeholder="Password" required>
-                <button type="button" class="peek-btn" onclick="togglePeek('pwd', 'eye1')"><i id="eye1" class="fa-solid fa-eye"></i></button>
+                <button type="button" class="peek-btn" onclick="togglePeek('pwd','eye1')"><i id="eye1" class="fa-solid fa-eye"></i></button>
             </div>
             <button type="submit">Log in</button>
         </form>
     </div>
+
     <script>
+        const roleConfig = {
+            admin:       { bg: 'bg-admin',       title: 'Admin Hub',              badge: 'admin',       label: 'System Administrator',           icon: 'fa-shield-halved' },
+            enforcer:    { bg: 'bg-enforcer',     title: 'Enforcer Hub',           badge: 'enforcer',    label: 'Field Enforcer (PNP / LTFRB)',    icon: 'fa-user-shield' },
+            cooperative: { bg: 'bg-cooperative',  title: 'Cooperative Portal',     badge: 'cooperative', label: 'Transport Cooperative (OROTSCO)', icon: 'fa-building' },
+            driver:      { bg: 'bg-driver',       title: 'Driver Operations',      badge: 'driver',      label: 'PUV Driver',                     icon: 'fa-id-card' },
+        };
+
         function togglePeek(inputId, iconId) {
-            const input = document.getElementById(inputId); const icon = document.getElementById(iconId);
-            if (input.type === "password") { input.type = "text"; icon.className = "fa-solid fa-eye-slash"; }
-            else { input.type = "password"; icon.className = "fa-solid fa-eye"; }
+            const input = document.getElementById(inputId);
+            const icon  = document.getElementById(iconId);
+            if (input.type === 'password') { input.type = 'text';     icon.className = 'fa-solid fa-eye-slash'; }
+            else                           { input.type = 'password'; icon.className = 'fa-solid fa-eye'; }
         }
+
         function updateUI() {
             const role = document.getElementById('role-select').value;
             localStorage.setItem('persistentRole', role);
-            document.getElementById('bg-admin').classList.toggle('active', role === 'admin');
-            document.getElementById('bg-enforcer').classList.toggle('active', role === 'enforcer');
-            document.getElementById('bg-driver').classList.toggle('active', role === 'driver');
-            document.getElementById('role-title').innerText = role === 'admin' ? 'Admin Hub' : (role === 'enforcer' ? 'Enforcer Hub' : 'Driver LCD Panel');
+            const cfg = roleConfig[role];
+
+            // swap background
+            Object.keys(roleConfig).forEach(r => {
+                document.getElementById(roleConfig[r].bg).classList.toggle('active', r === role);
+            });
+
+            // update title & badge
+            document.getElementById('role-title').innerText = cfg.title;
+            const badge = document.getElementById('role-badge');
+            badge.className = `role-badge ${cfg.badge}`;
+            badge.innerHTML = `<i class="fa-solid ${cfg.icon}"></i> ${cfg.label}`;
+
+            // card bounce
             const card = document.getElementById('main-card');
             card.style.transform = 'scale(0.96)';
             setTimeout(() => { card.style.transform = 'scale(1)'; }, 150);
         }
+
         function showLoader() { document.getElementById('loader-overlay').classList.add('active'); }
+
         window.onload = () => {
             const saved = localStorage.getItem('persistentRole') || 'admin';
-            document.getElementById('role-select').value = saved === 'cooperative' ? 'admin' : saved;
+            const valid = Object.keys(roleConfig).includes(saved) ? saved : 'admin';
+            document.getElementById('role-select').value = valid;
             updateUI();
         };
     </script>

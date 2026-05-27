@@ -59,6 +59,13 @@ users = {
         "license": "L02-12-345678", "operator": "Señor Pedro Lines",
         "plate": "KVR-102", "mobile": "0920-987-6543",
         "emergency_contact": "Maria Dela Cruz (0999-000-0000)"
+    },
+    "OROTSCO-01": {
+        "password": "123", "role": "cooperative", "email": "dispatch@orotsco.coop",
+        "must_change_password": False, "full_name": "Elsie Jandayan",
+        "organization": "Oro Transport Service Cooperative (OROTSCO)",
+        "position": "General Manager", "mobile": "0912-345-6789",
+        "address": "Bugo-Igpit Route, Cagayan de Oro City"
     }
 }
 
@@ -219,7 +226,7 @@ async def update_settings_post(request: Request):
     username = request.session.get('username')
     role     = get_role(request)
     form_data = await request.form()
-    allowed = {'admin': ['email'], 'enforcer': ['mobile', 'shift_status'], 'driver': ['mobile', 'emergency_contact']}
+    allowed = {'admin': ['email'], 'enforcer': ['mobile', 'shift_status'], 'driver': ['mobile', 'emergency_contact'], 'cooperative': ['mobile', 'email', 'address']}
     for key, value in form_data.items():
         if key in allowed.get(role, []):
             users[username][key] = value
@@ -241,6 +248,8 @@ async def dashboard(request: Request):
     elif role == 'driver':
         my_puv = next((p for p in puv_database if p['username'] == request.session.get('username')), None)
         return TR(request, "driver/dashboard.html", {"puv": my_puv, "role": role})
+    elif role == 'cooperative':
+        return TR(request, "cooperative/dashboard.html", {"puvs": puv_database, "role": role, "stats": stats})
     return RedirectResponse(url="/logout", status_code=302)
 
 # ==========================================
@@ -273,6 +282,19 @@ async def create_user(request: Request):
     }
     log_audit(request.session.get('username', 'admin'), "USER_CREATED", request.client.host if request.client else "unknown", "blue")
     return JSONResponse({"success": True})
+
+@app.post("/api/delete_puv")
+async def delete_puv(request: Request):
+    if get_role(request) not in ['admin', 'cooperative']:
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
+    data   = await request.json()
+    puv_id = data.get("puv_id")
+    puv    = next((p for p in puv_database if p['id'] == puv_id), None)
+    if not puv:
+        return JSONResponse({"success": False, "error": "PUV not found."})
+    puv_database.remove(puv)
+    log_audit(request.session.get('username', 'admin'), f"PUV_REMOVED: {puv['plate']}", request.client.host if request.client else "unknown", "red")
+    return JSONResponse({"success": True, "plate": puv['plate']})
 
 @app.post("/api/delete_user")
 async def delete_user(request: Request):
@@ -312,7 +334,7 @@ async def audit_logs_page(request: Request):
 
 @app.get("/records", response_class=HTMLResponse)
 async def records(request: Request):
-    if get_role(request) not in ['admin', 'enforcer']: return RedirectResponse(url="/dashboard", status_code=302)
+    if get_role(request) not in ['admin', 'enforcer', 'cooperative']: return RedirectResponse(url="/dashboard", status_code=302)
     stats = compute_puv_stats()
     return TR(request, "records.html", {"role": get_role(request), "puvs": puv_database, "stats": stats})
 
@@ -373,6 +395,75 @@ async def submit_interception(
     log_audit(request.session.get('username', 'enforcer'), "INTERCEPTION_LOGGED", request.client.host if request.client else "unknown", "red")
     flash(request, f"Interception report for {plate} submitted successfully.")
     return RedirectResponse(url="/interception_status", status_code=302)
+
+# ==========================================
+# COOPERATIVE ROUTES
+# ==========================================
+@app.get("/coop/fleet", response_class=HTMLResponse)
+async def coop_fleet(request: Request):
+    if get_role(request) != 'cooperative': return RedirectResponse(url="/dashboard", status_code=302)
+    return TR(request, "cooperative/fleet.html", {"role": "cooperative", "puvs": puv_database})
+
+@app.get("/coop/drivers", response_class=HTMLResponse)
+async def coop_drivers(request: Request):
+    if get_role(request) != 'cooperative': return RedirectResponse(url="/dashboard", status_code=302)
+    drivers = {k: v for k, v in users.items() if v.get('role') == 'driver'}
+    return TR(request, "cooperative/drivers.html", {"role": "cooperative", "drivers": drivers, "puvs": puv_database, "messages": get_flash(request)})
+
+@app.get("/coop/violations", response_class=HTMLResponse)
+async def coop_violations(request: Request):
+    if get_role(request) != 'cooperative': return RedirectResponse(url="/dashboard", status_code=302)
+    stats = compute_puv_stats()
+    return TR(request, "cooperative/violations.html", {"role": "cooperative", "puvs": puv_database, "citations": citations_db, "stats": stats})
+
+@app.get("/coop/reports", response_class=HTMLResponse)
+async def coop_reports(request: Request):
+    if get_role(request) != 'cooperative': return RedirectResponse(url="/dashboard", status_code=302)
+    stats = compute_puv_stats()
+    return TR(request, "cooperative/reports.html", {"role": "cooperative", "citations": citations_db, "puvs": puv_database, "stats": stats})
+
+@app.post("/api/coop/update_capacity")
+async def coop_update_capacity(request: Request):
+    if get_role(request) != 'cooperative':
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
+    data         = await request.json()
+    puv_id       = data.get("puv_id")
+    new_capacity = data.get("capacity")
+    puv = next((p for p in puv_database if p['id'] == puv_id), None)
+    if puv and new_capacity and int(new_capacity) > 0:
+        puv['capacity'] = int(new_capacity)
+        log_audit(request.session.get('username', 'cooperative'), "CAPACITY_UPDATED", request.client.host if request.client else "unknown", "blue")
+        return JSONResponse({"success": True, "plate": puv['plate'], "capacity": puv['capacity']})
+    return JSONResponse({"success": False, "error": "Vehicle not found or invalid capacity."})
+
+@app.post("/api/coop/update_driver")
+async def coop_update_driver(request: Request):
+    if get_role(request) != 'cooperative':
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
+    data     = await request.json()
+    username = data.get("username", "")
+    allowed_fields = ["full_name", "license", "operator", "mobile", "emergency_contact", "email"]
+    if username not in users or users[username].get("role") != "driver":
+        return JSONResponse({"success": False, "error": "Driver not found."})
+    for field in allowed_fields:
+        if field in data and data[field] is not None:
+            users[username][field] = data[field]
+    # Handle PUV assignment
+    assigned_puv_id = data.get("assigned_puv_id")
+    if assigned_puv_id is not None:
+        # Unassign from any current PUV
+        for p in puv_database:
+            if p["username"] == username:
+                p["username"] = ""
+                p["driver"]   = "Unassigned"
+        # Assign to new PUV if not empty
+        if assigned_puv_id != "":
+            puv = next((p for p in puv_database if p["id"] == int(assigned_puv_id)), None)
+            if puv:
+                puv["username"] = username
+                puv["driver"]   = users[username].get("full_name", username)
+    log_audit(request.session.get('username', 'cooperative'), f"DRIVER_UPDATED: {username}", request.client.host if request.client else "unknown", "blue")
+    return JSONResponse({"success": True})
 
 # --- SENSOR APIs ---
 @app.post("/api/update_sensor")

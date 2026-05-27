@@ -104,9 +104,14 @@
                 <div class="driver-route"><i class="fa-solid fa-location-dot" style="margin-right:5px;color:var(--primary);"></i>{{ puv.loc_name }}</div>
             </div>
         </div>
-        <div style="text-align:right;">
-            <div id="lcd-clock" class="driver-clock"></div>
-            <div class="driver-schedule"><i class="fa-solid fa-clock" style="margin-right:4px;"></i>{{ puv.schedule }}</div>
+        <div style="display:flex;align-items:center;gap:18px;">
+            <div style="text-align:right;">
+                <div id="lcd-clock" class="driver-clock"></div>
+                <div class="driver-schedule"><i class="fa-solid fa-clock" style="margin-right:4px;"></i>{{ puv.schedule }}</div>
+            </div>
+            <button onclick="triggerLogout()" style="display:flex;align-items:center;gap:8px;padding:10px 18px;border-radius:12px;border:1.5px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.08);color:#ef4444;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;transition:all 0.2s;" onmouseover="this.style.background='rgba(239,68,68,0.16)'" onmouseout="this.style.background='rgba(239,68,68,0.08)'">
+                <i class="fa-solid fa-power-off"></i> Logout
+            </button>
         </div>
     </div>
 

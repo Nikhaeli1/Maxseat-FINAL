@@ -1,0 +1,161 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+    .report-summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 26px; }
+    .report-section { background: var(--card-bg); border-radius: var(--radius-lg); border: 1px solid var(--border-color); margin-bottom: 22px; box-shadow: var(--shadow-sm); overflow: hidden; }
+    .report-section-header { padding: 18px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+    .report-section-title { font-size: 15px; font-weight: 800; }
+    .report-section-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .print-btn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 16px; border-radius: var(--radius-sm); background: #0f172a; color: #fff; border: none; font-weight: 700; font-size: 12px; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+    .print-btn:hover { background: var(--primary); }
+    .compliance-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; border-bottom: 1px solid var(--border-color); }
+    .compliance-row:last-child { border-bottom: none; }
+    .compliance-plate { font-size: 15px; font-weight: 800; }
+    .compliance-meta { font-size: 12px; color: var(--text-muted); font-weight: 600; margin-top: 2px; }
+    .compliance-bar-wrap { flex: 1; margin: 0 20px; }
+    .compliance-bar { height: 8px; background: var(--border-color); border-radius: 4px; overflow: hidden; }
+    .compliance-fill { height: 100%; border-radius: 4px; }
+    .fine-total { background: linear-gradient(135deg, #0f172a, #1e293b); border-radius: var(--radius-lg); padding: 24px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; border: 1px solid rgba(255,255,255,0.06); }
+    .fine-label { font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; }
+    .fine-value { font-size: 34px; font-weight: 800; color: #f1f5f9; margin-top: 4px; }
+</style>
+
+<div class="page-row">
+    <div>
+        <div class="page-title">Cooperative Reports</div>
+        <div class="page-subtitle">Fleet compliance and violation summary — Oro Transport Service Cooperative</div>
+    </div>
+    <button class="print-btn" onclick="window.print()">
+        <i class="fa-solid fa-print"></i> Print Report
+    </button>
+</div>
+
+<!-- SUMMARY STATS -->
+<div class="report-summary-grid">
+    <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(37,99,235,0.1);color:var(--primary);"><i class="fa-solid fa-bus"></i></div>
+        <div>
+            <div class="stat-label">Total Units</div>
+            <div class="stat-value">{{ stats.total_units }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(239,68,68,0.1);color:#ef4444;"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <div>
+            <div class="stat-label">Active Violations</div>
+            <div class="stat-value">{{ stats.active_violations }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(245,158,11,0.1);color:#f59e0b;"><i class="fa-solid fa-ticket"></i></div>
+        <div>
+            <div class="stat-label">Total Citations</div>
+            <div class="stat-value">{{ citations | length }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(16,185,129,0.1);color:#10b981;"><i class="fa-solid fa-circle-check"></i></div>
+        <div>
+            <div class="stat-label">Resolved</div>
+            <div class="stat-value">{{ citations | selectattr('status', 'equalto', 'RESOLVED') | list | length }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- FINE TOTAL BANNER -->
+{% set pending_citations = citations | selectattr('status', 'equalto', 'PENDING') | list %}
+<div class="fine-total">
+    <div>
+        <div class="fine-label">Outstanding Fines (Pending)</div>
+        <div class="fine-value">₱{{ '{:,.2f}'.format(pending_citations | length * 5000) }}</div>
+    </div>
+    <div style="text-align:right;">
+        <div class="fine-label">Pending Citations</div>
+        <div style="font-size:28px;font-weight:800;color:#fca5a5;">{{ pending_citations | length }}</div>
+    </div>
+</div>
+
+<!-- FLEET COMPLIANCE REPORT -->
+<div class="report-section">
+    <div class="report-section-header">
+        <div>
+            <div class="report-section-title"><i class="fa-solid fa-gauge" style="color:var(--primary);margin-right:8px;"></i>Fleet Capacity Compliance</div>
+            <div class="report-section-sub">Current passenger load vs. authorized seating capacity</div>
+        </div>
+    </div>
+    {% for puv in puvs %}
+    {% set pct = (puv.passengers / puv.capacity * 100)|int if puv.capacity > 0 else 0 %}
+    {% set overload = puv.passengers > puv.capacity %}
+    <div class="compliance-row">
+        <div style="min-width:130px;">
+            <div class="compliance-plate">{{ puv.plate }}</div>
+            <div class="compliance-meta">{{ puv.driver }}</div>
+        </div>
+        <div class="compliance-bar-wrap">
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+                <span style="font-size:11px;color:var(--text-muted);font-weight:600;">{{ puv.passengers }}/{{ puv.capacity }} passengers</span>
+                <span style="font-size:11px;font-weight:700;color:{{ '#ef4444' if overload else '#10b981' }};">{{ pct }}%</span>
+            </div>
+            <div class="compliance-bar">
+                <div class="compliance-fill" style="width:{{ [pct,100]|min }}%;background:{{ '#ef4444' if overload else ('#f59e0b' if pct >= 80 else '#10b981') }};"></div>
+            </div>
+        </div>
+        <div style="min-width:100px;text-align:right;">
+            {% if overload %}
+                <span class="badge badge-red"><i class="fa-solid fa-triangle-exclamation"></i> Overloaded</span>
+            {% elif pct >= 80 %}
+                <span class="badge badge-yellow"><i class="fa-solid fa-circle-exclamation"></i> Near Capacity</span>
+            {% else %}
+                <span class="badge badge-green"><i class="fa-solid fa-circle-check"></i> Compliant</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- CITATIONS TABLE -->
+<div class="report-section">
+    <div class="report-section-header">
+        <div>
+            <div class="report-section-title"><i class="fa-solid fa-gavel" style="color:#ef4444;margin-right:8px;"></i>Citation Records</div>
+            <div class="report-section-sub">All enforcement actions issued against your fleet</div>
+        </div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Serial No.</th>
+                <th>Plate</th>
+                <th>Company</th>
+                <th>Issued By</th>
+                <th>Fine Amount</th>
+                <th>Date</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in citations %}
+            <tr>
+                <td><span style="font-family:monospace;font-weight:700;font-size:12px;">{{ c.serial }}</span></td>
+                <td><span style="font-weight:800;color:var(--primary);">{{ c.plate }}</span></td>
+                <td style="font-size:13px;">{{ c.company }}</td>
+                <td style="font-size:12px;color:var(--text-muted);">{{ c.officer }}</td>
+                <td><span style="font-weight:700;">{{ c.fine }}</span></td>
+                <td style="font-size:13px;">{{ c.date }}</td>
+                <td>
+                    {% if c.status == 'PENDING' %}
+                        <span class="badge badge-yellow"><i class="fa-solid fa-clock"></i> Pending</span>
+                    {% elif c.status == 'RESOLVED' %}
+                        <span class="badge badge-green"><i class="fa-solid fa-check"></i> Resolved</span>
+                    {% else %}
+                        <span class="badge badge-gray">{{ c.status }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">No citation records found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

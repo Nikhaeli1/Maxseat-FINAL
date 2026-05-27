@@ -185,6 +185,25 @@
         <a href="/reports" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/reports' }}">
             <i class="fa-solid fa-chart-bar"></i> Reports
         </a>
+
+        {% elif role == 'cooperative' %}
+        <span class="nav-section">Fleet Operations</span>
+        <a href="/coop/fleet" onclick="showLoader('Loading Fleet...')" class="nav-link {{ 'active' if request.url.path == '/coop/fleet' }}">
+            <i class="fa-solid fa-bus"></i> Fleet & Seating Config
+        </a>
+        <a href="/coop/drivers" onclick="showLoader('Loading Drivers...')" class="nav-link {{ 'active' if request.url.path == '/coop/drivers' }}">
+            <i class="fa-solid fa-id-card"></i> Manage Drivers
+        </a>
+        <span class="nav-section">Compliance</span>
+        <a href="/coop/violations" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/coop/violations' }}">
+            <i class="fa-solid fa-triangle-exclamation"></i> Violations & Enforcement
+        </a>
+        <a href="/records" onclick="showLoader('Loading Records...')" class="nav-link {{ 'active' if request.url.path == '/records' }}">
+            <i class="fa-solid fa-database"></i> Violation Records
+        </a>
+        <a href="/coop/reports" onclick="showLoader('Loading Reports...')" class="nav-link {{ 'active' if request.url.path == '/coop/reports' }}">
+            <i class="fa-solid fa-chart-bar"></i> Generate Reports
+        </a>
         {% endif %}
 
         <span class="nav-section">Account</span>

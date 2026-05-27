@@ -1,0 +1,146 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+    .violations-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 26px; }
+    .tabs { display: flex; gap: 6px; margin-bottom: 20px; }
+    .tab-btn { padding: 9px 20px; border-radius: var(--radius-sm); border: 1.5px solid var(--border-color); background: var(--card-bg); color: var(--text-muted); font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+    .tab-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 4px 12px rgba(37,99,235,0.25); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .alert-card { background: var(--card-bg); border-radius: var(--radius-lg); border: 1px solid var(--border-color); padding: 20px 22px; margin-bottom: 12px; display: flex; align-items: center; gap: 16px; box-shadow: var(--shadow-sm); transition: transform 0.2s; }
+    .alert-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+    .alert-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .alert-icon.danger  { background: rgba(239,68,68,0.1);  color: #ef4444; }
+    .alert-icon.warning { background: rgba(245,158,11,0.1); color: #f59e0b; }
+    .alert-plate { font-size: 18px; font-weight: 800; color: var(--text-main); }
+    .alert-detail { font-size: 12px; color: var(--text-muted); font-weight: 600; margin-top: 3px; }
+</style>
+
+<div class="page-row">
+    <div>
+        <div class="page-title">Violations &amp; Enforcement</div>
+        <div class="page-subtitle">Monitor active violations and enforcement actions for your fleet</div>
+    </div>
+    <a href="/dashboard" class="btn btn-outline" onclick="showLoader('Loading...')">
+        <i class="fa-solid fa-arrow-left"></i> Back to Dashboard
+    </a>
+</div>
+
+<!-- STAT CARDS -->
+<div class="violations-grid">
+    <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(239,68,68,0.1);color:#ef4444;"><i class="fa-solid fa-bus"></i></div>
+        <div>
+            <div class="stat-label">Overloaded Units</div>
+            <div class="stat-value">{{ stats.active_violations }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(245,158,11,0.1);color:#f59e0b;"><i class="fa-solid fa-thermometer-half"></i></div>
+        <div>
+            <div class="stat-label">Thermal Alerts</div>
+            <div class="stat-value">{{ stats.thermal_warnings }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(37,99,235,0.1);color:var(--primary);"><i class="fa-solid fa-ticket"></i></div>
+        <div>
+            <div class="stat-label">Total Citations</div>
+            <div class="stat-value">{{ citations | length }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('live', this)"><i class="fa-solid fa-circle-dot" style="color:#ef4444;margin-right:6px;"></i>Live Violations</button>
+    <button class="tab-btn" onclick="switchTab('enforcement', this)"><i class="fa-solid fa-gavel" style="margin-right:6px;"></i>Enforcement Actions</button>
+</div>
+
+<!-- TAB: LIVE VIOLATIONS -->
+<div id="tab-live" class="tab-content active">
+    {% set violators = [] %}
+    {% for puv in puvs %}
+    {% if puv.passengers > puv.capacity or puv.temp >= 37.5 %}
+    <div class="alert-card">
+        <div class="alert-icon {{ 'danger' if puv.passengers > puv.capacity else 'warning' }}">
+            <i class="fa-solid {{ 'fa-triangle-exclamation' if puv.passengers > puv.capacity else 'fa-thermometer-half' }}"></i>
+        </div>
+        <div style="flex:1;">
+            <div class="alert-plate">{{ puv.plate }}</div>
+            <div class="alert-detail">{{ puv.driver }} &nbsp;·&nbsp; {{ puv.loc_name }} &nbsp;·&nbsp; {{ puv.last_update }}</div>
+        </div>
+        <div style="text-align:right;">
+            {% if puv.passengers > puv.capacity %}
+            <div style="font-size:13px;font-weight:800;color:#ef4444;">{{ puv.passengers }}/{{ puv.capacity }} pax</div>
+            <div style="font-size:11px;color:var(--text-muted);">OVERLOADED</div>
+            {% endif %}
+            {% if puv.temp >= 37.5 %}
+            <div style="font-size:13px;font-weight:800;color:#f59e0b;">{{ puv.temp }}°C</div>
+            <div style="font-size:11px;color:var(--text-muted);">THERMAL ALERT</div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    {% if stats.active_violations == 0 and stats.thermal_warnings == 0 %}
+    <div class="empty-state">
+        <i class="fa-solid fa-circle-check" style="color:#10b981;"></i>
+        <h3>No Active Violations</h3>
+        <p>All units are currently operating within legal parameters.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- TAB: ENFORCEMENT ACTIONS (CITATIONS) -->
+<div id="tab-enforcement" class="tab-content">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Serial</th>
+                    <th>Plate</th>
+                    <th>Company</th>
+                    <th>Issued By</th>
+                    <th>Fine</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in citations %}
+                <tr>
+                    <td><span style="font-family:monospace;font-weight:700;font-size:13px;">{{ c.serial }}</span></td>
+                    <td><span style="font-weight:800;color:var(--primary);">{{ c.plate }}</span></td>
+                    <td>{{ c.company }}</td>
+                    <td><span style="font-size:12px;color:var(--text-muted);">{{ c.officer }}</span></td>
+                    <td><span style="font-weight:700;">{{ c.fine }}</span></td>
+                    <td>{{ c.date }}</td>
+                    <td>
+                        {% if c.status == 'PENDING' %}
+                            <span class="badge badge-yellow"><i class="fa-solid fa-clock"></i> Pending</span>
+                        {% elif c.status == 'RESOLVED' %}
+                            <span class="badge badge-green"><i class="fa-solid fa-check"></i> Resolved</span>
+                        {% else %}
+                            <span class="badge badge-gray">{{ c.status }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">No enforcement actions recorded.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+function switchTab(id, btn) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    btn.classList.add('active');
+}
+</script>
+{% endblock %}

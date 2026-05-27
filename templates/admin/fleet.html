@@ -57,10 +57,15 @@
                     <span class="badge badge-gray"><i class="fa-solid fa-circle" style="font-size:7px;"></i> Idle</span>
                     {% endif %}
                 </td>
-                <td>
+                <td style="display:flex;gap:8px;align-items:center;">
                     <button onclick="showVehicleModal('{{ p.plate }}','{{ p.company }}','{{ p.driver }}',{{ p.passengers }},{{ p.capacity }},'{{ p.loc_name }}',{{ p.temp }})"
                             class="btn-ghost">
                         <i class="fa-solid fa-chart-simple"></i> Details
+                    </button>
+                    <button onclick="removePuv({{ p.id }}, '{{ p.plate }}')"
+                            style="background:rgba(239,68,68,0.08);border:1.5px solid rgba(239,68,68,0.2);color:#ef4444;padding:8px 14px;border-radius:var(--radius-sm);font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;transition:all 0.2s;"
+                            onmouseover="this.style.background='rgba(239,68,68,0.16)'" onmouseout="this.style.background='rgba(239,68,68,0.08)'">
+                        <i class="fa-solid fa-trash"></i> Remove
                     </button>
                 </td>
             </tr>
@@ -120,5 +125,33 @@ function infoBox(label, value, icon, color='') {
 }
 function closeModal() { document.getElementById('vehicle-modal').style.display = 'none'; }
 document.getElementById('vehicle-modal').addEventListener('click', function(e) { if (e.target===this) closeModal(); });
+
+async function removePuv(puvId, plate) {
+    const result = await Swal.fire({
+        title: `Remove ${plate}?`,
+        text: 'This will permanently remove the PUV from the fleet registry.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: '<i class="fa-solid fa-trash"></i> Yes, Remove',
+        cancelButtonText: 'Cancel',
+        background: 'var(--card-bg)',
+        color: 'var(--text-main)'
+    });
+    if (!result.isConfirmed) return;
+    const res  = await fetch('/api/delete_puv', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({puv_id: puvId})
+    });
+    const data = await res.json();
+    if (data.success) {
+        await Swal.fire({ title: 'Removed', text: `${data.plate} has been removed from the fleet.`, icon: 'success', confirmButtonColor: '#2563eb', background: 'var(--card-bg)', color: 'var(--text-main)' });
+        location.reload();
+    } else {
+        Swal.fire({ title: 'Error', text: data.error || 'Could not remove PUV.', icon: 'error', background: 'var(--card-bg)', color: 'var(--text-main)' });
+    }
+}
 </script>
 {% endblock %}

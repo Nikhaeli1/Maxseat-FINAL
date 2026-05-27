@@ -1,0 +1,145 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+    .fleet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 18px; }
+    .puv-card { background: var(--card-bg); border-radius: var(--radius-lg); border: 1px solid var(--border-color); padding: 22px; box-shadow: var(--shadow-sm); transition: box-shadow 0.2s, transform 0.2s; }
+    .puv-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .puv-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+    .puv-plate { font-size: 20px; font-weight: 800; color: var(--primary); }
+    .puv-company { font-size: 12px; color: var(--text-muted); font-weight: 600; margin-top: 3px; }
+    .puv-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+    .puv-meta-item { background: var(--hover-bg); border-radius: var(--radius-sm); padding: 10px 12px; }
+    .puv-meta-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); margin-bottom: 3px; }
+    .puv-meta-value { font-size: 14px; font-weight: 700; color: var(--text-main); }
+    .capacity-row { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+    .cap-input { width: 80px; padding: 9px 12px; border-radius: var(--radius-sm); border: 1.5px solid var(--border-color); background: var(--bg); color: var(--text-main); font-family: inherit; font-size: 15px; font-weight: 700; text-align: center; transition: border-color 0.2s; }
+    .cap-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+    .save-cap-btn { flex: 1; padding: 9px 14px; background: var(--primary); color: #fff; border: none; border-radius: var(--radius-sm); font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+    .save-cap-btn:hover { background: var(--primary-dark); transform: translateY(-1px); }
+    .load-bar { height: 6px; background: var(--border-color); border-radius: 4px; overflow: hidden; margin-top: 6px; }
+    .load-fill { height: 100%; border-radius: 4px; }
+</style>
+
+<div class="page-row">
+    <div>
+        <div class="page-title">Fleet &amp; Seating Configuration</div>
+        <div class="page-subtitle">Configure capacity limits and monitor your registered PUVs</div>
+    </div>
+    <a href="/dashboard" class="btn btn-outline" onclick="showLoader('Loading...')">
+        <i class="fa-solid fa-arrow-left"></i> Back to Dashboard
+    </a>
+</div>
+
+<div class="fleet-grid">
+    {% for puv in puvs %}
+    {% set pct = (puv.passengers / puv.capacity * 100)|int if puv.capacity > 0 else 0 %}
+    {% set overload = puv.passengers > puv.capacity %}
+    <div class="puv-card">
+        <div class="puv-card-header">
+            <div>
+                <div class="puv-plate">{{ puv.plate }}</div>
+                <div class="puv-company">{{ puv.company }}</div>
+            </div>
+            {% if overload %}
+                <span class="badge badge-red"><i class="fa-solid fa-triangle-exclamation"></i> Overloaded</span>
+            {% else %}
+                <span class="badge badge-green"><i class="fa-solid fa-circle-check"></i> Normal</span>
+            {% endif %}
+        </div>
+
+        <div class="puv-meta">
+            <div class="puv-meta-item">
+                <div class="puv-meta-label">Driver</div>
+                <div class="puv-meta-value" style="font-size:13px;">{{ puv.driver }}</div>
+            </div>
+            <div class="puv-meta-item">
+                <div class="puv-meta-label">Location</div>
+                <div class="puv-meta-value" style="font-size:12px;">{{ puv.loc_name }}</div>
+            </div>
+            <div class="puv-meta-item">
+                <div class="puv-meta-label">Passengers Now</div>
+                <div class="puv-meta-value" style="color:{{ '#ef4444' if overload else 'var(--text-main)' }};">{{ puv.passengers }}</div>
+            </div>
+            <div class="puv-meta-item">
+                <div class="puv-meta-label">Cabin Temp</div>
+                <div class="puv-meta-value" style="color:{{ '#ef4444' if puv.temp >= 37.5 else ('#f59e0b' if puv.temp >= 35 else '#10b981') }};">{{ puv.temp }}°C</div>
+            </div>
+        </div>
+
+        <div style="margin-bottom:6px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);">Load</span>
+                <span style="font-size:12px;font-weight:700;color:{{ '#ef4444' if overload else 'var(--text-muted)' }};">{{ pct }}%</span>
+            </div>
+            <div class="load-bar">
+                <div class="load-fill" style="width:{{ [pct,100]|min }}%;background:{{ '#ef4444' if overload else ('#f59e0b' if pct >= 80 else '#10b981') }};"></div>
+            </div>
+        </div>
+
+        <div style="margin-top:16px;">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);margin-bottom:8px;">Set Seating Capacity</div>
+            <div class="capacity-row">
+                <input type="number" class="cap-input" id="cap-{{ puv.id }}" value="{{ puv.capacity }}" min="1" max="99">
+                <button class="save-cap-btn" onclick="saveCap({{ puv.id }}, '{{ puv.plate }}')">
+                    <i class="fa-solid fa-floppy-disk" style="margin-right:5px;"></i>Save
+                </button>
+            </div>
+        </div>
+
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-color);">
+            <button onclick="removePuv({{ puv.id }}, '{{ puv.plate }}')"
+                    style="width:100%;padding:9px;background:rgba(239,68,68,0.07);border:1.5px solid rgba(239,68,68,0.2);color:#ef4444;border-radius:var(--radius-sm);font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;transition:all 0.2s;"
+                    onmouseover="this.style.background='rgba(239,68,68,0.15)'" onmouseout="this.style.background='rgba(239,68,68,0.07)'">
+                <i class="fa-solid fa-trash" style="margin-right:6px;"></i>Remove from Fleet
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+async function removePuv(puvId, plate) {
+    const result = await Swal.fire({
+        title: `Remove ${plate}?`,
+        text: 'This will permanently remove the PUV from the fleet.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: '<i class="fa-solid fa-trash"></i> Yes, Remove',
+        cancelButtonText: 'Cancel',
+        background: 'var(--card-bg)',
+        color: 'var(--text-main)'
+    });
+    if (!result.isConfirmed) return;
+    const res  = await fetch('/api/delete_puv', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({puv_id: puvId})
+    });
+    const data = await res.json();
+    if (data.success) {
+        await Swal.fire({ title: 'Removed', text: `${data.plate} has been removed from the fleet.`, icon: 'success', confirmButtonColor: '#2563eb', background: 'var(--card-bg)', color: 'var(--text-main)' });
+        location.reload();
+    } else {
+        Swal.fire({ title: 'Error', text: data.error || 'Could not remove PUV.', icon: 'error', background: 'var(--card-bg)', color: 'var(--text-main)' });
+    }
+}
+
+async function saveCap(puvId, plate) {
+    const val = parseInt(document.getElementById('cap-' + puvId).value);
+    if (!val || val < 1) { popAlert('Invalid', 'Please enter a valid capacity.', 'warning'); return; }
+    const res  = await fetch('/api/coop/update_capacity', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({puv_id: puvId, capacity: val})
+    });
+    const data = await res.json();
+    if (data.success) {
+        popAlert('Saved', `Capacity for ${plate} updated to ${data.capacity} seats.`, 'success');
+    } else {
+        popAlert('Error', data.error || 'Could not update capacity.', 'error');
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,239 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+    .driver-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
+    .driver-card { background: var(--card-bg); border-radius: var(--radius-lg); border: 1px solid var(--border-color); padding: 22px; box-shadow: var(--shadow-sm); transition: box-shadow 0.2s, transform 0.2s; display: flex; flex-direction: column; gap: 14px; }
+    .driver-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .driver-card-top { display: flex; align-items: center; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border-color); }
+    .driver-avatar { width: 50px; height: 50px; border-radius: 50%; background: var(--primary-glow); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; border: 2px solid rgba(37,99,235,0.2); }
+    .driver-name { font-size: 15px; font-weight: 800; color: var(--text-main); }
+    .driver-id   { font-size: 11px; color: var(--text-muted); font-weight: 700; margin-top: 2px; }
+    .info-row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+    .info-icon { width: 28px; height: 28px; border-radius: 8px; background: var(--hover-bg); border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--primary); flex-shrink: 0; }
+    .info-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); }
+    .info-value { font-size: 13px; font-weight: 600; color: var(--text-main); }
+    .assigned-pill { display: inline-flex; align-items: center; gap: 7px; background: var(--primary-glow); color: var(--primary); border: 1px solid rgba(37,99,235,0.2); padding: 5px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; }
+    .unassigned-pill { display: inline-flex; align-items: center; gap: 7px; background: rgba(100,116,139,0.08); color: var(--text-muted); border: 1px solid var(--border-color); padding: 5px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; }
+    .card-actions { display: flex; gap: 8px; margin-top: 4px; }
+    .edit-btn { flex: 1; padding: 9px; background: var(--primary); color: #fff; border: none; border-radius: var(--radius-sm); font-weight: 700; font-size: 12px; cursor: pointer; font-family: inherit; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .edit-btn:hover { background: var(--primary-dark); transform: translateY(-1px); }
+
+    /* MODAL */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 500; justify-content: center; align-items: center; }
+    .modal-overlay.open { display: flex; }
+    .modal-box { background: var(--card-bg); border-radius: var(--radius-lg); padding: 32px; width: 540px; max-width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.25); border: 1px solid var(--border-color); animation: fadeUp 0.25s ease; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .modal-title { font-size: 19px; font-weight: 800; }
+    .modal-close { background: none; border: none; color: var(--text-muted); font-size: 22px; cursor: pointer; padding: 4px 8px; border-radius: 8px; transition: color 0.2s; }
+    .modal-close:hover { color: var(--text-main); }
+    .modal-section { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin: 18px 0 10px; }
+    .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .modal-footer { display: flex; gap: 10px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-color); }
+</style>
+
+<div class="page-row">
+    <div>
+        <div class="page-title">Manage Drivers</div>
+        <div class="page-subtitle">View, edit, and assign PUVs to your cooperative's drivers</div>
+    </div>
+    <a href="/dashboard" class="btn btn-outline" onclick="showLoader('Loading...')">
+        <i class="fa-solid fa-arrow-left"></i> Back to Dashboard
+    </a>
+</div>
+
+{% if drivers %}
+<div class="driver-grid">
+    {% for username, driver in drivers.items() %}
+    {% set assigned_puv = puvs | selectattr('username', 'equalto', username) | first | default(None) %}
+    <div class="driver-card">
+        <!-- TOP -->
+        <div class="driver-card-top">
+            <div class="driver-avatar"><i class="fa-solid fa-user"></i></div>
+            <div style="flex:1;min-width:0;">
+                <div class="driver-name">{{ driver.full_name | default('—') }}</div>
+                <div class="driver-id">ID: {{ username }}</div>
+            </div>
+            {% if assigned_puv %}
+                <span class="assigned-pill"><i class="fa-solid fa-bus"></i>{{ assigned_puv.plate }}</span>
+            {% else %}
+                <span class="unassigned-pill"><i class="fa-solid fa-circle-xmark"></i>Unassigned</span>
+            {% endif %}
+        </div>
+
+        <!-- INFO ROWS -->
+        <div class="info-row">
+            <div class="info-icon"><i class="fa-solid fa-id-card"></i></div>
+            <div>
+                <div class="info-label">License</div>
+                <div class="info-value">{{ driver.license | default('—') }}</div>
+            </div>
+        </div>
+        <div class="info-row">
+            <div class="info-icon"><i class="fa-solid fa-building"></i></div>
+            <div>
+                <div class="info-label">Operator</div>
+                <div class="info-value">{{ driver.operator | default('—') }}</div>
+            </div>
+        </div>
+        <div class="info-row">
+            <div class="info-icon"><i class="fa-solid fa-phone"></i></div>
+            <div>
+                <div class="info-label">Mobile</div>
+                <div class="info-value">{{ driver.mobile | default('—') }}</div>
+            </div>
+        </div>
+        <div class="info-row">
+            <div class="info-icon"><i class="fa-solid fa-heart-pulse"></i></div>
+            <div>
+                <div class="info-label">Emergency Contact</div>
+                <div class="info-value" style="font-size:12px;">{{ driver.emergency_contact | default('—') }}</div>
+            </div>
+        </div>
+
+        <!-- ACTIONS -->
+        <div class="card-actions">
+            <button class="edit-btn" onclick="openEditModal(
+                '{{ username }}',
+                '{{ driver.full_name | default('') }}',
+                '{{ driver.license | default('') }}',
+                '{{ driver.operator | default('') }}',
+                '{{ driver.mobile | default('') }}',
+                '{{ driver.emergency_contact | default('') }}',
+                '{{ driver.email | default('') }}',
+                '{{ assigned_puv.id if assigned_puv else '' }}'
+            )">
+                <i class="fa-solid fa-pen-to-square"></i> Edit Driver
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <i class="fa-solid fa-users-slash"></i>
+    <h3>No Drivers Registered</h3>
+    <p>Contact the system administrator to register drivers for your cooperative.</p>
+</div>
+{% endif %}
+
+<!-- EDIT DRIVER MODAL -->
+<div id="edit-modal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-header">
+            <div>
+                <div class="modal-title"><i class="fa-solid fa-pen-to-square" style="color:var(--primary);margin-right:9px;"></i>Edit Driver</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:3px;" id="modal-driver-id"></div>
+            </div>
+            <button class="modal-close" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <input type="hidden" id="edit-username">
+
+        <div class="modal-section">Personal Information</div>
+        <div class="modal-grid">
+            <div class="form-group">
+                <label class="form-label">Full Name</label>
+                <input type="text" class="form-control" id="edit-full_name" placeholder="Full name">
+            </div>
+            <div class="form-group">
+                <label class="form-label">License Number</label>
+                <input type="text" class="form-control" id="edit-license" placeholder="L02-XX-XXXXXX">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Email Address</label>
+                <input type="email" class="form-control" id="edit-email" placeholder="driver@email.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Mobile Number</label>
+                <input type="text" class="form-control" id="edit-mobile" placeholder="09XX-XXX-XXXX">
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Emergency Contact</label>
+            <input type="text" class="form-control" id="edit-emergency_contact" placeholder="Name (09XX-XXX-XXXX)">
+        </div>
+
+        <div class="modal-section">Cooperative & Assignment</div>
+        <div class="modal-grid">
+            <div class="form-group">
+                <label class="form-label">Operator / Cooperative</label>
+                <input type="text" class="form-control" id="edit-operator" placeholder="Cooperative name">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Assigned PUV</label>
+                <select class="form-control" id="edit-assigned_puv_id">
+                    <option value="">— No Assignment —</option>
+                    {% for puv in puvs %}
+                    <option value="{{ puv.id }}">{{ puv.plate }} ({{ puv.company }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button onclick="closeModal()" class="btn btn-outline" style="flex:1;">Cancel</button>
+            <button onclick="saveDriver()" class="btn btn-primary" style="flex:2;">
+                <i class="fa-solid fa-floppy-disk"></i> Save Changes
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openEditModal(username, fullName, license, operator, mobile, ec, email, assignedPuvId) {
+    document.getElementById('edit-username').value      = username;
+    document.getElementById('modal-driver-id').textContent = 'ID: ' + username;
+    document.getElementById('edit-full_name').value     = fullName;
+    document.getElementById('edit-license').value       = license;
+    document.getElementById('edit-operator').value      = operator;
+    document.getElementById('edit-mobile').value        = mobile;
+    document.getElementById('edit-emergency_contact').value = ec;
+    document.getElementById('edit-email').value         = email;
+    document.getElementById('edit-assigned_puv_id').value  = assignedPuvId;
+    document.getElementById('edit-modal').classList.add('open');
+}
+
+function closeModal() {
+    document.getElementById('edit-modal').classList.remove('open');
+}
+
+document.getElementById('edit-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+async function saveDriver() {
+    const username = document.getElementById('edit-username').value;
+    const payload  = {
+        username,
+        full_name:         document.getElementById('edit-full_name').value.trim(),
+        license:           document.getElementById('edit-license').value.trim(),
+        operator:          document.getElementById('edit-operator').value.trim(),
+        mobile:            document.getElementById('edit-mobile').value.trim(),
+        emergency_contact: document.getElementById('edit-emergency_contact').value.trim(),
+        email:             document.getElementById('edit-email').value.trim(),
+        assigned_puv_id:   document.getElementById('edit-assigned_puv_id').value,
+    };
+    if (!payload.full_name) { popAlert('Required', 'Full name cannot be empty.', 'warning'); return; }
+    showLoader('Saving changes...');
+    const res  = await fetch('/api/coop/update_driver', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    hideLoader();
+    if (data.success) {
+        closeModal();
+        await Swal.fire({
+            title: 'Saved', text: 'Driver profile updated successfully.',
+            icon: 'success', confirmButtonColor: '#2563eb',
+            background: 'var(--card-bg)', color: 'var(--text-main)'
+        });
+        location.reload();
+    } else {
+        popAlert('Error', data.error || 'Could not save changes.', 'error');
+    }
+}
+</script>
+{% endblock %}
