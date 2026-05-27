@@ -4,7 +4,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from typing import List
-import json, datetime
+import json, datetime, secrets
+
+# In-memory mobile token store: { token: username }
+mobile_tokens: dict = {}
 
 app = FastAPI(title="MaxSeat Alert System")
 
@@ -464,6 +467,137 @@ async def coop_update_driver(request: Request):
                 puv["driver"]   = users[username].get("full_name", username)
     log_audit(request.session.get('username', 'cooperative'), f"DRIVER_UPDATED: {username}", request.client.host if request.client else "unknown", "blue")
     return JSONResponse({"success": True})
+
+# ==========================================
+# MOBILE API  (React Native — Field Enforcer)
+# ==========================================
+def get_mobile_user(request: Request):
+    """Extract and validate Bearer token from Authorization header."""
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return None
+    token = auth[7:]
+    username = mobile_tokens.get(token)
+    if not username:
+        return None
+    user = users.get(username)
+    if not user or user.get("role") != "enforcer":
+        return None
+    return {"username": username, **user}
+
+@app.post("/api/mobile/login")
+async def mobile_login(request: Request):
+    """Authenticate a Field Enforcer and return a bearer token."""
+    data     = await request.json()
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+    user     = users.get(username)
+    if not user or user["password"] != password or user["role"] != "enforcer":
+        return JSONResponse({"success": False, "error": "Invalid credentials."}, status_code=401)
+    # Revoke any existing token for this user
+    for t, u in list(mobile_tokens.items()):
+        if u == username:
+            del mobile_tokens[t]
+    token = secrets.token_hex(32)
+    mobile_tokens[token] = username
+    log_audit(username, "MOBILE_LOGIN", request.client.host if request.client else "unknown", "green")
+    return JSONResponse({
+        "success":      True,
+        "token":        token,
+        "username":     username,
+        "full_name":    user.get("full_name", username),
+        "badge":        user.get("badge", ""),
+        "precinct":     user.get("precinct", ""),
+        "shift_status": user.get("shift_status", "On Duty"),
+    })
+
+@app.post("/api/mobile/logout")
+async def mobile_logout(request: Request):
+    """Revoke the mobile bearer token."""
+    mobile_user = get_mobile_user(request)
+    if not mobile_user:
+        return JSONResponse({"success": False, "error": "Unauthorized."}, status_code=401)
+    auth  = request.headers.get("Authorization", "")
+    token = auth[7:] if auth.startswith("Bearer ") else ""
+    mobile_tokens.pop(token, None)
+    return JSONResponse({"success": True})
+
+@app.get("/api/mobile/dispatch")
+async def mobile_dispatch(request: Request):
+    """Return all active violations as dispatch orders for the mobile app."""
+    mobile_user = get_mobile_user(request)
+    if not mobile_user:
+        return JSONResponse({"success": False, "error": "Unauthorized."}, status_code=401)
+    compute_puv_stats()
+    orders = []
+    for p in puv_database:
+        violations = []
+        if p["passengers"] > p["capacity"]:
+            violations.append({
+                "type":    "OVERLOAD",
+                "label":   "Passenger Overload",
+                "detail":  f"{p['passengers']}/{p['capacity']} passengers — exceeds legal limit",
+                "severity": "critical",
+            })
+        if p.get("temp", 0) >= 37.5:
+            violations.append({
+                "type":    "THERMAL",
+                "label":   "Thermal Alert",
+                "detail":  f"Cabin temperature at {p['temp']}°C — exceeds 37.5°C threshold",
+                "severity": "warning",
+            })
+        if violations:
+            orders.append({
+                "puv_id":        p["id"],
+                "plate":         p["plate"],
+                "company":       p["company"],
+                "driver":        p["driver"],
+                "loc_name":      p["loc_name"],
+                "lat":           p["lat"],
+                "lng":           p["lng"],
+                "passengers":    p["passengers"],
+                "capacity":      p["capacity"],
+                "temp":          p.get("temp", 0),
+                "speed":         p.get("speed", "—"),
+                "last_update":   p.get("last_update", "—"),
+                "schedule":      p.get("schedule", "—"),
+                "violations":    violations,
+            })
+    return JSONResponse({"success": True, "dispatch_orders": orders, "total": len(orders)})
+
+@app.post("/api/mobile/intercept")
+async def mobile_intercept(request: Request):
+    """Submit an interception report from the mobile app."""
+    mobile_user = get_mobile_user(request)
+    if not mobile_user:
+        return JSONResponse({"success": False, "error": "Unauthorized."}, status_code=401)
+    data   = await request.json()
+    plate  = data.get("plate", "")
+    action = data.get("action", "")       # "ticket" | "warning" | "apprehend"
+    notes  = data.get("notes", "")
+    if not plate or not action:
+        return JSONResponse({"success": False, "error": "Plate and action are required."})
+    serial = f"CT-{len(citations_db)+1:04d}-M"
+    fine_map = {"ticket": "₱5,000.00", "apprehend": "₱10,000.00", "warning": "₱0.00"}
+    citations_db.append({
+        "serial":  serial,
+        "plate":   plate,
+        "company": next((p["company"] for p in puv_database if p["plate"] == plate), "Unknown"),
+        "officer": mobile_user["username"],
+        "fine":    fine_map.get(action, "₱0.00"),
+        "status":  "PENDING" if action in ("ticket", "apprehend") else "RESOLVED",
+        "date":    datetime.date.today().isoformat(),
+        "notes":   notes,
+        "source":  "mobile",
+    })
+    log_audit(mobile_user["username"], f"MOBILE_INTERCEPT: {plate} — {action.upper()}", request.client.host if request.client else "unknown", "red")
+    return JSONResponse({
+        "success": True,
+        "serial":  serial,
+        "plate":   plate,
+        "action":  action,
+        "message": f"Interception report {serial} submitted successfully.",
+    })
 
 # --- SENSOR APIs ---
 @app.post("/api/update_sensor")
