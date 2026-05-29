@@ -11,3 +11,4 @@ env/
 
 # SQLite Database (Optional, but good practice if you don't want to push test user data)
 *.db
+.DS_Store

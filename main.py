@@ -4,7 +4,41 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from typing import List
-import json, datetime, secrets, uuid
+import json, datetime, secrets, uuid, os
+from dotenv import load_dotenv
+
+load_dotenv()  # loads .env locally; Railway uses its own env vars directly
+
+# ── Input validation helpers ──────────────────────────────────────────────────
+import re
+
+PLATE_RE    = re.compile(r'^[A-Z0-9\-]{3,10}$')
+USERNAME_RE = re.compile(r'^[A-Za-z0-9_\-\.]{3,32}$')
+
+def _str(v, max_len=200) -> str:
+    """Coerce to stripped string and enforce max length."""
+    return str(v or '').strip()[:max_len]
+
+def validate_plate(plate: str):
+    """Return cleaned plate or raise ValueError."""
+    p = _str(plate, 10).upper()
+    if not p or not PLATE_RE.match(p):
+        raise ValueError(f"Invalid plate number: '{plate}'")
+    return p
+
+def validate_complaint_type(t: str):
+    allowed = {'overload', 'thermal', 'other'}
+    t = _str(t, 20).lower()
+    if t not in allowed:
+        raise ValueError(f"Complaint type must be one of: {', '.join(allowed)}")
+    return t
+
+def validate_action(a: str):
+    allowed = {'ticket', 'warning', 'apprehend'}
+    a = _str(a, 20).lower()
+    if a not in allowed:
+        raise ValueError(f"Action must be one of: {', '.join(allowed)}")
+    return a
 
 # In-memory mobile token stores
 mobile_tokens:    dict = {}   # enforcer Bearer tokens
@@ -16,7 +50,11 @@ complaints_db: list = []
 app = FastAPI(title="MaxSeat Alert System")
 
 # --- MIDDLEWARE ---
-app.add_middleware(SessionMiddleware, secret_key="maxseat_enterprise_premium_secure_key", max_age=604800)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SECRET_KEY", "maxseat_dev_fallback_key_change_in_production"),
+    max_age=604800,
+)
 
 # --- STATIC & TEMPLATES ---
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -54,13 +92,13 @@ users = {
         "must_change_password": False, "full_name": "Bradley Sheen Sale",
         "department": "Central Command Authority", "clearance": "Level 5 - Global"
     },
-    "PNP-Police": {
+    "LTFRB": {
         "password": "123", "role": "enforcer", "email": "cdo.precinct@pnp.gov.ph",
         "must_change_password": False, "full_name": "Marielle Joy F. Asok",
         "badge": "PNP-CDO-994", "precinct": "CDO Central Station",
         "mobile": "0917-123-4567", "shift_status": "On Duty"
     },
-    "EMP-001": {
+    "JuanD": {
         "password": "DelaCruz@001", "role": "driver", "email": "delacruz@maxseat.ph",
         "must_change_password": True, "full_name": "Juan Dela Cruz",
         "license": "L02-12-345678", "operator": "Señor Pedro Lines",
@@ -82,7 +120,7 @@ users = {
 
 puv_database = [
     {
-        "id": 1, "username": "EMP-001", "company": "Señor Pedro Lines",
+        "id": 1, "username": "JuanD", "company": "Señor Pedro Lines",
         "plate": "KVR-102", "driver": "Juan Dela Cruz", "passengers": 14,
         "capacity": 22, "loc_name": "Bulua Highway", "lat": 8.4965, "lng": 124.6235,
         "status": "Active", "speed": "45 km/h", "temp": 32.5,
@@ -110,16 +148,16 @@ puv_database = [
 audit_logs = [
     {"timestamp": "2026-05-26 08:10:00", "actor": "admin",      "event": "SESSION_INITIATED", "ip": "192.168.1.1",  "category": "green"},
     {"timestamp": "2026-05-26 07:55:11", "actor": "SYSTEM_CRON","event": "DATABASE_SYNC",     "ip": "127.0.0.1",    "category": "blue"},
-    {"timestamp": "2026-05-25 15:22:30", "actor": "PNP-Police", "event": "DISPATCH_UNIT",     "ip": "110.54.22.1",  "category": "red"},
-    {"timestamp": "2026-05-25 09:10:05", "actor": "EMP-001",    "event": "SESSION_INITIATED", "ip": "192.168.1.45", "category": "green"},
+    {"timestamp": "2026-05-25 15:22:30", "actor": "LTFRB",      "event": "DISPATCH_UNIT",     "ip": "110.54.22.1",  "category": "red"},
+    {"timestamp": "2026-05-25 09:10:05", "actor": "JuanD",      "event": "SESSION_INITIATED", "ip": "192.168.1.45", "category": "green"},
     {"timestamp": "2026-05-24 20:01:00", "actor": "admin",      "event": "USER_CREATED",      "ip": "192.168.1.1",  "category": "blue"},
-    {"timestamp": "2026-05-24 14:33:17", "actor": "PNP-Police", "event": "VIOLATION_LOGGED",  "ip": "110.54.22.1",  "category": "red"},
+    {"timestamp": "2026-05-24 14:33:17", "actor": "LTFRB",      "event": "VIOLATION_LOGGED",  "ip": "110.54.22.1",  "category": "red"},
 ]
 
 citations_db = [
-    {"serial": "CT-9921-A", "plate": "KVR-102",  "company": "Señor Pedro Lines", "officer": "PNP-Police", "fine": "₱5,000.00", "status": "PENDING",  "date": "2026-05-24"},
-    {"serial": "CT-8810-B", "plate": "AAB-5501", "company": "Oro Transit",       "officer": "PNP-Police", "fine": "₱2,500.00", "status": "RESOLVED", "date": "2026-05-22"},
-    {"serial": "CT-7744-C", "plate": "XYZ-998",  "company": "Bukidnon Express",  "officer": "PNP-Police", "fine": "₱5,000.00", "status": "RESOLVED", "date": "2026-05-20"},
+    {"serial": "CT-9921-A", "plate": "KVR-102",  "company": "Señor Pedro Lines", "officer": "LTFRB", "fine": "₱5,000.00", "status": "PENDING",  "date": "2026-05-24"},
+    {"serial": "CT-8810-B", "plate": "AAB-5501", "company": "Oro Transit",       "officer": "LTFRB", "fine": "₱2,500.00", "status": "RESOLVED", "date": "2026-05-22"},
+    {"serial": "CT-7744-C", "plate": "XYZ-998",  "company": "Bukidnon Express",  "officer": "LTFRB", "fine": "₱5,000.00", "status": "RESOLVED", "date": "2026-05-20"},
 ]
 
 # --- HELPERS ---
@@ -182,6 +220,11 @@ async def login_post(
     username: str = Form(...),
     password: str = Form(...)
 ):
+    # Server-side validation
+    if not username or not password or len(username) > 64 or len(password) > 128:
+        flash(request, "Invalid credentials for the selected role.")
+        return RedirectResponse(url="/login", status_code=302)
+
     user = users.get(username)
     if user and user['password'] == password and user['role'] == role:
         request.session['logged_in'] = True
@@ -260,7 +303,19 @@ async def dashboard(request: Request):
         sorted_puvs = sorted(puv_database, key=lambda x: (x['passengers'] / x['capacity']) if x['capacity'] > 0 else 0, reverse=True)
         return TR(request, "enforcer/dashboard.html", {"puvs": sorted_puvs, "role": role, "stats": stats})
     elif role == 'driver':
-        my_puv = next((p for p in puv_database if p['username'] == request.session.get('username')), None)
+        username = request.session.get('username')
+        my_puv   = next((p for p in puv_database if p['username'] == username), None)
+        if my_puv is None:
+            # Driver has no assigned PUV — return a safe placeholder so the template never errors
+            my_puv = {
+                "id": None, "plate": "UNASSIGNED",
+                "driver": users.get(username, {}).get("full_name", username),
+                "passengers": 0, "capacity": 22, "temp": 0.0, "speed": "—",
+                "loc_name": "Not assigned", "lat": 8.4822, "lng": 124.6472,
+                "status": "Inactive", "show_name": False, "schedule": "—",
+                "company": "—", "last_update": "—", "route": "—",
+                "is_violator": False, "is_overheating": False, "load_percentage": 0,
+            }
         return TR(request, "driver/dashboard.html", {"puv": my_puv, "role": role})
     elif role == 'cooperative':
         return TR(request, "cooperative/dashboard.html", {"puvs": puv_database, "role": role, "stats": stats})
@@ -284,14 +339,26 @@ async def create_user(request: Request):
     if get_role(request) != 'admin':
         return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
     data     = await request.json()
-    username = data.get("username", "").strip()
-    if not username or username in users:
-        return JSONResponse({"success": False, "error": "Username already exists or is empty."})
+    username = _str(data.get("username", ""), 32)
+    password = _str(data.get("password", ""), 128)
+    role     = _str(data.get("role", "driver"), 20)
+    email    = _str(data.get("email", ""), 100)
+    full_name= _str(data.get("full_name", ""), 100)
+
+    if not username or not USERNAME_RE.match(username):
+        return JSONResponse({"success": False, "error": "Invalid username. Use 3–32 alphanumeric characters."})
+    if username in users:
+        return JSONResponse({"success": False, "error": "Username already exists."})
+    if len(password) < 6:
+        return JSONResponse({"success": False, "error": "Password must be at least 6 characters."})
+    if role not in {"admin", "enforcer", "driver", "cooperative", "passenger"}:
+        return JSONResponse({"success": False, "error": "Invalid role."})
+
     users[username] = {
-        "password": data.get("password", "changeme"),
-        "role":     data.get("role", "driver"),
-        "email":    data.get("email", ""),
-        "full_name": data.get("full_name", ""),
+        "password": password,
+        "role":     role,
+        "email":    email,
+        "full_name": full_name,
         "must_change_password": True
     }
     log_audit(request.session.get('username', 'admin'), "USER_CREATED", request.client.host if request.client else "unknown", "blue")
@@ -582,12 +649,13 @@ async def mobile_intercept(request: Request):
     mobile_user = get_mobile_user(request)
     if not mobile_user:
         return JSONResponse({"success": False, "error": "Unauthorized."}, status_code=401)
-    data   = await request.json()
-    plate  = data.get("plate", "")
-    action = data.get("action", "")       # "ticket" | "warning" | "apprehend"
-    notes  = data.get("notes", "")
-    if not plate or not action:
-        return JSONResponse({"success": False, "error": "Plate and action are required."})
+    data  = await request.json()
+    notes = _str(data.get("notes", ""), 500)
+    try:
+        plate  = validate_plate(data.get("plate", ""))
+        action = validate_action(data.get("action", ""))
+    except ValueError as e:
+        return JSONResponse({"success": False, "error": str(e)}, status_code=400)
     serial = f"CT-{len(citations_db)+1:04d}-M"
     fine_map = {"ticket": "₱5,000.00", "apprehend": "₱10,000.00", "warning": "₱0.00"}
     citations_db.append({
@@ -609,6 +677,68 @@ async def mobile_intercept(request: Request):
         "action":  action,
         "message": f"Interception report {serial} submitted successfully.",
     })
+
+# ── Enforcer Profile & Citations ──────────────────────────────────────────────
+
+@app.get("/api/mobile/profile")
+async def mobile_get_profile(request: Request):
+    """Return the logged-in enforcer's full profile."""
+    mobile_user = get_mobile_user(request)
+    if not mobile_user:
+        return JSONResponse({"error": "Unauthorized."}, status_code=401)
+    username = mobile_user["username"]
+    user = users.get(username, {})
+    return JSONResponse({
+        "username":     username,
+        "full_name":    user.get("full_name", username),
+        "badge":        user.get("badge", ""),
+        "precinct":     user.get("precinct", ""),
+        "mobile":       user.get("mobile", ""),
+        "email":        user.get("email", ""),
+        "shift_status": user.get("shift_status", "On Duty"),
+    })
+
+@app.put("/api/mobile/profile")
+async def mobile_update_profile(request: Request):
+    """Update mobile number and shift status for the enforcer."""
+    mobile_user = get_mobile_user(request)
+    if not mobile_user:
+        return JSONResponse({"error": "Unauthorized."}, status_code=401)
+    data     = await request.json()
+    username = mobile_user["username"]
+    for field in ["mobile", "shift_status"]:
+        if field in data:
+            users[username][field] = data[field]
+    log_audit(username, "MOBILE_PROFILE_UPDATED", request.client.host if request.client else "unknown", "blue")
+    return JSONResponse({"success": True})
+
+@app.put("/api/mobile/change-password")
+async def mobile_change_password(request: Request):
+    """Change the enforcer's password."""
+    mobile_user = get_mobile_user(request)
+    if not mobile_user:
+        return JSONResponse({"error": "Unauthorized."}, status_code=401)
+    data     = await request.json()
+    current  = data.get("current_password", "")
+    new_pw   = data.get("new_password", "")
+    username = mobile_user["username"]
+    if users[username]["password"] != current:
+        return JSONResponse({"error": "Current password is incorrect."}, status_code=400)
+    if len(new_pw) < 6:
+        return JSONResponse({"error": "Password must be at least 6 characters."}, status_code=400)
+    users[username]["password"] = new_pw
+    log_audit(username, "PASSWORD_CHANGED", request.client.host if request.client else "unknown", "blue")
+    return JSONResponse({"success": True})
+
+@app.get("/api/mobile/citations")
+async def mobile_citations(request: Request):
+    """Return all citations submitted by the logged-in enforcer."""
+    mobile_user = get_mobile_user(request)
+    if not mobile_user:
+        return JSONResponse({"error": "Unauthorized."}, status_code=401)
+    username     = mobile_user["username"]
+    my_citations = [c for c in citations_db if c.get("officer") == username]
+    return JSONResponse({"citations": list(reversed(my_citations))})
 
 # ==========================================
 # MOBILE API  (React Native — Passenger)
@@ -724,11 +854,12 @@ async def passenger_complaint(request: Request):
     if not pax_user:
         return JSONResponse({"error": "Unauthorized."}, status_code=401)
     body        = await request.json()
-    plate       = body.get("plate", "").strip().upper()
-    complaint   = body.get("complaint", "").strip()   # overload | thermal | other
-    description = body.get("description", "").strip()
-    if not plate or not complaint:
-        return JSONResponse({"error": "plate and complaint type are required."}, status_code=400)
+    description = _str(body.get("description", ""), 500)
+    try:
+        plate     = validate_plate(body.get("plate", ""))
+        complaint = validate_complaint_type(body.get("complaint", ""))
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
     puv    = next((p for p in puv_database if p["plate"].upper() == plate), None)
     serial = f"CMP-{uuid.uuid4().hex[:8].upper()}"
     record = {
@@ -751,6 +882,51 @@ async def passenger_complaint(request: Request):
         "serial":  serial,
     })
 
+# ── Passenger Profile & Complaint History ─────────────────────────────────────
+
+@app.get("/api/passenger/my-complaints")
+async def passenger_my_complaints(request: Request):
+    """Return all complaints submitted by the logged-in passenger."""
+    pax_user = get_passenger_user(request)
+    if not pax_user:
+        return JSONResponse({"error": "Unauthorized."}, status_code=401)
+    username      = pax_user["username"]
+    my_complaints = [c for c in complaints_db if c.get("reporter") == username]
+    return JSONResponse({"complaints": list(reversed(my_complaints))})
+
+@app.put("/api/passenger/profile")
+async def passenger_update_profile(request: Request):
+    """Update the passenger's mobile number."""
+    pax_user = get_passenger_user(request)
+    if not pax_user:
+        return JSONResponse({"error": "Unauthorized."}, status_code=401)
+    data     = await request.json()
+    username = pax_user["username"]
+    if "mobile" in data:
+        users[username]["mobile"] = data["mobile"]
+        # Keep cached token profile in sync
+        for token, profile in passenger_tokens.items():
+            if profile.get("username") == username:
+                passenger_tokens[token]["mobile"] = data["mobile"]
+    return JSONResponse({"success": True})
+
+@app.put("/api/passenger/change-password")
+async def passenger_change_password(request: Request):
+    """Change the passenger's password."""
+    pax_user = get_passenger_user(request)
+    if not pax_user:
+        return JSONResponse({"error": "Unauthorized."}, status_code=401)
+    data     = await request.json()
+    current  = data.get("current_password", "")
+    new_pw   = data.get("new_password", "")
+    username = pax_user["username"]
+    if users[username]["password"] != current:
+        return JSONResponse({"error": "Current password is incorrect."}, status_code=400)
+    if len(new_pw) < 6:
+        return JSONResponse({"error": "Password must be at least 6 characters."}, status_code=400)
+    users[username]["password"] = new_pw
+    return JSONResponse({"success": True})
+
 # --- SENSOR APIs ---
 @app.post("/api/update_sensor")
 async def update_sensor(request: Request):
@@ -763,7 +939,7 @@ async def update_sensor(request: Request):
             puv['passengers'] += 1
         elif action == 'sub' and puv['passengers'] > 0:
             puv['passengers'] -= 1
-        is_violator   = puv['passengers'] > puv['capacity']
+        is_violator    = puv['passengers'] > puv['capacity']
         is_overheating = puv.get('temp', 0) >= 37.5
         await manager.broadcast({
             "type": "violation" if is_violator or is_overheating else "update",
@@ -818,4 +994,4 @@ async def websocket_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
