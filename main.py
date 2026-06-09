@@ -390,6 +390,38 @@ async def delete_user(request: Request):
         return JSONResponse({"success": True})
     return JSONResponse({"success": False, "error": "User not found."})
 
+@app.post("/api/reset_user_password")
+async def reset_user_password(request: Request):
+    if get_role(request) != 'admin':
+        return JSONResponse(
+            {"success": False, "error": "Unauthorized"},
+            status_code=403
+        )
+
+    data = await request.json()
+    username = data.get("username", "")
+
+    if username in users:
+        users[username]["password"] = "123456"
+        users[username]["must_change_password"] = True
+
+        log_audit(
+            request.session.get('username', 'admin'),
+            f"PASSWORD_RESET: {username}",
+            request.client.host if request.client else "unknown",
+            "blue"
+        )
+
+        return JSONResponse({
+            "success": True,
+            "new_password": "123456"
+        })
+
+    return JSONResponse({
+        "success": False,
+        "error": "User not found."
+    })
+
 @app.get("/configure_seating", response_class=HTMLResponse)
 async def configure_seating(request: Request):
     if get_role(request) != 'admin': return RedirectResponse(url="/dashboard", status_code=302)
