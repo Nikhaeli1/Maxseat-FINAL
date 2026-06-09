@@ -43,7 +43,7 @@
                         {{ p.passengers }}/{{ p.capacity }} PAX
                     </span>
                     <div class="progress-bar">
-                        <div class="progress-fill" style="width:{{ [load_pct,100]|min }}%;background:{{ '#ef4444' if overloaded else '#2563eb' }};"></div>
+                        <div class="progress-fill" data-width="{{ [load_pct,100]|min }}" data-color="{{ '#ef4444' if overloaded else '#2563eb' }}"></div>
                     </div>
                 </td>
                 <td>
@@ -58,14 +58,10 @@
                     {% endif %}
                 </td>
                 <td style="display:flex;gap:8px;align-items:center;">
-                    <button onclick="showVehicleModal('{{ p.plate }}','{{ p.company }}','{{ p.driver }}',{{ p.passengers }},{{ p.capacity }},'{{ p.loc_name }}',{{ p.temp }})"
-                            class="btn-ghost">
+                        <button type="button" class="btn-ghost vehicle-details-btn"
+                            data-plate="{{ p.plate }}" data-company="{{ p.company }}" data-driver="{{ p.driver }}"
+                            data-passengers="{{ p.passengers }}" data-capacity="{{ p.capacity }}" data-location="{{ p.loc_name }}" data-temp="{{ p.temp }}">
                         <i class="fa-solid fa-chart-simple"></i> Details
-                    </button>
-                    <button onclick="removePuv({{ p.id }}, '{{ p.plate }}')"
-                            style="background:rgba(239,68,68,0.08);border:1.5px solid rgba(239,68,68,0.2);color:#ef4444;padding:8px 14px;border-radius:var(--radius-sm);font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;transition:all 0.2s;"
-                            onmouseover="this.style.background='rgba(239,68,68,0.16)'" onmouseout="this.style.background='rgba(239,68,68,0.08)'">
-                        <i class="fa-solid fa-trash"></i> Remove
                     </button>
                 </td>
             </tr>
@@ -86,9 +82,6 @@
         <div id="modal-body" style="display:flex;flex-direction:column;gap:12px;"></div>
         <div style="margin-top:22px;display:flex;gap:10px;">
             <button onclick="closeModal()" class="btn btn-outline" style="flex:1;">Close</button>
-            <a href="/configure_seating" class="btn btn-primary" style="flex:1;justify-content:center;">
-                <i class="fa-solid fa-sliders"></i> Edit Capacity
-            </a>
         </div>
     </div>
 </div>
@@ -124,34 +117,23 @@ function infoBox(label, value, icon, color='') {
     </div>`;
 }
 function closeModal() { document.getElementById('vehicle-modal').style.display = 'none'; }
-document.getElementById('vehicle-modal').addEventListener('click', function(e) { if (e.target===this) closeModal(); });
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.progress-fill').forEach(el => {
+        const w = el.dataset.width || 0;
+        const c = el.dataset.color || '';
+        el.style.width = w + '%';
+        if (c) el.style.background = c;
+    });
 
-async function removePuv(puvId, plate) {
-    const result = await Swal.fire({
-        title: `Remove ${plate}?`,
-        text: 'This will permanently remove the PUV from the fleet registry.',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#ef4444',
-        cancelButtonColor: '#64748b',
-        confirmButtonText: '<i class="fa-solid fa-trash"></i> Yes, Remove',
-        cancelButtonText: 'Cancel',
-        background: 'var(--card-bg)',
-        color: 'var(--text-main)'
+    document.querySelectorAll('.vehicle-details-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const d = this.dataset;
+            showVehicleModal(d.plate, d.company, d.driver, parseInt(d.passengers||0), parseInt(d.capacity||0), d.location, parseFloat(d.temp||0));
+        });
     });
-    if (!result.isConfirmed) return;
-    const res  = await fetch('/api/delete_puv', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({puv_id: puvId})
-    });
-    const data = await res.json();
-    if (data.success) {
-        await Swal.fire({ title: 'Removed', text: `${data.plate} has been removed from the fleet.`, icon: 'success', confirmButtonColor: '#2563eb', background: 'var(--card-bg)', color: 'var(--text-main)' });
-        location.reload();
-    } else {
-        Swal.fire({ title: 'Error', text: data.error || 'Could not remove PUV.', icon: 'error', background: 'var(--card-bg)', color: 'var(--text-main)' });
-    }
-}
+    document.getElementById('vehicle-modal').addEventListener('click', function(e) { if (e.target===this) closeModal(); });
+});
 </script>
 {% endblock %}
