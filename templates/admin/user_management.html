@@ -49,10 +49,18 @@
                     {% endif %}
                 </td>
                 <td>
-                    <button onclick="deleteUser('{{ username }}')" class="btn-ghost" style="color:#ef4444;">
-                        <i class="fa-solid fa-trash"></i>
-                    </button>
-                </td>
+    <button onclick="resetPassword('{{ username }}')"
+            class="btn-ghost"
+            style="color:#f59e0b;margin-right:10px;">
+        <i class="fa-solid fa-key"></i>
+    </button>
+
+    <button onclick="deleteUser('{{ username }}')"
+            class="btn-ghost"
+            style="color:#ef4444;">
+        <i class="fa-solid fa-trash"></i>
+    </button>
+</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -160,6 +168,43 @@ async function deleteUser(username) {
         } else {
             popAlert('Error', data.error, 'error');
         }
+    }
+}
+async function resetPassword(username) {
+    const result = await Swal.fire({
+        title: `Reset password for ${username}?`,
+        text: "The password will be reset",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Yes, reset",
+        cancelButtonText: "Cancel",
+        confirmButtonColor: "#f59e0b"
+    });
+
+    if (!result.isConfirmed) return;
+
+    const response = await fetch('/api/reset_user_password', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+        Swal.fire({
+            title: 'Password Reset!',
+            text: `${username}'s password has been reset to 123456.`,
+            icon: 'success'
+        });
+    } else {
+        Swal.fire({
+            title: 'Error',
+            text: data.error,
+            icon: 'error'
+        });
     }
 }
 </script>
