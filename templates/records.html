@@ -24,7 +24,6 @@
                 <th>Violation Type</th>
                 <th>GNSS Location</th>
                 <th>Last Update</th>
-                <th>Action</th>
             </tr>
         </thead>
         <tbody>
@@ -58,16 +57,16 @@
                 </td>
                 <td style="font-size:13px;color:var(--text-muted);">{{ p.last_update }}</td>
                 <td>
-                    {% if role == 'admin' or role == 'enforcer' %}
-                    {% if overloaded or overheating %}
+                {% if role == 'enforcer' %}
+                {% if overloaded or overheating %}
                     <button onclick="popAlert('Dispatch', 'Dispatching response unit to {{ p.loc_name }}', 'success')"
-                            class="btn btn-danger" style="padding:8px 15px;font-size:12px;">
+                        class="btn btn-danger" style="padding:8px 15px;font-size:12px;">
                         <i class="fa-solid fa-location-crosshairs"></i> Dispatch
                     </button>
-                    {% else %}
+                {% else %}
                     <span style="font-size:12px;color:var(--text-muted);">—</span>
-                    {% endif %}
-                    {% endif %}
+                {% endif %}
+                {% endif %}
                 </td>
             </tr>
             {% else %}
