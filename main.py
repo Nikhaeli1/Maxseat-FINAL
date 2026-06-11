@@ -306,7 +306,6 @@ async def dashboard(request: Request):
         username = request.session.get('username')
         my_puv   = next((p for p in puv_database if p['username'] == username), None)
         if my_puv is None:
-            # Driver has no assigned PUV — return a safe placeholder so the template never errors
             my_puv = {
                 "id": None, "plate": "UNASSIGNED",
                 "driver": users.get(username, {}).get("full_name", username),
@@ -390,14 +389,19 @@ async def delete_user(request: Request):
         return JSONResponse({"success": True})
     return JSONResponse({"success": False, "error": "User not found."})
 
+# UPDATED: now handles both admin and enforcer
 @app.get("/configure_seating", response_class=HTMLResponse)
 async def configure_seating(request: Request):
-    if get_role(request) != 'admin': return RedirectResponse(url="/dashboard", status_code=302)
-    return TR(request, "admin/configure_seating.html", {"role": "admin", "puvs": puv_database, "messages": get_flash(request)})
+    role = get_role(request)
+    if role == 'admin':
+        return TR(request, "admin/configure_seating.html", {"role": "admin", "puvs": puv_database, "messages": get_flash(request)})
+    elif role == 'enforcer':
+        return TR(request, "enforcer/configure_seating.html", {"role": "enforcer", "puvs": puv_database, "messages": get_flash(request)})
+    return RedirectResponse(url="/dashboard", status_code=302)
 
 @app.post("/api/update_capacity")
 async def update_capacity(request: Request):
-    if get_role(request) != 'admin':
+    if get_role(request) not in ['admin', 'enforcer']:
         return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
     data         = await request.json()
     puv_id       = data.get("puv_id")
@@ -407,6 +411,21 @@ async def update_capacity(request: Request):
         puv['capacity'] = int(new_capacity)
         return JSONResponse({"success": True, "plate": puv['plate'], "capacity": puv['capacity']})
     return JSONResponse({"success": False, "error": "Vehicle not found or invalid capacity."})
+
+# ADDED: validate capacity for enforcer approve/reject
+@app.post("/api/validate_capacity")
+async def validate_capacity(request: Request):
+    if get_role(request) not in ['admin', 'enforcer']:
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
+    data   = await request.json()
+    puv_id = data.get("puv_id")
+    status = data.get("status")
+    puv    = next((p for p in puv_database if p['id'] == puv_id), None)
+    if not puv:
+        return JSONResponse({"success": False, "error": "PUV not found."})
+    puv['capacity_status'] = status
+    log_audit(request.session.get('username', 'enforcer'), f"CAPACITY_{status.upper()}: {puv['plate']}", request.client.host if request.client else "unknown", "blue")
+    return JSONResponse({"success": True})
 
 @app.get("/audit_logs", response_class=HTMLResponse)
 async def audit_logs_page(request: Request):
@@ -529,15 +548,12 @@ async def coop_update_driver(request: Request):
     for field in allowed_fields:
         if field in data and data[field] is not None:
             users[username][field] = data[field]
-    # Handle PUV assignment
     assigned_puv_id = data.get("assigned_puv_id")
     if assigned_puv_id is not None:
-        # Unassign from any current PUV
         for p in puv_database:
             if p["username"] == username:
                 p["username"] = ""
                 p["driver"]   = "Unassigned"
-        # Assign to new PUV if not empty
         if assigned_puv_id != "":
             puv = next((p for p in puv_database if p["id"] == int(assigned_puv_id)), None)
             if puv:
@@ -565,14 +581,12 @@ def get_mobile_user(request: Request):
 
 @app.post("/api/mobile/login")
 async def mobile_login(request: Request):
-    """Authenticate a Field Enforcer and return a bearer token."""
     data     = await request.json()
     username = data.get("username", "").strip()
     password = data.get("password", "")
     user     = users.get(username)
     if not user or user["password"] != password or user["role"] != "enforcer":
         return JSONResponse({"success": False, "error": "Invalid credentials."}, status_code=401)
-    # Revoke any existing token for this user
     for t, u in list(mobile_tokens.items()):
         if u == username:
             del mobile_tokens[t]
@@ -591,7 +605,6 @@ async def mobile_login(request: Request):
 
 @app.post("/api/mobile/logout")
 async def mobile_logout(request: Request):
-    """Revoke the mobile bearer token."""
     mobile_user = get_mobile_user(request)
     if not mobile_user:
         return JSONResponse({"success": False, "error": "Unauthorized."}, status_code=401)
@@ -602,7 +615,6 @@ async def mobile_logout(request: Request):
 
 @app.get("/api/mobile/dispatch")
 async def mobile_dispatch(request: Request):
-    """Return all active violations as dispatch orders for the mobile app."""
     mobile_user = get_mobile_user(request)
     if not mobile_user:
         return JSONResponse({"success": False, "error": "Unauthorized."}, status_code=401)
@@ -645,7 +657,6 @@ async def mobile_dispatch(request: Request):
 
 @app.post("/api/mobile/intercept")
 async def mobile_intercept(request: Request):
-    """Submit an interception report from the mobile app."""
     mobile_user = get_mobile_user(request)
     if not mobile_user:
         return JSONResponse({"success": False, "error": "Unauthorized."}, status_code=401)
@@ -678,11 +689,8 @@ async def mobile_intercept(request: Request):
         "message": f"Interception report {serial} submitted successfully.",
     })
 
-# ── Enforcer Profile & Citations ──────────────────────────────────────────────
-
 @app.get("/api/mobile/profile")
 async def mobile_get_profile(request: Request):
-    """Return the logged-in enforcer's full profile."""
     mobile_user = get_mobile_user(request)
     if not mobile_user:
         return JSONResponse({"error": "Unauthorized."}, status_code=401)
@@ -700,7 +708,6 @@ async def mobile_get_profile(request: Request):
 
 @app.put("/api/mobile/profile")
 async def mobile_update_profile(request: Request):
-    """Update mobile number and shift status for the enforcer."""
     mobile_user = get_mobile_user(request)
     if not mobile_user:
         return JSONResponse({"error": "Unauthorized."}, status_code=401)
@@ -714,7 +721,6 @@ async def mobile_update_profile(request: Request):
 
 @app.put("/api/mobile/change-password")
 async def mobile_change_password(request: Request):
-    """Change the enforcer's password."""
     mobile_user = get_mobile_user(request)
     if not mobile_user:
         return JSONResponse({"error": "Unauthorized."}, status_code=401)
@@ -732,7 +738,6 @@ async def mobile_change_password(request: Request):
 
 @app.get("/api/mobile/citations")
 async def mobile_citations(request: Request):
-    """Return all citations submitted by the logged-in enforcer."""
     mobile_user = get_mobile_user(request)
     if not mobile_user:
         return JSONResponse({"error": "Unauthorized."}, status_code=401)
@@ -744,7 +749,6 @@ async def mobile_citations(request: Request):
 # MOBILE API  (React Native — Passenger)
 # ==========================================
 def get_passenger_user(request: Request):
-    """Extract and validate Bearer token for passenger role."""
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
         return None
@@ -753,7 +757,6 @@ def get_passenger_user(request: Request):
 
 @app.post("/api/passenger/login")
 async def passenger_login(request: Request):
-    """Authenticate a passenger and return a bearer token."""
     data     = await request.json()
     username = data.get("username", "").strip()
     password = data.get("password", "")
@@ -778,7 +781,6 @@ async def passenger_login(request: Request):
 
 @app.post("/api/passenger/logout")
 async def passenger_logout(request: Request):
-    """Revoke the passenger bearer token."""
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
         passenger_tokens.pop(auth[7:], None)
@@ -786,7 +788,6 @@ async def passenger_logout(request: Request):
 
 @app.get("/api/passenger/puvs")
 async def passenger_list_puvs(request: Request):
-    """Return a lightweight list of all active PUVs."""
     pax_user = get_passenger_user(request)
     if not pax_user:
         return JSONResponse({"error": "Unauthorized."}, status_code=401)
@@ -815,7 +816,6 @@ async def passenger_list_puvs(request: Request):
 
 @app.get("/api/passenger/puv/{plate}")
 async def passenger_puv_detail(plate: str, request: Request):
-    """Return full detail for a single PUV by plate number."""
     pax_user = get_passenger_user(request)
     if not pax_user:
         return JSONResponse({"error": "Unauthorized."}, status_code=401)
@@ -849,7 +849,6 @@ async def passenger_puv_detail(plate: str, request: Request):
 
 @app.post("/api/passenger/complaint")
 async def passenger_complaint(request: Request):
-    """Submit a passenger complaint about a PUV."""
     pax_user = get_passenger_user(request)
     if not pax_user:
         return JSONResponse({"error": "Unauthorized."}, status_code=401)
@@ -882,11 +881,8 @@ async def passenger_complaint(request: Request):
         "serial":  serial,
     })
 
-# ── Passenger Profile & Complaint History ─────────────────────────────────────
-
 @app.get("/api/passenger/my-complaints")
 async def passenger_my_complaints(request: Request):
-    """Return all complaints submitted by the logged-in passenger."""
     pax_user = get_passenger_user(request)
     if not pax_user:
         return JSONResponse({"error": "Unauthorized."}, status_code=401)
@@ -896,7 +892,6 @@ async def passenger_my_complaints(request: Request):
 
 @app.put("/api/passenger/profile")
 async def passenger_update_profile(request: Request):
-    """Update the passenger's mobile number."""
     pax_user = get_passenger_user(request)
     if not pax_user:
         return JSONResponse({"error": "Unauthorized."}, status_code=401)
@@ -904,7 +899,6 @@ async def passenger_update_profile(request: Request):
     username = pax_user["username"]
     if "mobile" in data:
         users[username]["mobile"] = data["mobile"]
-        # Keep cached token profile in sync
         for token, profile in passenger_tokens.items():
             if profile.get("username") == username:
                 passenger_tokens[token]["mobile"] = data["mobile"]
@@ -912,7 +906,6 @@ async def passenger_update_profile(request: Request):
 
 @app.put("/api/passenger/change-password")
 async def passenger_change_password(request: Request):
-    """Change the passenger's password."""
     pax_user = get_passenger_user(request)
     if not pax_user:
         return JSONResponse({"error": "Unauthorized."}, status_code=401)

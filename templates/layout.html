@@ -175,6 +175,10 @@
         <a href="/interception_status" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/interception_status' }}">
             <i class="fa-solid fa-clipboard-check"></i> Submit Report
         </a>
+        <!-- ADDED: Seating Config link for enforcer -->
+        <a href="/configure_seating" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/configure_seating' }}">
+            <i class="fa-solid fa-sliders"></i> Seating Config
+        </a>
         <span class="nav-section">Records</span>
         <a href="/citations" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/citations' }}">
             <i class="fa-solid fa-ticket"></i> Citations
