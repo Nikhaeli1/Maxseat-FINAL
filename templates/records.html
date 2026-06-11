@@ -1,5 +1,127 @@
 {% extends "layout.html" %}
 {% block content %}
+<style>
+    /* ── Dispatch Button ── */
+    .btn-dispatch {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 7px 14px; border-radius: var(--radius-sm);
+        background: rgba(37,99,235,0.08); color: var(--primary);
+        border: 1.5px solid rgba(37,99,235,0.25);
+        font-size: 12px; font-weight: 700; cursor: pointer;
+        font-family: inherit; transition: all 0.18s; white-space: nowrap;
+    }
+    .btn-dispatch:hover {
+        background: var(--primary); color: #fff;
+        border-color: var(--primary); box-shadow: 0 3px 10px rgba(37,99,235,0.3);
+    }
+
+    /* ── Modal Overlay ── */
+    .dispatch-overlay {
+        display: none; position: fixed; inset: 0; z-index: 999;
+        background: rgba(0,0,0,0.45); backdrop-filter: blur(3px);
+        align-items: center; justify-content: center;
+    }
+    .dispatch-overlay.open { display: flex; }
+
+    /* ── Modal Card ── */
+    .dispatch-modal {
+        background: var(--card-bg); border-radius: var(--radius-lg);
+        border: 1px solid var(--border-color); width: 100%; max-width: 480px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.25); padding: 28px 28px 24px;
+        animation: dispatchSlideUp 0.22s ease;
+    }
+    @keyframes dispatchSlideUp {
+        from { opacity: 0; transform: translateY(16px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    .dispatch-modal-header {
+        display: flex; align-items: flex-start; justify-content: space-between;
+        margin-bottom: 20px;
+    }
+    .dispatch-modal-title { font-size: 17px; font-weight: 800; color: var(--text-main); }
+    .dispatch-modal-sub   { font-size: 12px; color: var(--text-muted); margin-top: 3px; font-weight: 600; }
+    .dispatch-close {
+        background: none; border: none; cursor: pointer; color: var(--text-muted);
+        font-size: 18px; padding: 2px 6px; border-radius: 6px; transition: background 0.15s; line-height: 1;
+    }
+    .dispatch-close:hover { background: var(--border-color); }
+
+    /* ── Target Info Strip ── */
+    .dispatch-target-strip {
+        background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.18);
+        border-radius: 10px; padding: 12px 16px; margin-bottom: 20px;
+        display: flex; align-items: center; gap: 14px;
+    }
+    .dispatch-target-strip i { color: #ef4444; font-size: 16px; flex-shrink: 0; }
+    .dispatch-target-plate { font-size: 16px; font-weight: 800; color: var(--text-main); }
+    .dispatch-target-meta  { font-size: 11px; color: var(--text-muted); font-weight: 600; margin-top: 3px; }
+
+    /* ── Section Label ── */
+    .dispatch-label {
+        font-size: 11px; font-weight: 700; color: var(--text-muted);
+        text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px;
+    }
+
+    /* ── Officer Grid ── */
+    .officer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+    .officer-card {
+        border: 1.5px solid var(--border-color); border-radius: 10px;
+        padding: 11px 13px; cursor: pointer; transition: all 0.16s;
+        background: var(--card-bg); display: flex; align-items: center; gap: 10px;
+    }
+    .officer-card:hover    { border-color: var(--primary); background: rgba(37,99,235,0.04); }
+    .officer-card.selected { border-color: var(--primary); background: rgba(37,99,235,0.08); box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+    .officer-card.disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+    .officer-avatar {
+        width: 36px; height: 36px; border-radius: 50%;
+        background: rgba(37,99,235,0.12); color: var(--primary);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 14px; flex-shrink: 0;
+    }
+    .officer-name   { font-size: 12px; font-weight: 700; color: var(--text-main); line-height: 1.3; }
+    .officer-badge  { font-size: 10px; font-weight: 600; margin-top: 2px; }
+    .officer-badge.available { color: #10b981; }
+    .officer-badge.busy      { color: #f59e0b; }
+    .officer-radio  { margin-left: auto; accent-color: var(--primary); width: 15px; height: 15px; flex-shrink: 0; }
+
+    /* ── Notes ── */
+    .dispatch-notes {
+        width: 100%; padding: 10px 14px; border-radius: 8px; font-size: 13px;
+        border: 1.5px solid var(--border-color); background: var(--card-bg);
+        color: var(--text-main); font-family: inherit; resize: vertical;
+        min-height: 68px; transition: border-color 0.15s; box-sizing: border-box;
+    }
+    .dispatch-notes:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+
+    /* ── Footer ── */
+    .dispatch-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+    .btn-cancel-modal {
+        padding: 9px 18px; border-radius: var(--radius-sm);
+        border: 1.5px solid var(--border-color); background: transparent;
+        color: var(--text-muted); font-weight: 700; font-size: 13px;
+        cursor: pointer; font-family: inherit; transition: all 0.15s;
+    }
+    .btn-cancel-modal:hover { border-color: var(--text-muted); color: var(--text-main); }
+    .btn-confirm-dispatch {
+        padding: 9px 20px; border-radius: var(--radius-sm); border: none;
+        background: var(--primary); color: #fff; font-weight: 700; font-size: 13px;
+        cursor: pointer; font-family: inherit; transition: all 0.15s;
+        display: inline-flex; align-items: center; gap: 7px;
+        box-shadow: 0 4px 12px rgba(37,99,235,0.3);
+    }
+    .btn-confirm-dispatch:hover    { background: #1d4ed8; box-shadow: 0 6px 18px rgba(37,99,235,0.4); }
+    .btn-confirm-dispatch:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+    /* ── Toast ── */
+    #dispatchToast {
+        position: fixed; bottom: 28px; right: 28px; z-index: 9999;
+        background: #10b981; color: #fff; padding: 13px 20px;
+        border-radius: 10px; font-size: 13px; font-weight: 700;
+        box-shadow: 0 8px 24px rgba(16,185,129,0.35);
+        display: none; align-items: center; gap: 10px;
+    }
+</style>
+
 <div class="page-row">
     <div>
         <h1 class="page-title">Violation Records</h1>
@@ -29,7 +151,7 @@
         </thead>
         <tbody>
             {% for p in puvs %}
-            {% set overloaded = p.passengers > p.capacity %}
+            {% set overloaded  = p.passengers > p.capacity %}
             {% set overheating = p.temp >= 37.5 %}
             <tr>
                 <td>
@@ -59,14 +181,15 @@
                 <td style="font-size:13px;color:var(--text-muted);">{{ p.last_update }}</td>
                 <td>
                     {% if role == 'admin' or role == 'enforcer' %}
-                    {% if overloaded or overheating %}
-                    <button onclick="popAlert('Dispatch', 'Dispatching response unit to {{ p.loc_name }}', 'success')"
-                            class="btn btn-danger" style="padding:8px 15px;font-size:12px;">
-                        <i class="fa-solid fa-location-crosshairs"></i> Dispatch
-                    </button>
-                    {% else %}
-                    <span style="font-size:12px;color:var(--text-muted);">—</span>
-                    {% endif %}
+                        {% if overloaded or overheating %}
+                        <button
+                            class="btn-dispatch"
+                            onclick="openDispatch('{{ p.plate }}', '{{ p.driver }}', '{{ p.loc_name }}', '{{ p.lat }},{{ p.lng }}')">
+                            <i class="fa-solid fa-paper-plane"></i> Issue Dispatch Order
+                        </button>
+                        {% else %}
+                        <span style="font-size:12px;color:var(--text-muted);">—</span>
+                        {% endif %}
                     {% endif %}
                 </td>
             </tr>
@@ -84,4 +207,154 @@
         </tbody>
     </table>
 </div>
+
+
+<!-- ═══════════════ DISPATCH ORDER MODAL ═══════════════ -->
+<div class="dispatch-overlay" id="dispatchOverlay" onclick="handleOverlayClick(event)">
+    <div class="dispatch-modal" role="dialog" aria-modal="true" aria-labelledby="dModalTitle">
+
+        <div class="dispatch-modal-header">
+            <div>
+                <div class="dispatch-modal-title" id="dModalTitle">
+                    <i class="fa-solid fa-paper-plane" style="color:var(--primary);margin-right:8px;"></i>Issue Dispatch Order
+                </div>
+                <div class="dispatch-modal-sub">Assign a Field Officer to respond to this violation</div>
+            </div>
+            <button class="dispatch-close" onclick="closeDispatch()" aria-label="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <!-- Target info -->
+        <div class="dispatch-target-strip">
+            <i class="fa-solid fa-location-crosshairs"></i>
+            <div>
+                <div class="dispatch-target-plate" id="dPlate">—</div>
+                <div class="dispatch-target-meta"  id="dMeta">—</div>
+            </div>
+        </div>
+
+        <!-- Officer picker -->
+        <div class="dispatch-label">Select Field Officer</div>
+        <div class="officer-grid" id="officerGrid"></div>
+
+        <!-- Notes -->
+        <div class="dispatch-label">Dispatch Notes <span style="font-weight:400;text-transform:none;font-size:11px;">(optional)</span></div>
+        <textarea class="dispatch-notes" id="dispatchNotes"
+            placeholder="e.g. Unit spotted near Terminal 2, coordinate with on-site enforcer…"></textarea>
+
+        <div class="dispatch-footer">
+            <button class="btn-cancel-modal" onclick="closeDispatch()">Cancel</button>
+            <button class="btn-confirm-dispatch" id="confirmDispatchBtn" onclick="confirmDispatch()" disabled>
+                <i class="fa-solid fa-paper-plane"></i> Send Dispatch Order
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="dispatchToast">
+    <i class="fa-solid fa-circle-check"></i>
+    <span id="dispatchToastMsg"></span>
+</div>
+
+
+<script>
+/* ── Field Officers — swap with server-rendered data if needed ── */
+const OFFICERS = [
+    { id: 'fo1', name: 'Ofcr. R. Santos',    zone: 'Zone A',  status: 'available' },
+    { id: 'fo2', name: 'Ofcr. M. Dela Cruz', zone: 'Zone B',  status: 'available' },
+    { id: 'fo3', name: 'Ofcr. J. Reyes',     zone: 'Zone C',  status: 'busy'      },
+    { id: 'fo4', name: 'Ofcr. A. Villanueva',zone: 'Zone D',  status: 'available' },
+];
+
+let _target   = null;
+let _selected = null;
+
+/* ── Render officer cards ── */
+function renderOfficers() {
+    document.getElementById('officerGrid').innerHTML = OFFICERS.map(o => `
+        <div class="officer-card${o.status === 'busy' ? ' disabled' : ''}"
+             id="oc-${o.id}"
+             onclick="${o.status !== 'busy' ? `selectOfficer('${o.id}')` : ''}">
+            <div class="officer-avatar"><i class="fa-solid fa-user-shield"></i></div>
+            <div style="flex:1;min-width:0;">
+                <div class="officer-name">${o.name}</div>
+                <div class="officer-badge ${o.status}">
+                    <i class="fa-solid fa-circle" style="font-size:6px;vertical-align:middle;margin-right:3px;"></i>
+                    ${o.status === 'available' ? o.zone + ' · Available' : 'On Duty'}
+                </div>
+            </div>
+            <input type="radio" name="dispatchOfficer" class="officer-radio"
+                   value="${o.id}" tabindex="-1" ${o.status === 'busy' ? 'disabled' : ''}>
+        </div>
+    `).join('');
+}
+
+/* ── Open ── */
+function openDispatch(plate, driver, locName, coords) {
+    _target   = { plate, driver, locName, coords };
+    _selected = null;
+
+    document.getElementById('dPlate').textContent = plate + '  ·  ' + driver;
+    document.getElementById('dMeta').textContent  = locName + '  (' + coords + ')';
+    document.getElementById('dispatchNotes').value = '';
+    document.getElementById('confirmDispatchBtn').disabled = true;
+
+    renderOfficers();
+    document.getElementById('dispatchOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+/* ── Close ── */
+function closeDispatch() {
+    document.getElementById('dispatchOverlay').classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+function handleOverlayClick(e) {
+    if (e.target.id === 'dispatchOverlay') closeDispatch();
+}
+
+/* ── Select officer ── */
+function selectOfficer(id) {
+    _selected = id;
+    document.querySelectorAll('.officer-card').forEach(c => c.classList.remove('selected'));
+    const card = document.getElementById('oc-' + id);
+    if (card) { card.classList.add('selected'); card.querySelector('input').checked = true; }
+    document.getElementById('confirmDispatchBtn').disabled = false;
+}
+
+/* ── Confirm ── */
+function confirmDispatch() {
+    if (!_selected || !_target) return;
+    const officer = OFFICERS.find(o => o.id === _selected);
+    const notes   = document.getElementById('dispatchNotes').value.trim();
+
+    const btn = document.getElementById('confirmDispatchBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending…';
+
+    // TODO: replace timeout with real API call:
+    // fetch('/api/dispatch', { method:'POST', headers:{'Content-Type':'application/json'},
+    //   body: JSON.stringify({ plate: _target.plate, officer_id: _selected, notes }) })
+
+    setTimeout(() => {
+        closeDispatch();
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Dispatch Order';
+        showToast(`${officer.name} dispatched to ${_target.plate}`);
+    }, 900);
+}
+
+/* ── Toast ── */
+function showToast(msg) {
+    const t = document.getElementById('dispatchToast');
+    document.getElementById('dispatchToastMsg').textContent = msg;
+    t.style.display = 'flex';
+    clearTimeout(t._t);
+    t._t = setTimeout(() => { t.style.display = 'none'; }, 4000);
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDispatch(); });
+</script>
 {% endblock %}
