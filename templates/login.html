@@ -63,7 +63,7 @@
                 <select name="role" id="role-select" onchange="updateUI()">
                     <optgroup label="── Authority & Enforcement ──">
                         <option value="admin">System Administrator</option>
-                        <option value="enforcer">Field Enforcer (PNP / LTFRB)</option>
+                        <option value="enforcer">LTFRB</option>
                     </optgroup>
                     <optgroup label="── Transport Operations ──">
                         <option value="cooperative">Transport Cooperative (OROTSCO)</option>
@@ -85,7 +85,7 @@
     <script>
         const roleConfig = {
             admin:       { bg: 'bg-admin',       title: 'Admin Hub',              badge: 'admin',       label: 'System Administrator',           icon: 'fa-shield-halved' },
-            enforcer:    { bg: 'bg-enforcer',     title: 'Enforcer Hub',           badge: 'enforcer',    label: 'Field Enforcer (PNP / LTFRB)',    icon: 'fa-user-shield' },
+            enforcer:    { bg: 'bg-enforcer',     title: 'Enforcer Hub',           badge: 'enforcer',    label: 'LTFRB',    icon: 'fa-user-shield' },
             cooperative: { bg: 'bg-cooperative',  title: 'Cooperative Portal',     badge: 'cooperative', label: 'Transport Cooperative (OROTSCO)', icon: 'fa-building' },
             driver:      { bg: 'bg-driver',       title: 'Driver Operations',      badge: 'driver',      label: 'PUV Driver',                     icon: 'fa-id-card' },
         };

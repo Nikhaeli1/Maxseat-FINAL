@@ -63,6 +63,7 @@
         .badge-blue   { background: rgba(37,99,235,0.1);   color: #2563eb; border: 1px solid rgba(37,99,235,0.2); }
         .badge-yellow { background: rgba(245,158,11,0.1);  color: #f59e0b; border: 1px solid rgba(245,158,11,0.2); }
         .badge-gray   { background: rgba(100,116,139,0.1); color: #64748b; border: 1px solid rgba(100,116,139,0.2); }
+        .badge-purple { background: rgba(139,92,246,0.1);  color: #8b5cf6; border: 1px solid rgba(139,92,246,0.2); }
 
         /* TABLE */
         .table-wrap { overflow: hidden; border-radius: var(--radius-lg); border: 1px solid var(--border-color); background: var(--card-bg); margin-bottom: 22px; }
@@ -138,71 +139,71 @@
         <img src="{{ url_for('static', path='logo.png') }}" class="sidebar-logo" alt="MaxSeat Alert">
 
         <span class="nav-section">Navigation</span>
-        <a href="/dashboard" onclick="showLoader('Loading Dashboard...')" class="nav-link {{ 'active' if request.url.path == '/dashboard' }}">
+        <a href="/dashboard" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/dashboard' }}">
             <i class="fa-solid fa-house"></i> Dashboard
         </a>
 
         {% if role == 'admin' %}
         <span class="nav-section">Fleet</span>
-        <a href="/fleet" onclick="showLoader('Loading Fleet...')" class="nav-link {{ 'active' if request.url.path == '/fleet' }}">
-            <i class="fa-solid fa-bus"></i> Fleet Registry
-        </a>
-        <a href="/configure_seating" onclick="showLoader('Configuring...')" class="nav-link {{ 'active' if request.url.path == '/configure_seating' }}">
-            <i class="fa-solid fa-sliders"></i> Seating Config
+        <a href="/fleet" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/fleet' }}">
+            <i class="fa-solid fa-bus"></i> Vehicles
         </a>
         <span class="nav-section">Administration</span>
-        <a href="/user_management" onclick="showLoader('Loading Users...')" class="nav-link {{ 'active' if request.url.path == '/user_management' }}">
-            <i class="fa-solid fa-users-gear"></i> User Management
+        <a href="/user_management" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/user_management' }}">
+            <i class="fa-solid fa-users-gear"></i> Users &amp; accounts
         </a>
-        <a href="/audit_logs" onclick="showLoader('Loading Logs...')" class="nav-link {{ 'active' if request.url.path == '/audit_logs' }}">
-            <i class="fa-solid fa-file-invoice"></i> Audit Logs
+        <a href="/audit_logs" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/audit_logs' }}">
+            <i class="fa-solid fa-file-invoice"></i> Activity log
         </a>
-        <a href="/records" onclick="showLoader('Loading Records...')" class="nav-link {{ 'active' if request.url.path == '/records' }}">
-            <i class="fa-solid fa-database"></i> Violation Records
+        <a href="/records" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/records' }}">
+            <i class="fa-solid fa-database"></i> Records
         </a>
-        <a href="/admin_reports" onclick="showLoader('Loading Reports...')" class="nav-link {{ 'active' if request.url.path == '/admin_reports' }}">
+        <a href="/admin_reports" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/admin_reports' }}">
             <i class="fa-solid fa-chart-bar"></i> Reports
         </a>
 
         {% elif role == 'enforcer' %}
         <span class="nav-section">Enforcement</span>
         <a href="/intercepts" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/intercepts' }}">
-            <i class="fa-solid fa-shield-halved"></i> Live Intercepts
+            <i class="fa-solid fa-triangle-exclamation"></i> Active violations
         </a>
         <a href="/dispatch_orders" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/dispatch_orders' }}">
-            <i class="fa-solid fa-location-crosshairs"></i> Dispatch Orders
+            <i class="fa-solid fa-location-crosshairs"></i> Dispatch
         </a>
         <a href="/interception_status" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/interception_status' }}">
-            <i class="fa-solid fa-clipboard-check"></i> Submit Report
+            <i class="fa-solid fa-clipboard-check"></i> Interception report
         </a>
         <span class="nav-section">Records</span>
         <a href="/citations" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/citations' }}">
             <i class="fa-solid fa-ticket"></i> Citations
         </a>
         <a href="/records" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/records' }}">
-            <i class="fa-solid fa-database"></i> Violation Records
+            <i class="fa-solid fa-database"></i> Records
         </a>
         <a href="/reports" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/reports' }}">
             <i class="fa-solid fa-chart-bar"></i> Reports
         </a>
 
         {% elif role == 'cooperative' %}
-        <span class="nav-section">Fleet Operations</span>
-        <a href="/coop/fleet" onclick="showLoader('Loading Fleet...')" class="nav-link {{ 'active' if request.url.path == '/coop/fleet' }}">
-            <i class="fa-solid fa-bus"></i> Fleet & Seating Config
+        <span class="nav-section">Fleet operations</span>
+        <a href="/coop/fleet" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/coop/fleet' }}">
+            <i class="fa-solid fa-bus"></i> Vehicles
         </a>
-        <a href="/coop/drivers" onclick="showLoader('Loading Drivers...')" class="nav-link {{ 'active' if request.url.path == '/coop/drivers' }}">
-            <i class="fa-solid fa-id-card"></i> Manage Drivers
+        <a href="/configure_seating" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/configure_seating' }}">
+            <i class="fa-solid fa-sliders"></i> Passenger limits
+        </a>
+        <a href="/coop/drivers" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/coop/drivers' }}">
+            <i class="fa-solid fa-id-card"></i> Drivers
         </a>
         <span class="nav-section">Compliance</span>
         <a href="/coop/violations" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/coop/violations' }}">
-            <i class="fa-solid fa-triangle-exclamation"></i> Violations & Enforcement
+            <i class="fa-solid fa-triangle-exclamation"></i> Violations &amp; enforcement
         </a>
-        <a href="/records" onclick="showLoader('Loading Records...')" class="nav-link {{ 'active' if request.url.path == '/records' }}">
-            <i class="fa-solid fa-database"></i> Violation Records
+        <a href="/records" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/records' }}">
+            <i class="fa-solid fa-database"></i> Records
         </a>
-        <a href="/coop/reports" onclick="showLoader('Loading Reports...')" class="nav-link {{ 'active' if request.url.path == '/coop/reports' }}">
-            <i class="fa-solid fa-chart-bar"></i> Generate Reports
+        <a href="/coop/reports" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/coop/reports' }}">
+            <i class="fa-solid fa-chart-bar"></i> Reports
         </a>
         {% endif %}
 
@@ -226,7 +227,7 @@
         <header class="top-nav">
             <div class="top-nav-left">
                 <span class="status-dot"></span>
-                GNSS Tracking Active
+                Live tracking on
                 <span style="margin:0 10px;color:var(--border-color)">|</span>
                 <i class="fa-regular fa-clock" style="margin-right:4px;"></i>
                 <span id="live-clock"></span>
@@ -246,14 +247,14 @@
     <script>
         if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark-mode');
         (function tick() {
-            const el = document.getElementById('live-clock');
+            var el = document.getElementById('live-clock');
             if (el) el.textContent = new Date().toLocaleString('en-US', { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit', second:'2-digit', hour12:true });
             setTimeout(tick, 1000);
         })();
-        function showLoader(t='Loading...') { document.getElementById('loader-text').textContent=t; document.getElementById('loader-overlay').classList.add('active'); }
+        function showLoader(t) { t=t||'Loading...'; document.getElementById('loader-text').textContent=t; document.getElementById('loader-overlay').classList.add('active'); }
         function hideLoader() { document.getElementById('loader-overlay').classList.remove('active'); }
-        function triggerLogout() { showLoader('Logging out...'); setTimeout(()=>window.location.href='/logout',700); }
-        function popAlert(title,text,icon) { Swal.fire({title,text,icon,confirmButtonColor:'#2563eb',background:'var(--card-bg)',color:'var(--text-main)'}); }
+        function triggerLogout() { showLoader('Logging out...'); setTimeout(function(){ window.location.href='/logout'; }, 700); }
+        function popAlert(title,text,icon) { Swal.fire({title:title,text:text,icon:icon,confirmButtonColor:'#2563eb',background:'var(--card-bg)',color:'var(--text-main)'}); }
         function toggleTheme() { document.body.classList.toggle('dark-mode'); localStorage.setItem('theme',document.body.classList.contains('dark-mode')?'dark':'light'); }
         window.addEventListener('load', hideLoader);
     </script>

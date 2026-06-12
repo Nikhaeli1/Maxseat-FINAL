@@ -1,4 +1,7 @@
 from fastapi import FastAPI, Request, Form, WebSocket, WebSocketDisconnect
+import smtplib, httpx
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -47,6 +50,18 @@ passenger_tokens: dict = {}   # passenger Bearer tokens
 # In-memory complaint store
 complaints_db: list = []
 
+# ══════════════════════════════════════════════
+# NOTIFICATION CONFIG — fill these in
+# ══════════════════════════════════════════════
+SEMAPHORE_API_KEY  = "YOUR_SEMAPHORE_API_KEY"   # get from semaphore.co
+SEMAPHORE_SENDER   = "MaxSeat"                   # your registered sender name (max 11 chars)
+
+GMAIL_ADDRESS      = "asok.marielle04@gmail.com"            # your Gmail address
+GMAIL_APP_PASSWORD = "vwut ckwz nuno dnto"       # Gmail App Password (not your login password)
+GMAIL_SENDER_NAME  = "MaxSeat Alert System"
+
+# ══════════════════════════════════════════════
+
 app = FastAPI(title="MaxSeat Alert System")
 
 # --- MIDDLEWARE ---
@@ -88,77 +103,17 @@ manager = ConnectionManager()
 # --- GLOBAL IN-MEMORY DATABASE ---
 users = {
     "admin": {
-        "password": "123", "role": "admin", "email": "admin@maxseat.ph",
-        "must_change_password": False, "full_name": "Bradley Sheen Sale",
+        "password": "admin@2026001", "role": "admin", "email": "admin@maxseat.ph",
+        "must_change_password": True, "full_name": "System Administrator",
         "department": "Central Command Authority", "clearance": "Level 5 - Global"
-    },
-    "LTFRB": {
-        "password": "123", "role": "enforcer", "email": "cdo.precinct@pnp.gov.ph",
-        "must_change_password": False, "full_name": "Marielle Joy F. Asok",
-        "badge": "PNP-CDO-994", "precinct": "CDO Central Station",
-        "mobile": "0917-123-4567", "shift_status": "On Duty"
-    },
-    "JuanD": {
-        "password": "DelaCruz@001", "role": "driver", "email": "delacruz@maxseat.ph",
-        "must_change_password": True, "full_name": "Juan Dela Cruz",
-        "license": "L02-12-345678", "operator": "Señor Pedro Lines",
-        "plate": "KVR-102", "mobile": "0920-987-6543",
-        "emergency_contact": "Maria Dela Cruz (0999-000-0000)"
-    },
-    "OROTSCO-01": {
-        "password": "123", "role": "cooperative", "email": "dispatch@orotsco.coop",
-        "must_change_password": False, "full_name": "Elsie Jandayan",
-        "organization": "Oro Transport Service Cooperative (OROTSCO)",
-        "position": "General Manager", "mobile": "0912-345-6789",
-        "address": "Bugo-Igpit Route, Cagayan de Oro City"
-    },
-    "passenger01": {
-        "password": "pass123", "role": "passenger",
-        "full_name": "Juan dela Cruz", "mobile": "09171234567",
     },
 }
 
-puv_database = [
-    {
-        "id": 1, "username": "JuanD", "company": "Señor Pedro Lines",
-        "plate": "KVR-102", "driver": "Juan Dela Cruz", "passengers": 14,
-        "capacity": 22, "loc_name": "Bulua Highway", "lat": 8.4965, "lng": 124.6235,
-        "status": "Active", "speed": "45 km/h", "temp": 32.5,
-        "last_update": "Just now", "show_name": True, "schedule": "06:00 AM - 08:00 PM",
-        "route": "Bugo–Igpit"
-    },
-    {
-        "id": 2, "username": "dummy2", "company": "Oro Transit",
-        "plate": "AAB-5501", "driver": "Ricardo Dalisay", "passengers": 25,
-        "capacity": 22, "loc_name": "CM Recto Ave", "lat": 8.4865, "lng": 124.6508,
-        "status": "Active", "speed": "30 km/h", "temp": 38.0,
-        "last_update": "1 min ago", "show_name": False, "schedule": "05:00 AM - 09:00 PM",
-        "route": "Bugo–Igpit"
-    },
-    {
-        "id": 3, "username": "dummy3", "company": "Bukidnon Express",
-        "plate": "XYZ-998", "driver": "Pedro Santos", "passengers": 18,
-        "capacity": 22, "loc_name": "Lapasan, CDO", "lat": 8.5012, "lng": 124.6310,
-        "status": "Active", "speed": "38 km/h", "temp": 30.1,
-        "last_update": "2 mins ago", "show_name": True, "schedule": "05:30 AM - 08:30 PM",
-        "route": "Bugo–Igpit"
-    }
-]
+puv_database = []
 
-audit_logs = [
-    {"timestamp": "2026-05-26 08:10:00", "actor": "admin",      "event": "SESSION_INITIATED", "ip": "192.168.1.1",  "category": "green"},
-    {"timestamp": "2026-05-26 07:55:11", "actor": "SYSTEM_CRON","event": "DATABASE_SYNC",     "ip": "127.0.0.1",    "category": "blue"},
-    {"timestamp": "2026-05-25 15:22:30", "actor": "LTFRB",      "event": "DISPATCH_UNIT",     "ip": "110.54.22.1",  "category": "red"},
-    {"timestamp": "2026-05-25 09:10:05", "actor": "JuanD",      "event": "SESSION_INITIATED", "ip": "192.168.1.45", "category": "green"},
-    {"timestamp": "2026-05-24 20:01:00", "actor": "admin",      "event": "USER_CREATED",      "ip": "192.168.1.1",  "category": "blue"},
-    {"timestamp": "2026-05-24 14:33:17", "actor": "LTFRB",      "event": "VIOLATION_LOGGED",  "ip": "110.54.22.1",  "category": "red"},
-]
+audit_logs = []
 
-citations_db = [
-    {"serial": "CT-9921-A", "plate": "KVR-102",  "company": "Señor Pedro Lines", "officer": "LTFRB", "fine": "₱5,000.00", "status": "PENDING",  "date": "2026-05-24"},
-    {"serial": "CT-8810-B", "plate": "AAB-5501", "company": "Oro Transit",       "officer": "LTFRB", "fine": "₱2,500.00", "status": "RESOLVED", "date": "2026-05-22"},
-    {"serial": "CT-7744-C", "plate": "XYZ-998",  "company": "Bukidnon Express",  "officer": "LTFRB", "fine": "₱5,000.00", "status": "RESOLVED", "date": "2026-05-20"},
-]
+citations_db = []
 
 # --- HELPERS ---
 def is_logged_in(request: Request):
@@ -196,8 +151,113 @@ def log_audit(actor: str, event: str, ip: str, category: str = "blue"):
     })
 
 def TR(request: Request, name: str, context: dict = {}):
-    """Wrapper: new Starlette TemplateResponse API — request is separate from context."""
     return templates.TemplateResponse(request=request, name=name, context=context)
+
+# ══════════════════════════════════════════════
+# NOTIFICATION HELPERS
+# ══════════════════════════════════════════════
+
+def build_credentials_message(full_name: str, username: str, password: str, role: str) -> str:
+    role_labels = {
+        "admin":       "System Administrator",
+        "enforcer":    "Field Enforcer",
+        "driver":      "Driver",
+        "cooperative": "Cooperative Manager",
+        "passenger":   "Passenger",
+    }
+    role_label = role_labels.get(role, role.capitalize())
+    return (
+        f"Good day, {full_name}!\n\n"
+        f"You have been registered on the MaxSeat Alert System as a {role_label}.\n\n"
+        f"Your login credentials:\n"
+        f"  Username : {username}\n"
+        f"  Password : {password}\n\n"
+        f"Please log in and change your password immediately.\n"
+        f"Login at: http://127.0.0.1:8000/login\n\n"
+        f"NOTE: Do not share your credentials with anyone.\n"
+        f"- MaxSeat Alert System"
+    )
+
+async def send_sms(mobile: str, message: str) -> dict:
+    """Send SMS via Semaphore API."""
+    if not mobile or SEMAPHORE_API_KEY == "YOUR_SEMAPHORE_API_KEY":
+        return {"success": False, "reason": "SMS not configured or no mobile number."}
+    # Clean mobile number — Semaphore expects 09XXXXXXXXX or +639XXXXXXXXX
+    clean = mobile.replace("-", "").replace(" ", "").replace("+", "")
+    if clean.startswith("63"):
+        clean = "0" + clean[2:]
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                "https://api.semaphore.co/api/v4/messages",
+                data={
+                    "apikey":      SEMAPHORE_API_KEY,
+                    "number":      clean,
+                    "message":     message,
+                    "sendername":  SEMAPHORE_SENDER,
+                }
+            )
+        data = resp.json()
+        return {"success": resp.status_code == 200, "data": data}
+    except Exception as e:
+        return {"success": False, "reason": str(e)}
+
+def send_email(to_email: str, full_name: str, message: str) -> dict:
+    """Send email via Gmail SMTP."""
+    if not to_email or GMAIL_ADDRESS == "your@gmail.com":
+        return {"success": False, "reason": "Email not configured or no email address."}
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = "MaxSeat Alert — Your Account Credentials"
+        msg["From"]    = f"{GMAIL_SENDER_NAME} <{GMAIL_ADDRESS}>"
+        msg["To"]      = to_email
+
+        # Plain text
+        msg.attach(MIMEText(message, "plain"))
+
+        # HTML version
+        html_body = message.replace("\n\n", "</p><p>").replace("\n", "<br>")
+        html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+          <div style="background:#0f172a;padding:24px 32px;">
+            <h2 style="color:#fff;margin:0;font-size:20px;">MaxSeat Alert System</h2>
+            <p style="color:#94a3b8;margin:4px 0 0;font-size:13px;">Account Credentials</p>
+          </div>
+          <div style="padding:28px 32px;background:#fff;">
+            <p style="color:#0f172a;">Good day, <strong>{full_name}</strong>!</p>
+            <p>{html_body}</p>
+            <div style="background:#f1f5f9;border-radius:8px;padding:16px 20px;margin:20px 0;font-family:monospace;font-size:14px;">
+              {message.split("credentials:")[1].split("Please")[0].strip().replace(chr(10),"<br>") if "credentials:" in message else ""}
+            </div>
+            <p style="color:#64748b;font-size:12px;">Do not share your credentials with anyone.</p>
+          </div>
+          <div style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;">
+            <p style="color:#94a3b8;font-size:11px;margin:0;">MaxSeat Alert System — CDO Region</p>
+          </div>
+        </div>"""
+        msg.attach(MIMEText(html, "html"))
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+            server.sendmail(GMAIL_ADDRESS, to_email, msg.as_string())
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "reason": str(e)}
+
+async def notify_new_user(user_data: dict, username: str, password: str):
+    """Send credentials via SMS and/or email."""
+    full_name = user_data.get("full_name", username)
+    role      = user_data.get("role", "")
+    mobile    = user_data.get("mobile", "")
+    email     = user_data.get("email", "")
+    message   = build_credentials_message(full_name, username, password, role)
+
+    results = {}
+    if mobile:
+        results["sms"]   = await send_sms(mobile, message)
+    if email:
+        results["email"] = send_email(email, full_name, message)
+    return results
 
 # --- ROOT ---
 @app.get("/", response_class=HTMLResponse)
@@ -298,7 +358,10 @@ async def dashboard(request: Request):
     role  = get_role(request)
     stats = compute_puv_stats()
     if role == 'admin':
-        return TR(request, "admin/dashboard.html", {"puvs": puv_database, "role": role, "stats": stats})
+        return TR(request, "admin/dashboard.html", {
+            "puvs": puv_database, "role": role, "stats": stats,
+            "citations": citations_db, "audit_logs": audit_logs
+        })
     elif role == 'enforcer':
         sorted_puvs = sorted(puv_database, key=lambda x: (x['passengers'] / x['capacity']) if x['capacity'] > 0 else 0, reverse=True)
         return TR(request, "enforcer/dashboard.html", {"puvs": sorted_puvs, "role": role, "stats": stats})
@@ -338,31 +401,66 @@ async def user_management(request: Request):
 async def create_user(request: Request):
     if get_role(request) != 'admin':
         return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
-    data     = await request.json()
-    username = _str(data.get("username", ""), 32)
-    password = _str(data.get("password", ""), 128)
-    role     = _str(data.get("role", "driver"), 20)
-    email    = _str(data.get("email", ""), 100)
-    full_name= _str(data.get("full_name", ""), 100)
 
-    if not username or not USERNAME_RE.match(username):
-        return JSONResponse({"success": False, "error": "Invalid username. Use 3–32 alphanumeric characters."})
-    if username in users:
-        return JSONResponse({"success": False, "error": "Username already exists."})
+    data     = await request.json()
+    username = data.get("username", "").strip()
+    role     = data.get("role", "driver")
+    password = data.get("password", "")
+
+    if not username or username in users:
+        return JSONResponse({"success": False, "error": "Username already exists or is empty."})
     if len(password) < 6:
         return JSONResponse({"success": False, "error": "Password must be at least 6 characters."})
-    if role not in {"admin", "enforcer", "driver", "cooperative", "passenger"}:
-        return JSONResponse({"success": False, "error": "Invalid role."})
 
-    users[username] = {
-        "password": password,
-        "role":     role,
-        "email":    email,
-        "full_name": full_name,
-        "must_change_password": True
+    # Base record — shared by every role
+    record = {
+        "password":             password,
+        "role":                 role,
+        "full_name":            data.get("full_name", ""),
+        "must_change_password": True,
     }
-    log_audit(request.session.get('username', 'admin'), "USER_CREATED", request.client.host if request.client else "unknown", "blue")
-    return JSONResponse({"success": True})
+
+    # Role-specific fields
+    if role == "admin":
+        record["email"]      = data.get("email", "")
+        record["department"] = data.get("department", "")
+        record["clearance"]  = "Level 1"
+
+    elif role == "enforcer":
+        record["email"]        = data.get("email", "")
+        record["badge"]        = data.get("badge", "")
+        record["precinct"]     = data.get("precinct", "")
+        record["mobile"]       = data.get("mobile", "")
+        record["shift_status"] = "On Duty"
+
+    elif role == "driver":
+        record["license"]           = data.get("license", "")
+        record["operator"]          = data.get("operator", "")
+        record["mobile"]            = data.get("mobile", "")
+        record["emergency_contact"] = data.get("emergency_contact", "")
+        record["plate"]             = ""  # assigned later
+
+    elif role == "cooperative":
+        record["email"]        = data.get("email", "")
+        record["organization"] = data.get("organization", "")
+        record["position"]     = data.get("position", "")
+        record["mobile"]       = data.get("mobile", "")
+        record["address"]      = data.get("address", "")
+
+    elif role == "passenger":
+        record["mobile"] = data.get("mobile", "")
+        record["email"]  = data.get("email", "")
+
+    users[username] = record
+    log_audit(
+        request.session.get('username', 'admin'),
+        f"USER_CREATED: {username} ({role.upper()})",
+        request.client.host if request.client else "unknown",
+        "blue"
+    )
+    # Send credentials via SMS and/or email
+    notify_results = await notify_new_user(record, username, password)
+    return JSONResponse({"success": True, "notifications": notify_results})
 
 @app.post("/api/delete_puv")
 async def delete_puv(request: Request):
@@ -372,7 +470,7 @@ async def delete_puv(request: Request):
     puv_id = data.get("puv_id")
     puv    = next((p for p in puv_database if p['id'] == puv_id), None)
     if not puv:
-        return JSONResponse({"success": False, "error": "PUV not found."})
+        return JSONResponse({"success": False, "error": "Vehicle not found."})
     puv_database.remove(puv)
     log_audit(request.session.get('username', 'admin'), f"PUV_REMOVED: {puv['plate']}", request.client.host if request.client else "unknown", "red")
     return JSONResponse({"success": True, "plate": puv['plate']})
@@ -384,7 +482,7 @@ async def delete_user(request: Request):
     data     = await request.json()
     username = data.get("username", "")
     if username == request.session.get('username'):
-        return JSONResponse({"success": False, "error": "Cannot delete your own account."})
+        return JSONResponse({"success": False, "error": "You cannot delete your own account."})
     if username in users:
         del users[username]
         return JSONResponse({"success": True})
@@ -392,12 +490,12 @@ async def delete_user(request: Request):
 
 @app.get("/configure_seating", response_class=HTMLResponse)
 async def configure_seating(request: Request):
-    if get_role(request) != 'admin': return RedirectResponse(url="/dashboard", status_code=302)
-    return TR(request, "admin/configure_seating.html", {"role": "admin", "puvs": puv_database, "messages": get_flash(request)})
+    if get_role(request) != 'cooperative': return RedirectResponse(url="/dashboard", status_code=302)
+    return TR(request, "cooperative/configure_seating.html", {"role": "cooperative", "puvs": puv_database, "messages": get_flash(request)})
 
 @app.post("/api/update_capacity")
 async def update_capacity(request: Request):
-    if get_role(request) != 'admin':
+    if get_role(request) != 'cooperative':
         return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
     data         = await request.json()
     puv_id       = data.get("puv_id")
@@ -529,15 +627,12 @@ async def coop_update_driver(request: Request):
     for field in allowed_fields:
         if field in data and data[field] is not None:
             users[username][field] = data[field]
-    # Handle PUV assignment
     assigned_puv_id = data.get("assigned_puv_id")
     if assigned_puv_id is not None:
-        # Unassign from any current PUV
         for p in puv_database:
             if p["username"] == username:
                 p["username"] = ""
                 p["driver"]   = "Unassigned"
-        # Assign to new PUV if not empty
         if assigned_puv_id != "":
             puv = next((p for p in puv_database if p["id"] == int(assigned_puv_id)), None)
             if puv:
@@ -550,7 +645,6 @@ async def coop_update_driver(request: Request):
 # MOBILE API  (React Native — Field Enforcer)
 # ==========================================
 def get_mobile_user(request: Request):
-    """Extract and validate Bearer token for enforcer role."""
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
         return None
@@ -565,14 +659,12 @@ def get_mobile_user(request: Request):
 
 @app.post("/api/mobile/login")
 async def mobile_login(request: Request):
-    """Authenticate a Field Enforcer and return a bearer token."""
     data     = await request.json()
     username = data.get("username", "").strip()
     password = data.get("password", "")
     user     = users.get(username)
     if not user or user["password"] != password or user["role"] != "enforcer":
         return JSONResponse({"success": False, "error": "Invalid credentials."}, status_code=401)
-    # Revoke any existing token for this user
     for t, u in list(mobile_tokens.items()):
         if u == username:
             del mobile_tokens[t]
@@ -591,7 +683,6 @@ async def mobile_login(request: Request):
 
 @app.post("/api/mobile/logout")
 async def mobile_logout(request: Request):
-    """Revoke the mobile bearer token."""
     mobile_user = get_mobile_user(request)
     if not mobile_user:
         return JSONResponse({"success": False, "error": "Unauthorized."}, status_code=401)
@@ -602,7 +693,6 @@ async def mobile_logout(request: Request):
 
 @app.get("/api/mobile/dispatch")
 async def mobile_dispatch(request: Request):
-    """Return all active violations as dispatch orders for the mobile app."""
     mobile_user = get_mobile_user(request)
     if not mobile_user:
         return JSONResponse({"success": False, "error": "Unauthorized."}, status_code=401)
@@ -613,14 +703,14 @@ async def mobile_dispatch(request: Request):
         if p["passengers"] > p["capacity"]:
             violations.append({
                 "type":    "OVERLOAD",
-                "label":   "Passenger Overload",
+                "label":   "Passenger overload",
                 "detail":  f"{p['passengers']}/{p['capacity']} passengers — exceeds legal limit",
                 "severity": "critical",
             })
         if p.get("temp", 0) >= 37.5:
             violations.append({
                 "type":    "THERMAL",
-                "label":   "Thermal Alert",
+                "label":   "Thermal alert",
                 "detail":  f"Cabin temperature at {p['temp']}°C — exceeds 37.5°C threshold",
                 "severity": "warning",
             })
@@ -645,17 +735,15 @@ async def mobile_dispatch(request: Request):
 
 @app.post("/api/mobile/intercept")
 async def mobile_intercept(request: Request):
-    """Submit an interception report from the mobile app."""
     mobile_user = get_mobile_user(request)
     if not mobile_user:
         return JSONResponse({"success": False, "error": "Unauthorized."}, status_code=401)
-    data  = await request.json()
-    notes = _str(data.get("notes", ""), 500)
-    try:
-        plate  = validate_plate(data.get("plate", ""))
-        action = validate_action(data.get("action", ""))
-    except ValueError as e:
-        return JSONResponse({"success": False, "error": str(e)}, status_code=400)
+    data   = await request.json()
+    plate  = data.get("plate", "")
+    action = data.get("action", "")
+    notes  = data.get("notes", "")
+    if not plate or not action:
+        return JSONResponse({"success": False, "error": "Plate and action are required."})
     serial = f"CT-{len(citations_db)+1:04d}-M"
     fine_map = {"ticket": "₱5,000.00", "apprehend": "₱10,000.00", "warning": "₱0.00"}
     citations_db.append({
@@ -744,7 +832,6 @@ async def mobile_citations(request: Request):
 # MOBILE API  (React Native — Passenger)
 # ==========================================
 def get_passenger_user(request: Request):
-    """Extract and validate Bearer token for passenger role."""
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
         return None
@@ -753,7 +840,6 @@ def get_passenger_user(request: Request):
 
 @app.post("/api/passenger/login")
 async def passenger_login(request: Request):
-    """Authenticate a passenger and return a bearer token."""
     data     = await request.json()
     username = data.get("username", "").strip()
     password = data.get("password", "")
@@ -778,7 +864,6 @@ async def passenger_login(request: Request):
 
 @app.post("/api/passenger/logout")
 async def passenger_logout(request: Request):
-    """Revoke the passenger bearer token."""
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
         passenger_tokens.pop(auth[7:], None)
@@ -786,7 +871,6 @@ async def passenger_logout(request: Request):
 
 @app.get("/api/passenger/puvs")
 async def passenger_list_puvs(request: Request):
-    """Return a lightweight list of all active PUVs."""
     pax_user = get_passenger_user(request)
     if not pax_user:
         return JSONResponse({"error": "Unauthorized."}, status_code=401)
@@ -815,14 +899,13 @@ async def passenger_list_puvs(request: Request):
 
 @app.get("/api/passenger/puv/{plate}")
 async def passenger_puv_detail(plate: str, request: Request):
-    """Return full detail for a single PUV by plate number."""
     pax_user = get_passenger_user(request)
     if not pax_user:
         return JSONResponse({"error": "Unauthorized."}, status_code=401)
     plate_up = plate.upper()
     puv = next((p for p in puv_database if p["plate"].upper() == plate_up), None)
     if not puv:
-        return JSONResponse({"error": f"PUV '{plate_up}' not found."}, status_code=404)
+        return JSONResponse({"error": f"Vehicle '{plate_up}' not found."}, status_code=404)
     load_pct   = round((puv["passengers"] / puv["capacity"]) * 100) if puv["capacity"] else 0
     overloaded = puv["passengers"] > puv["capacity"]
     hot        = puv["temp"] >= 37.5
@@ -849,17 +932,15 @@ async def passenger_puv_detail(plate: str, request: Request):
 
 @app.post("/api/passenger/complaint")
 async def passenger_complaint(request: Request):
-    """Submit a passenger complaint about a PUV."""
     pax_user = get_passenger_user(request)
     if not pax_user:
         return JSONResponse({"error": "Unauthorized."}, status_code=401)
     body        = await request.json()
-    description = _str(body.get("description", ""), 500)
-    try:
-        plate     = validate_plate(body.get("plate", ""))
-        complaint = validate_complaint_type(body.get("complaint", ""))
-    except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+    plate       = body.get("plate", "").strip().upper()
+    complaint   = body.get("complaint", "").strip()
+    description = body.get("description", "").strip()
+    if not plate or not complaint:
+        return JSONResponse({"error": "Plate and complaint type are required."}, status_code=400)
     puv    = next((p for p in puv_database if p["plate"].upper() == plate), None)
     serial = f"CMP-{uuid.uuid4().hex[:8].upper()}"
     record = {
@@ -882,50 +963,23 @@ async def passenger_complaint(request: Request):
         "serial":  serial,
     })
 
-# ── Passenger Profile & Complaint History ─────────────────────────────────────
 
-@app.get("/api/passenger/my-complaints")
-async def passenger_my_complaints(request: Request):
-    """Return all complaints submitted by the logged-in passenger."""
-    pax_user = get_passenger_user(request)
-    if not pax_user:
-        return JSONResponse({"error": "Unauthorized."}, status_code=401)
-    username      = pax_user["username"]
-    my_complaints = [c for c in complaints_db if c.get("reporter") == username]
-    return JSONResponse({"complaints": list(reversed(my_complaints))})
-
-@app.put("/api/passenger/profile")
-async def passenger_update_profile(request: Request):
-    """Update the passenger's mobile number."""
-    pax_user = get_passenger_user(request)
-    if not pax_user:
-        return JSONResponse({"error": "Unauthorized."}, status_code=401)
-    data     = await request.json()
-    username = pax_user["username"]
-    if "mobile" in data:
-        users[username]["mobile"] = data["mobile"]
-        # Keep cached token profile in sync
-        for token, profile in passenger_tokens.items():
-            if profile.get("username") == username:
-                passenger_tokens[token]["mobile"] = data["mobile"]
-    return JSONResponse({"success": True})
-
-@app.put("/api/passenger/change-password")
-async def passenger_change_password(request: Request):
-    """Change the passenger's password."""
-    pax_user = get_passenger_user(request)
-    if not pax_user:
-        return JSONResponse({"error": "Unauthorized."}, status_code=401)
-    data     = await request.json()
-    current  = data.get("current_password", "")
-    new_pw   = data.get("new_password", "")
-    username = pax_user["username"]
-    if users[username]["password"] != current:
-        return JSONResponse({"error": "Current password is incorrect."}, status_code=400)
-    if len(new_pw) < 6:
-        return JSONResponse({"error": "Password must be at least 6 characters."}, status_code=400)
-    users[username]["password"] = new_pw
-    return JSONResponse({"success": True})
+# --- ID GENERATOR ---
+@app.get("/api/next_id")
+async def next_id(role: str, request: Request):
+    if get_role(request) != 'admin':
+        return JSONResponse({"error": "Unauthorized"}, status_code=403)
+    # Prefix per role: admin=2026, enforcer=2027, driver=2028, cooperative=2029
+    prefixes = {"admin": "2026", "enforcer": "2027", "driver": "2028", "cooperative": "2029"}
+    prefix = prefixes.get(role, "2030")
+    # Find all existing IDs for this role that match the prefix
+    existing = [
+        int(uid[4:]) for uid in users
+        if uid.startswith(prefix) and uid[4:].isdigit()
+    ]
+    next_seq = (max(existing) + 1) if existing else 1
+    next_id_val = f"{prefix}{next_seq:03d}"
+    return JSONResponse({"next_id": next_id_val})
 
 # --- SENSOR APIs ---
 @app.post("/api/update_sensor")
@@ -950,7 +1004,7 @@ async def update_sensor(request: Request):
             "loc_name": puv['loc_name'],
         })
         return JSONResponse({"success": True, "passengers": puv['passengers'], "capacity": puv['capacity'], "temp": puv.get('temp', 0)})
-    return JSONResponse({"error": "PUV not found"})
+    return JSONResponse({"error": "Vehicle not found"})
 
 @app.post("/api/toggle_name")
 async def toggle_name(request: Request):
@@ -959,7 +1013,7 @@ async def toggle_name(request: Request):
     if puv:
         puv['show_name'] = not puv['show_name']
         return JSONResponse({"success": True, "show_name": puv['show_name']})
-    return JSONResponse({"error": "PUV not found"})
+    return JSONResponse({"error": "Vehicle not found"})
 
 # --- WEBSOCKET ---
 @app.websocket("/ws")
