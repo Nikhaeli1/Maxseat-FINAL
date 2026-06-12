@@ -7,7 +7,41 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from typing import List
-import json, datetime, secrets, uuid
+import json, datetime, secrets, uuid, os
+from dotenv import load_dotenv
+
+load_dotenv()  # loads .env locally; Railway uses its own env vars directly
+
+# ── Input validation helpers ──────────────────────────────────────────────────
+import re
+
+PLATE_RE    = re.compile(r'^[A-Z0-9\-]{3,10}$')
+USERNAME_RE = re.compile(r'^[A-Za-z0-9_\-\.]{3,32}$')
+
+def _str(v, max_len=200) -> str:
+    """Coerce to stripped string and enforce max length."""
+    return str(v or '').strip()[:max_len]
+
+def validate_plate(plate: str):
+    """Return cleaned plate or raise ValueError."""
+    p = _str(plate, 10).upper()
+    if not p or not PLATE_RE.match(p):
+        raise ValueError(f"Invalid plate number: '{plate}'")
+    return p
+
+def validate_complaint_type(t: str):
+    allowed = {'overload', 'thermal', 'other'}
+    t = _str(t, 20).lower()
+    if t not in allowed:
+        raise ValueError(f"Complaint type must be one of: {', '.join(allowed)}")
+    return t
+
+def validate_action(a: str):
+    allowed = {'ticket', 'warning', 'apprehend'}
+    a = _str(a, 20).lower()
+    if a not in allowed:
+        raise ValueError(f"Action must be one of: {', '.join(allowed)}")
+    return a
 
 # In-memory mobile token stores
 mobile_tokens:    dict = {}   # enforcer Bearer tokens
@@ -31,7 +65,11 @@ GMAIL_SENDER_NAME  = "MaxSeat Alert System"
 app = FastAPI(title="MaxSeat Alert System")
 
 # --- MIDDLEWARE ---
-app.add_middleware(SessionMiddleware, secret_key="maxseat_enterprise_premium_secure_key", max_age=604800)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SECRET_KEY", "maxseat_dev_fallback_key_change_in_production"),
+    max_age=604800,
+)
 
 # --- STATIC & TEMPLATES ---
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -242,6 +280,11 @@ async def login_post(
     username: str = Form(...),
     password: str = Form(...)
 ):
+    # Server-side validation
+    if not username or not password or len(username) > 64 or len(password) > 128:
+        flash(request, "Invalid credentials for the selected role.")
+        return RedirectResponse(url="/login", status_code=302)
+
     user = users.get(username)
     if user and user['password'] == password and user['role'] == role:
         request.session['logged_in'] = True
@@ -323,7 +366,19 @@ async def dashboard(request: Request):
         sorted_puvs = sorted(puv_database, key=lambda x: (x['passengers'] / x['capacity']) if x['capacity'] > 0 else 0, reverse=True)
         return TR(request, "enforcer/dashboard.html", {"puvs": sorted_puvs, "role": role, "stats": stats})
     elif role == 'driver':
-        my_puv = next((p for p in puv_database if p['username'] == request.session.get('username')), None)
+        username = request.session.get('username')
+        my_puv   = next((p for p in puv_database if p['username'] == username), None)
+        if my_puv is None:
+            # Driver has no assigned PUV — return a safe placeholder so the template never errors
+            my_puv = {
+                "id": None, "plate": "UNASSIGNED",
+                "driver": users.get(username, {}).get("full_name", username),
+                "passengers": 0, "capacity": 22, "temp": 0.0, "speed": "—",
+                "loc_name": "Not assigned", "lat": 8.4822, "lng": 124.6472,
+                "status": "Inactive", "show_name": False, "schedule": "—",
+                "company": "—", "last_update": "—", "route": "—",
+                "is_violator": False, "is_overheating": False, "load_percentage": 0,
+            }
         return TR(request, "driver/dashboard.html", {"puv": my_puv, "role": role})
     elif role == 'cooperative':
         return TR(request, "cooperative/dashboard.html", {"puvs": puv_database, "role": role, "stats": stats})
@@ -711,6 +766,68 @@ async def mobile_intercept(request: Request):
         "message": f"Interception report {serial} submitted successfully.",
     })
 
+# ── Enforcer Profile & Citations ──────────────────────────────────────────────
+
+@app.get("/api/mobile/profile")
+async def mobile_get_profile(request: Request):
+    """Return the logged-in enforcer's full profile."""
+    mobile_user = get_mobile_user(request)
+    if not mobile_user:
+        return JSONResponse({"error": "Unauthorized."}, status_code=401)
+    username = mobile_user["username"]
+    user = users.get(username, {})
+    return JSONResponse({
+        "username":     username,
+        "full_name":    user.get("full_name", username),
+        "badge":        user.get("badge", ""),
+        "precinct":     user.get("precinct", ""),
+        "mobile":       user.get("mobile", ""),
+        "email":        user.get("email", ""),
+        "shift_status": user.get("shift_status", "On Duty"),
+    })
+
+@app.put("/api/mobile/profile")
+async def mobile_update_profile(request: Request):
+    """Update mobile number and shift status for the enforcer."""
+    mobile_user = get_mobile_user(request)
+    if not mobile_user:
+        return JSONResponse({"error": "Unauthorized."}, status_code=401)
+    data     = await request.json()
+    username = mobile_user["username"]
+    for field in ["mobile", "shift_status"]:
+        if field in data:
+            users[username][field] = data[field]
+    log_audit(username, "MOBILE_PROFILE_UPDATED", request.client.host if request.client else "unknown", "blue")
+    return JSONResponse({"success": True})
+
+@app.put("/api/mobile/change-password")
+async def mobile_change_password(request: Request):
+    """Change the enforcer's password."""
+    mobile_user = get_mobile_user(request)
+    if not mobile_user:
+        return JSONResponse({"error": "Unauthorized."}, status_code=401)
+    data     = await request.json()
+    current  = data.get("current_password", "")
+    new_pw   = data.get("new_password", "")
+    username = mobile_user["username"]
+    if users[username]["password"] != current:
+        return JSONResponse({"error": "Current password is incorrect."}, status_code=400)
+    if len(new_pw) < 6:
+        return JSONResponse({"error": "Password must be at least 6 characters."}, status_code=400)
+    users[username]["password"] = new_pw
+    log_audit(username, "PASSWORD_CHANGED", request.client.host if request.client else "unknown", "blue")
+    return JSONResponse({"success": True})
+
+@app.get("/api/mobile/citations")
+async def mobile_citations(request: Request):
+    """Return all citations submitted by the logged-in enforcer."""
+    mobile_user = get_mobile_user(request)
+    if not mobile_user:
+        return JSONResponse({"error": "Unauthorized."}, status_code=401)
+    username     = mobile_user["username"]
+    my_citations = [c for c in citations_db if c.get("officer") == username]
+    return JSONResponse({"citations": list(reversed(my_citations))})
+
 # ==========================================
 # MOBILE API  (React Native — Passenger)
 # ==========================================
@@ -931,4 +1048,4 @@ async def websocket_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
