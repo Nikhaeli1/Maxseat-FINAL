@@ -1,166 +1,637 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="page-row">
+
+<style>
+  /* ── Stat row ── */
+  .um-stat-row { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:28px; }
+  .um-stat { background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--radius); padding:16px 20px; display:flex; align-items:center; gap:14px; transition:box-shadow .2s,transform .2s; }
+  .um-stat:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); }
+  .um-stat-icon { width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+  .um-stat-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; color:var(--text-muted); margin-bottom:3px; }
+  .um-stat-value { font-size:26px; font-weight:800; line-height:1.1; }
+
+  /* ── Kanban board ── */
+  .um-board { display:grid; grid-template-columns:repeat(4,1fr) 1.1fr; gap:14px; align-items:start; }
+  .um-col { background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--radius-lg); overflow:hidden; }
+  .um-col[data-role="admin"]       { border-top:3px solid #2563eb; }
+  .um-col[data-role="enforcer"]    { border-top:3px solid #ef4444; }
+  .um-col[data-role="driver"]      { border-top:3px solid #f59e0b; }
+  .um-col[data-role="cooperative"] { border-top:3px solid #10b981; }
+  .um-col[data-role="passenger"]   { border-top:3px solid #8b5cf6; }
+  .um-col-head { padding:13px 14px; border-bottom:1px solid var(--border-color); display:flex; align-items:center; justify-content:space-between; background:var(--hover-bg); }
+  .um-col-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; display:flex; align-items:center; gap:7px; }
+  .um-col-count { background:var(--bg); border:1px solid var(--border-color); border-radius:20px; padding:2px 8px; font-size:11px; font-weight:700; color:var(--text-muted); }
+  .um-col-body { padding:10px; display:flex; flex-direction:column; gap:7px; max-height:500px; overflow-y:auto; }
+  .um-col-body::-webkit-scrollbar { width:3px; }
+  .um-col-body::-webkit-scrollbar-thumb { background:var(--border-color); border-radius:3px; }
+
+  /* passenger column — read-only */
+  .um-col-readonly-notice { display:flex; align-items:center; gap:7px; font-size:11px; color:#8b5cf6; background:rgba(139,92,246,.07); border:1px solid rgba(139,92,246,.18); border-radius:var(--radius-sm); padding:8px 11px; margin-bottom:4px; font-weight:600; }
+
+  /* ── User card ── */
+  .um-card { background:var(--bg); border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:11px 12px; transition:background .15s,border-color .15s,transform .15s; }
+  .um-card:hover { background:var(--card-bg); border-color:var(--primary); transform:translateY(-1px); box-shadow:var(--shadow-sm); }
+  .um-card-top { display:flex; align-items:center; gap:9px; margin-bottom:8px; }
+  .um-avatar { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; flex-shrink:0; }
+  .um-card-name { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .um-card-username { font-size:11px; color:var(--text-muted); font-family:monospace; }
+  .um-card-meta { display:flex; flex-direction:column; gap:3px; }
+  .um-card-meta span { font-size:11px; color:var(--text-muted); display:flex; align-items:center; gap:5px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .um-card-meta i { width:11px; flex-shrink:0; font-size:10px; }
+  .um-card-foot { display:flex; align-items:center; justify-content:space-between; margin-top:8px; padding-top:8px; border-top:1px solid var(--border-color); }
+  .um-pw-ok     { font-size:10px; font-weight:700; display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:6px; color:#10b981; background:rgba(16,185,129,.1); border:1px solid rgba(16,185,129,.2); }
+  .um-pw-pending{ font-size:10px; font-weight:700; display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:6px; color:#f59e0b; background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.2); }
+  .um-self-reg  { font-size:10px; font-weight:700; display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:6px; color:#8b5cf6; background:rgba(139,92,246,.1); border:1px solid rgba(139,92,246,.2); }
+  .um-del-btn   { width:26px; height:26px; border-radius:7px; border:1px solid rgba(239,68,68,.2); background:rgba(239,68,68,.06); color:#ef4444; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; transition:background .15s; flex-shrink:0; }
+  .um-del-btn:hover { background:rgba(239,68,68,.2); }
+  .um-empty { text-align:center; padding:20px 8px; color:var(--text-muted); font-size:12px; }
+  .um-empty i { display:block; font-size:22px; margin-bottom:6px; opacity:.25; }
+  .um-add-btn { width:100%; padding:8px; border-radius:var(--radius-sm); border:1.5px dashed var(--border-color); background:transparent; color:var(--text-muted); font-size:12px; font-weight:700; font-family:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px; transition:border-color .15s,color .15s,background .15s; margin-top:2px; }
+  .um-add-btn:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-glow); }
+
+  /* ── Create page ── */
+  .cu-page { display:none; }
+  .cu-page.show { display:block; }
+  .board-view.hide { display:none; }
+  .cu-back { display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:700; color:var(--text-muted); cursor:pointer; background:none; border:none; font-family:inherit; padding:0; margin-bottom:20px; transition:color .15s; }
+  .cu-back:hover { color:var(--primary); }
+
+  /* role cards */
+  .cu-role-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:28px; }
+  .cu-role-card { border:1.5px solid var(--border-color); border-radius:var(--radius); padding:20px 14px; cursor:pointer; text-align:center; transition:all .18s; background:var(--card-bg); }
+  .cu-role-card:hover { border-color:var(--primary); background:var(--primary-glow); transform:translateY(-2px); box-shadow:var(--shadow-sm); }
+  .cu-role-card.sel { transform:translateY(-2px); box-shadow:var(--shadow-md); }
+  .cu-role-card[data-r="admin"].sel       { border-color:#2563eb; background:rgba(37,99,235,.07);  box-shadow:0 4px 14px rgba(37,99,235,.15); }
+  .cu-role-card[data-r="enforcer"].sel    { border-color:#ef4444; background:rgba(239,68,68,.07);  box-shadow:0 4px 14px rgba(239,68,68,.15); }
+  .cu-role-card[data-r="driver"].sel      { border-color:#f59e0b; background:rgba(245,158,11,.07); box-shadow:0 4px 14px rgba(245,158,11,.15); }
+  .cu-role-card[data-r="cooperative"].sel { border-color:#10b981; background:rgba(16,185,129,.07); box-shadow:0 4px 14px rgba(16,185,129,.15); }
+  .cu-role-icon { font-size:28px; margin-bottom:10px; color:var(--text-muted); }
+  .cu-role-card.sel .cu-role-icon { color:inherit; }
+  .cu-role-card[data-r="admin"].sel       .cu-role-icon { color:#2563eb; }
+  .cu-role-card[data-r="enforcer"].sel    .cu-role-icon { color:#ef4444; }
+  .cu-role-card[data-r="driver"].sel      .cu-role-icon { color:#f59e0b; }
+  .cu-role-card[data-r="cooperative"].sel .cu-role-icon { color:#10b981; }
+  .cu-role-name { font-size:13px; font-weight:700; margin-bottom:3px; }
+  .cu-role-desc { font-size:11px; color:var(--text-muted); }
+
+  .cu-hint { display:none; align-items:flex-start; gap:11px; padding:13px 16px; border-radius:var(--radius-sm); margin-bottom:24px; font-size:13.5px; line-height:1.55; border:1px solid; }
+  .cu-hint.show { display:flex; }
+  .cu-hint i { flex-shrink:0; margin-top:2px; font-size:15px; }
+  .cu-hint-admin       { background:rgba(37,99,235,.06);  border-color:rgba(37,99,235,.2);  color:#1d4ed8; }
+  .cu-hint-enforcer    { background:rgba(239,68,68,.06);  border-color:rgba(239,68,68,.2);  color:#b91c1c; }
+  .cu-hint-driver      { background:rgba(245,158,11,.06); border-color:rgba(245,158,11,.2); color:#b45309; }
+  .cu-hint-cooperative { background:rgba(16,185,129,.06); border-color:rgba(16,185,129,.2); color:#047857; }
+
+  .cu-form-card { background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:28px 32px; margin-bottom:22px; display:none; }
+  .cu-form-card.show { display:block; }
+  .cu-section-title { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+  .cu-section-title::after { content:''; flex:1; height:1px; background:var(--border-color); }
+  .cu-step-num { font-size:11px; width:18px; height:18px; background:var(--primary); color:#fff; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .cu-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .cu-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+  .cu-full   { grid-column:1/-1; }
+  .cu-role-fields { display:none; }
+  .cu-role-fields.show { display:contents; }
+  .cu-error { display:none; align-items:center; gap:9px; padding:13px 16px; border-radius:var(--radius-sm); margin-bottom:18px; font-size:14px; font-weight:600; background:rgba(239,68,68,.08); color:#dc2626; border:1px solid rgba(239,68,68,.2); }
+  .cu-error.show { display:flex; }
+  .cu-actions { display:flex; gap:12px; align-items:center; }
+
+  /* auto-generated field styling */
+  .cu-auto-field { position:relative; }
+  .cu-auto-field .form-control { background:var(--hover-bg); font-family:monospace; font-weight:700; color:var(--primary); padding-right:90px; }
+  .cu-auto-tag { position:absolute; right:10px; top:50%; transform:translateY(-50%); font-size:10px; font-weight:700; color:var(--primary); background:var(--primary-glow); border:1px solid rgba(37,99,235,.2); border-radius:6px; padding:2px 8px; pointer-events:none; }
+
+  /* search */
+  .um-search { padding:10px 15px; border-radius:var(--radius-sm); border:1.5px solid var(--border-color); background:var(--card-bg); color:var(--text-main); font-family:inherit; font-size:13px; width:230px; transition:border-color .2s,box-shadow .2s; }
+  .um-search:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-glow); }
+</style>
+
+
+<!-- ════════════ VIEW A — Board ════════════ -->
+<div class="board-view" id="board-view">
+
+  <div class="page-row">
     <div>
-        <h1 class="page-title">User Access Provisioning</h1>
-        <p class="page-subtitle">Manage identities and clearance levels across the system.</p>
+      <h1 class="page-title">Users &amp; accounts</h1>
+      <p class="page-subtitle">Manage who has access to the system and what they can do</p>
     </div>
-    <button onclick="showCreateModal()" class="btn btn-dark">
-        <i class="fa-solid fa-user-plus"></i> Create Identity
-    </button>
-</div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <input type="text" class="um-search" id="um-search" placeholder="Search name or username…" oninput="umFilter(this.value)">
+      <button class="btn btn-dark" onclick="showCreate()">
+        <i class="fa-solid fa-user-plus"></i> Add user
+      </button>
+    </div>
+  </div>
 
-{% if messages %}
-<div class="flash-ok"><i class="fa-solid fa-circle-check"></i> {{ messages[0] }}</div>
-{% endif %}
+  {% if messages %}
+  <div class="flash-ok"><i class="fa-solid fa-circle-check"></i> {{ messages[0] }}</div>
+  {% endif %}
 
-<div class="table-wrap">
-    <table>
-        <thead>
-            <tr>
-                <th>System Identifier</th>
-                <th>Full Name</th>
-                <th>Contact Email</th>
-                <th>Clearance Level</th>
-                <th>Auth Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody id="users-tbody">
-            {% for username, data in users_db.items() %}
-            <tr id="row-{{ username }}">
-                <td><span style="font-weight:700;font-size:14px;">{{ username }}</span></td>
-                <td>{{ data.get('full_name','—') }}</td>
-                <td><i class="fa-solid fa-envelope" style="color:var(--text-muted);margin-right:5px;"></i>{{ data.get('email','—') }}</td>
-                <td>
-                    {% if data.role == 'admin' %}
-                    <span class="badge badge-blue"><i class="fa-solid fa-shield"></i> Admin</span>
-                    {% elif data.role == 'enforcer' %}
-                    <span class="badge badge-red"><i class="fa-solid fa-shield-halved"></i> Enforcer</span>
-                    {% else %}
-                    <span class="badge badge-gray"><i class="fa-solid fa-user"></i> Driver</span>
-                    {% endif %}
-                </td>
-                <td>
-                    {% if data.get('must_change_password') %}
-                    <span style="color:#f59e0b;font-weight:700;font-size:12px;"><i class="fa-solid fa-key"></i> PENDING RESET</span>
-                    {% else %}
-                    <span style="color:#10b981;font-weight:700;font-size:12px;"><i class="fa-solid fa-circle-check"></i> AUTHENTICATED</span>
-                    {% endif %}
-                </td>
-                <td>
-                    <button onclick="deleteUser('{{ username }}')" class="btn-ghost" style="color:#ef4444;">
-                        <i class="fa-solid fa-trash"></i>
-                    </button>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
+  {% set total     = users_db | length %}
+  {% set pending   = users_db.values() | selectattr('must_change_password','equalto',true) | list | length %}
+  {% set active    = total - pending %}
+  {% set pax_count = users_db.values() | selectattr('role','equalto','passenger') | list | length %}
 
-<!-- CREATE USER MODAL -->
-<div id="create-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);z-index:500;justify-content:center;align-items:center;">
-    <div style="background:var(--card-bg);border-radius:var(--radius-lg);padding:32px;width:460px;max-width:95vw;box-shadow:0 20px 50px rgba(0,0,0,0.2);border:1px solid var(--border-color);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;">
-            <h3 style="font-size:20px;font-weight:800;">Create New Identity</h3>
-            <button onclick="closeCreateModal()" style="background:none;border:none;color:var(--text-muted);font-size:22px;cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <div id="modal-error" style="display:none;" class="flash-ok" style="background:rgba(239,68,68,0.08);color:#dc2626;border-color:rgba(239,68,68,0.18);margin-bottom:12px;"></div>
-        <div class="form-group">
-            <label class="form-label">Username</label>
-            <input id="new-username" type="text" class="form-control" placeholder="e.g. EMP-002">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Full Name</label>
-            <input id="new-fullname" type="text" class="form-control" placeholder="Juan Dela Cruz">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Email Address</label>
-            <input id="new-email" type="email" class="form-control" placeholder="user@maxseat.ph">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Role</label>
-            <select id="new-role" class="form-control">
-                <option value="driver">Driver</option>
-                <option value="enforcer">Enforcer</option>
-                <option value="admin">Admin</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label class="form-label">Initial Password</label>
-            <input id="new-password" type="password" class="form-control" placeholder="Min. 6 characters">
-        </div>
-        <p style="font-size:12px;color:var(--text-muted);margin-bottom:18px;"><i class="fa-solid fa-circle-info" style="margin-right:4px;"></i> User will be prompted to change password on first login.</p>
-        <div style="display:flex;gap:10px;">
-            <button onclick="closeCreateModal()" class="btn btn-outline" style="flex:1;">Cancel</button>
-            <button onclick="submitCreateUser()" class="btn btn-primary" style="flex:1;">
-                <i class="fa-solid fa-user-plus"></i> Create User
+  <div class="um-stat-row">
+    <div class="um-stat">
+      <div class="um-stat-icon" style="background:rgba(37,99,235,.1);color:#2563eb;"><i class="fa-solid fa-users"></i></div>
+      <div><div class="um-stat-label">Total users</div><div class="um-stat-value">{{ total }}</div></div>
+    </div>
+    <div class="um-stat">
+      <div class="um-stat-icon" style="background:rgba(16,185,129,.1);color:#10b981;"><i class="fa-solid fa-circle-check"></i></div>
+      <div><div class="um-stat-label">Active</div><div class="um-stat-value" style="color:#10b981;">{{ active }}</div></div>
+    </div>
+    <div class="um-stat">
+      <div class="um-stat-icon" style="background:rgba(245,158,11,.1);color:#f59e0b;"><i class="fa-solid fa-key"></i></div>
+      <div><div class="um-stat-label">Password reset pending</div><div class="um-stat-value" style="color:#f59e0b;">{{ pending }}</div></div>
+    </div>
+    <div class="um-stat">
+      <div class="um-stat-icon" style="background:rgba(139,92,246,.1);color:#8b5cf6;"><i class="fa-solid fa-mobile-screen"></i></div>
+      <div><div class="um-stat-label">Registered passengers</div><div class="um-stat-value" style="color:#8b5cf6;">{{ pax_count }}</div></div>
+    </div>
+  </div>
+
+  {% set managed_cols = [
+    ('admin',       'fa-shield',         '#2563eb', 'System admins',   'Full access'),
+    ('enforcer',    'fa-shield-halved',  '#ef4444', 'Field enforcers', 'Intercepts &amp; citations'),
+    ('driver',      'fa-steering-wheel', '#f59e0b', 'Drivers',         'Vehicle &amp; sensor'),
+    ('cooperative', 'fa-building',       '#10b981', 'Cooperatives',    'Fleet management'),
+  ] %}
+
+  <div class="um-board" id="um-board">
+    {% for rkey, icon, color, label, desc in managed_cols %}
+    {% set col_users = users_db.items() | selectattr('1.role','equalto', rkey) | list %}
+    <div class="um-col" data-role="{{ rkey }}" id="col-{{ rkey }}">
+      <div class="um-col-head">
+        <div class="um-col-title" style="color:{{ color }};"><i class="fa-solid {{ icon }}" style="font-size:12px;"></i> {{ label }}</div>
+        <span class="um-col-count" id="cnt-{{ rkey }}">{{ col_users | length }}</span>
+      </div>
+      <div class="um-col-body" id="body-{{ rkey }}">
+        {% for uname, udata in col_users %}
+        {% set initials = (udata.get('full_name','?') ~ ' ').split()[:2] | map('first') | join | upper %}
+        {% set pw_ok    = not udata.get('must_change_password', False) %}
+        <div class="um-card" data-username="{{ uname }}" data-role="{{ rkey }}"
+             data-search="{{ (udata.get('full_name','') ~ ' ' ~ uname) | lower }}">
+          <div class="um-card-top">
+            <div class="um-avatar" style="background:{{ color }}22;color:{{ color }};">{{ initials }}</div>
+            <div style="min-width:0;flex:1;">
+              <div class="um-card-name">{{ udata.get('full_name','—') }}</div>
+              <div class="um-card-username">{{ uname }}</div>
+            </div>
+          </div>
+          <div class="um-card-meta">
+            {% if udata.get('email') %}<span><i class="fa-regular fa-envelope"></i>{{ udata.get('email') }}</span>{% endif %}
+            {% if udata.get('mobile') %}<span><i class="fa-solid fa-mobile-screen"></i>{{ udata.get('mobile') }}</span>{% endif %}
+            {% if udata.get('badge') %}<span><i class="fa-solid fa-id-badge"></i>{{ udata.get('badge') }}</span>{% endif %}
+            {% if udata.get('plate') %}<span><i class="fa-solid fa-bus"></i>{{ udata.get('plate') }}</span>{% endif %}
+            {% if udata.get('organization') %}<span><i class="fa-solid fa-building"></i>{{ udata.get('organization')[:28] }}{% if udata.get('organization','')|length > 28 %}…{% endif %}</span>{% endif %}
+          </div>
+          <div class="um-card-foot">
+            <span class="{{ 'um-pw-ok' if pw_ok else 'um-pw-pending' }}">
+              <i class="fa-solid {{ 'fa-circle-check' if pw_ok else 'fa-key' }}"></i>
+              {{ 'Active' if pw_ok else 'Reset pending' }}
+            </span>
+            <button class="um-del-btn" onclick="umDelete('{{ uname }}')" title="Remove user">
+              <i class="fa-solid fa-trash"></i>
             </button>
+          </div>
         </div>
+        {% else %}
+        <div class="um-empty" id="empty-{{ rkey }}">
+          <i class="fa-regular fa-user"></i>No {{ label | lower }} yet
+        </div>
+        {% endfor %}
+        <button class="um-add-btn" onclick="showCreate('{{ rkey }}')">
+          <i class="fa-solid fa-plus"></i> Add {{ rkey }}
+        </button>
+      </div>
     </div>
-</div>
+    {% endfor %}
+
+    <!-- Passenger column — read-only -->
+    {% set pax_users = users_db.items() | selectattr('1.role','equalto','passenger') | list %}
+    <div class="um-col" data-role="passenger" id="col-passenger">
+      <div class="um-col-head">
+        <div class="um-col-title" style="color:#8b5cf6;"><i class="fa-solid fa-users" style="font-size:12px;"></i> Passengers</div>
+        <span class="um-col-count" id="cnt-passenger">{{ pax_users | length }}</span>
+      </div>
+      <div class="um-col-body" id="body-passenger">
+        <div class="um-col-readonly-notice">
+          <i class="fa-solid fa-mobile-screen-button" style="flex-shrink:0;"></i>
+          Self-registered via the mobile app
+        </div>
+        {% for uname, udata in pax_users %}
+        {% set initials = (udata.get('full_name','?') ~ ' ').split()[:2] | map('first') | join | upper %}
+        <div class="um-card" data-username="{{ uname }}" data-role="passenger"
+             data-search="{{ (udata.get('full_name','') ~ ' ' ~ uname) | lower }}">
+          <div class="um-card-top">
+            <div class="um-avatar" style="background:rgba(139,92,246,.15);color:#8b5cf6;">{{ initials }}</div>
+            <div style="min-width:0;flex:1;">
+              <div class="um-card-name">{{ udata.get('full_name','—') }}</div>
+              <div class="um-card-username">{{ uname }}</div>
+            </div>
+          </div>
+          <div class="um-card-meta">
+            {% if udata.get('mobile') %}<span><i class="fa-solid fa-mobile-screen"></i>{{ udata.get('mobile') }}</span>{% endif %}
+            {% if udata.get('email') %}<span><i class="fa-regular fa-envelope"></i>{{ udata.get('email') }}</span>{% endif %}
+          </div>
+          <div class="um-card-foot">
+            <span class="um-self-reg"><i class="fa-solid fa-mobile-screen-button"></i> Self-registered</span>
+            <button class="um-del-btn" onclick="umDelete('{{ uname }}')" title="Remove account">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        </div>
+        {% else %}
+        <div class="um-empty" id="empty-passenger">
+          <i class="fa-regular fa-user"></i>No passengers yet
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+</div><!-- /board-view -->
+
+
+<!-- ════════════ VIEW B — Create user (full page) ════════════ -->
+<div class="cu-page" id="cu-page">
+
+  <button class="cu-back" onclick="showBoard()">
+    <i class="fa-solid fa-arrow-left"></i> Back to users &amp; accounts
+  </button>
+
+  <div class="page-row" style="margin-bottom:28px;">
+    <div>
+      <h1 class="page-title">Add a new user</h1>
+      <p class="page-subtitle">Choose a role — the ID and password will be generated automatically</p>
+    </div>
+  </div>
+
+  <!-- Step 1 — Role picker -->
+  <div class="card" style="padding:24px 28px;margin-bottom:22px;">
+    <div class="cu-section-title"><span class="cu-step-num">1</span> Choose a role</div>
+    <div class="cu-role-grid">
+      <div class="cu-role-card" data-r="admin" onclick="cuPickRole('admin')">
+        <div class="cu-role-icon"><i class="fa-solid fa-shield"></i></div>
+        <div class="cu-role-name">System admin</div>
+        <div class="cu-role-desc">Full access to everything</div>
+      </div>
+      <div class="cu-role-card" data-r="enforcer" onclick="cuPickRole('enforcer')">
+        <div class="cu-role-icon"><i class="fa-solid fa-shield-halved"></i></div>
+        <div class="cu-role-name">Field enforcer</div>
+        <div class="cu-role-desc">Intercepts &amp; citations</div>
+      </div>
+      <div class="cu-role-card" data-r="driver" onclick="cuPickRole('driver')">
+        <div class="cu-role-icon"><i class="fa-solid fa-steering-wheel"></i></div>
+        <div class="cu-role-name">Driver</div>
+        <div class="cu-role-desc">Vehicle &amp; sensor data</div>
+      </div>
+      <div class="cu-role-card" data-r="cooperative" onclick="cuPickRole('cooperative')">
+        <div class="cu-role-icon"><i class="fa-solid fa-building"></i></div>
+        <div class="cu-role-name">Cooperative</div>
+        <div class="cu-role-desc">Fleet management</div>
+      </div>
+    </div>
+    <div class="cu-hint cu-hint-admin"       id="cu-hint-admin">       <i class="fa-solid fa-circle-info"></i> System admins have full access to all data, users, and configuration. Create these accounts carefully.</div>
+    <div class="cu-hint cu-hint-enforcer"    id="cu-hint-enforcer">    <i class="fa-solid fa-circle-info"></i> Field enforcers can log intercepts, issue citations, and submit reports from the web or mobile app.</div>
+    <div class="cu-hint cu-hint-driver"      id="cu-hint-driver">      <i class="fa-solid fa-circle-info"></i> Drivers access the vehicle dashboard to track passengers and sensor readings. You can assign a vehicle after creating the account.</div>
+    <div class="cu-hint cu-hint-cooperative" id="cu-hint-cooperative"> <i class="fa-solid fa-circle-info"></i> Cooperative accounts manage their own fleet and drivers, view violations, and generate compliance reports.</div>
+  </div>
+
+  <!-- Step 2 — Details form -->
+  <div class="cu-form-card" id="cu-form-card">
+
+    <div class="cu-section-title"><span class="cu-step-num">2</span> Account details</div>
+    <div class="cu-error" id="cu-error"><i class="fa-solid fa-circle-exclamation"></i> <span id="cu-error-text"></span></div>
+
+    <!-- Auto-generated ID + Full name -->
+    <div class="cu-grid-2" style="margin-bottom:16px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">ID number <span style="color:var(--primary);font-size:10px;font-weight:700;margin-left:4px;">AUTO-GENERATED</span></label>
+        <div class="cu-auto-field">
+          <input id="f-username" type="text" class="form-control" readonly tabindex="-1">
+          <span class="cu-auto-tag"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:3px;"></i>Auto</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">This will also be the username for login.</div>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Full name</label>
+        <input id="f-fullname" type="text" class="form-control" placeholder="First Last">
+      </div>
+    </div>
+
+    <!-- Admin fields -->
+    <div class="cu-role-fields" id="rf-admin">
+      <div class="cu-grid-2" style="margin-bottom:16px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Email address</label>
+          <input id="f-admin-email" type="email" class="form-control" placeholder="admin@maxseat.ph">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Department</label>
+          <input id="f-department" type="text" class="form-control" placeholder="e.g. Central Command">
+        </div>
+      </div>
+    </div>
+
+    <!-- Enforcer fields -->
+    <div class="cu-role-fields" id="rf-enforcer">
+      <div class="cu-grid-2" style="margin-bottom:16px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Badge number</label>
+          <input id="f-badge" type="text" class="form-control" placeholder="PNP-CDO-001">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Precinct / station</label>
+          <input id="f-precinct" type="text" class="form-control" placeholder="CDO Central Station">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Email</label>
+          <input id="f-enf-email" type="email" class="form-control" placeholder="officer@pnp.gov.ph">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Mobile number</label>
+          <input id="f-enf-mobile" type="text" class="form-control" placeholder="0917-xxx-xxxx">
+        </div>
+      </div>
+    </div>
+
+    <!-- Driver fields -->
+    <div class="cu-role-fields" id="rf-driver">
+      <div class="cu-grid-2" style="margin-bottom:16px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Driver's license no.</label>
+          <input id="f-license" type="text" class="form-control" placeholder="L02-12-000000">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Operator / company</label>
+          <input id="f-operator" type="text" class="form-control" placeholder="Señor Pedro Lines">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Mobile number</label>
+          <input id="f-drv-mobile" type="text" class="form-control" placeholder="0920-xxx-xxxx">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Emergency contact</label>
+          <input id="f-emergency" type="text" class="form-control" placeholder="Name (09xx-xxx-xxxx)">
+        </div>
+      </div>
+    </div>
+
+    <!-- Cooperative fields -->
+    <div class="cu-role-fields" id="rf-cooperative">
+      <div class="cu-grid-3" style="margin-bottom:16px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Organization name</label>
+          <input id="f-org" type="text" class="form-control" placeholder="OROTSCO">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Position / title</label>
+          <input id="f-position" type="text" class="form-control" placeholder="General Manager">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Mobile number</label>
+          <input id="f-coop-mobile" type="text" class="form-control" placeholder="0912-xxx-xxxx">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Email</label>
+          <input id="f-coop-email" type="email" class="form-control" placeholder="dispatch@coop.ph">
+        </div>
+        <div class="form-group cu-full" style="margin-bottom:0;">
+          <label class="form-label">Office address / route</label>
+          <input id="f-address" type="text" class="form-control" placeholder="Bugo-Igpit Route, Cagayan de Oro">
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Step 3 — Auto password preview -->
+    <div class="cu-section-title"><span class="cu-step-num">3</span> Initial password</div>
+    <div class="cu-grid-2" style="margin-bottom:10px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Password <span style="color:var(--primary);font-size:10px;font-weight:700;margin-left:4px;">AUTO-GENERATED</span></label>
+        <div class="cu-auto-field">
+          <input id="f-password-preview" type="text" class="form-control" readonly tabindex="-1" placeholder="Choose a role first…">
+          <span class="cu-auto-tag"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:3px;"></i>Auto</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-end;padding-bottom:2px;">
+        <div style="font-size:12.5px;color:var(--text-muted);line-height:1.6;">
+          <i class="fa-solid fa-circle-info" style="color:var(--primary);margin-right:5px;"></i>
+          Format: <code style="background:var(--hover-bg);padding:1px 6px;border-radius:5px;font-size:12px;">username@idnumber</code><br>
+          The user will be asked to change this on first login.
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="cu-actions">
+      <button class="btn btn-outline" onclick="showBoard()"><i class="fa-solid fa-xmark"></i> Cancel</button>
+      <button class="btn btn-primary" onclick="cuSubmit()"><i class="fa-solid fa-user-plus"></i> Create account</button>
+    </div>
+
+  </div><!-- /cu-form-card -->
+</div><!-- /cu-page -->
+
 
 <script>
-function showCreateModal() { document.getElementById('create-modal').style.display='flex'; }
-function closeCreateModal() { document.getElementById('create-modal').style.display='none'; document.getElementById('modal-error').style.display='none'; }
-document.getElementById('create-modal').addEventListener('click', function(e){ if(e.target===this)closeCreateModal(); });
+/* ── ID number sequences per role ──
+   admin:       2026001, 2026002 …
+   enforcer:    2027001, 2027002 …  (LTFRB officers)
+   driver:      2028001, 2028002 …
+   cooperative: 2029001, 2029002 …
+*/
+var _prefixes = { admin:'2026', enforcer:'2027', driver:'2028', cooperative:'2029' };
+var _cuRole   = null;
+var _cuId     = null;
 
-async function submitCreateUser() {
-    const username = document.getElementById('new-username').value.trim();
-    const fullname = document.getElementById('new-fullname').value.trim();
-    const email = document.getElementById('new-email').value.trim();
-    const role = document.getElementById('new-role').value;
-    const password = document.getElementById('new-password').value;
-    if (!username || !password || password.length < 6) {
-        showModalError('Username and password (min 6 chars) are required.'); return;
-    }
-    const res = await fetch('/api/create_user', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({username, full_name:fullname, email, role, password})
-    });
-    const data = await res.json();
-    if (data.success) {
-        closeCreateModal();
-        popAlert('User Created', `${username} has been added to the system.`, 'success');
-        setTimeout(()=>location.reload(), 1500);
-    } else {
-        showModalError(data.error || 'Failed to create user.');
-    }
+/* fetch next available ID from the server */
+async function fetchNextId(role) {
+  var res  = await fetch('/api/next_id?role=' + role);
+  var data = await res.json();
+  return data.next_id;
 }
-function showModalError(msg) {
-    const el = document.getElementById('modal-error');
-    el.textContent = msg;
-    el.style.display='flex';
-    el.style.background='rgba(239,68,68,0.08)';
-    el.style.color='#dc2626';
-    el.style.borderColor='rgba(239,68,68,0.18)';
+
+function updatePasswordPreview() {
+  var id    = document.getElementById('f-username').value;
+  var el    = document.getElementById('f-password-preview');
+  if (id) {
+    el.value = id + '@' + id;
+  } else {
+    el.value = '';
+    el.placeholder = 'Choose a role first…';
+  }
 }
-async function deleteUser(username) {
-    const result = await Swal.fire({
-        title: 'Delete ' + username + '?',
-        text: 'This action cannot be undone.',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#ef4444',
-        cancelButtonColor: '#64748b',
-        confirmButtonText: 'Yes, delete',
-        background: 'var(--card-bg)',
-        color: 'var(--text-main)'
+
+/* ── view switching ── */
+function showCreate(preRole) {
+  _cuRole = null; _cuId = null;
+  ['f-fullname','f-admin-email','f-department',
+   'f-badge','f-precinct','f-enf-email','f-enf-mobile',
+   'f-license','f-operator','f-drv-mobile','f-emergency',
+   'f-org','f-position','f-coop-email','f-coop-mobile','f-address'
+  ].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('f-username').value         = '';
+  document.getElementById('f-password-preview').value = '';
+  document.getElementById('f-password-preview').placeholder = 'Choose a role first…';
+  document.querySelectorAll('.cu-role-card').forEach(function(c){ c.classList.remove('sel'); });
+  document.querySelectorAll('.cu-hint').forEach(function(h){ h.classList.remove('show'); });
+  document.querySelectorAll('.cu-role-fields').forEach(function(s){ s.classList.remove('show'); });
+  document.getElementById('cu-form-card').classList.remove('show');
+  document.getElementById('cu-error').classList.remove('show');
+  document.getElementById('board-view').classList.add('hide');
+  document.getElementById('cu-page').classList.add('show');
+  window.scrollTo(0,0);
+  if (preRole) cuPickRole(preRole);
+}
+
+function showBoard() {
+  document.getElementById('cu-page').classList.remove('show');
+  document.getElementById('board-view').classList.remove('hide');
+  window.scrollTo(0,0);
+}
+
+/* ── role selection ── */
+async function cuPickRole(role) {
+  _cuRole = role;
+  document.querySelectorAll('.cu-role-card').forEach(function(c){ c.classList.remove('sel'); });
+  var card = document.querySelector('.cu-role-card[data-r="'+role+'"]');
+  if (card) card.classList.add('sel');
+  document.querySelectorAll('.cu-hint').forEach(function(h){ h.classList.remove('show'); });
+  var hint = document.getElementById('cu-hint-'+role);
+  if (hint) hint.classList.add('show');
+  document.querySelectorAll('.cu-role-fields').forEach(function(s){ s.classList.remove('show'); });
+  var rf = document.getElementById('rf-'+role);
+  if (rf) rf.classList.add('show');
+  document.getElementById('cu-form-card').classList.add('show');
+  document.getElementById('cu-error').classList.remove('show');
+
+  /* auto-generate ID */
+  var idField = document.getElementById('f-username');
+  idField.value = 'Generating…';
+  _cuId = await fetchNextId(role);
+  idField.value = _cuId;
+  updatePasswordPreview();
+
+  setTimeout(function(){
+    document.getElementById('cu-form-card').scrollIntoView({behavior:'smooth', block:'start'});
+  }, 60);
+}
+
+function cuVal(id){ var el=document.getElementById(id); return el ? el.value.trim() : ''; }
+function cuShowError(msg){
+  document.getElementById('cu-error-text').textContent = msg;
+  document.getElementById('cu-error').classList.add('show');
+  document.getElementById('cu-error').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+/* ── submit ── */
+async function cuSubmit() {
+  if (!_cuRole) { cuShowError('Please choose a role above first.'); return; }
+  if (!_cuId)   { cuShowError('ID number not generated yet. Please try again.'); return; }
+  if (!cuVal('f-fullname')) { cuShowError('Full name is required.'); return; }
+
+  var password = _cuId + '@' + _cuId;   /* username@idnumber */
+  var payload  = { username:_cuId, full_name:cuVal('f-fullname'), role:_cuRole, password:password };
+
+  if (_cuRole === 'admin') {
+    payload.email      = cuVal('f-admin-email');
+    payload.department = cuVal('f-department');
+  } else if (_cuRole === 'enforcer') {
+    payload.badge    = cuVal('f-badge');
+    payload.precinct = cuVal('f-precinct');
+    payload.email    = cuVal('f-enf-email');
+    payload.mobile   = cuVal('f-enf-mobile');
+  } else if (_cuRole === 'driver') {
+    payload.license           = cuVal('f-license');
+    payload.operator          = cuVal('f-operator');
+    payload.mobile            = cuVal('f-drv-mobile');
+    payload.emergency_contact = cuVal('f-emergency');
+  } else if (_cuRole === 'cooperative') {
+    payload.organization = cuVal('f-org');
+    payload.position     = cuVal('f-position');
+    payload.email        = cuVal('f-coop-email');
+    payload.mobile       = cuVal('f-coop-mobile');
+    payload.address      = cuVal('f-address');
+  }
+
+  showLoader('Creating account…');
+  var res  = await fetch('/api/create_user', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+  var data = await res.json();
+  hideLoader();
+
+  if (data.success) {
+    var notifs = data.notifications || {};
+    var smsOk   = notifs.sms   && notifs.sms.success;
+    var emailOk = notifs.email && notifs.email.success;
+    var sentLine = '';
+    if (smsOk && emailOk)  sentLine = '<br><span style="color:#10b981;font-size:12px;"><i class="fa-solid fa-check-circle"></i> Credentials sent via SMS &amp; email.</span>';
+    else if (smsOk)        sentLine = '<br><span style="color:#10b981;font-size:12px;"><i class="fa-solid fa-check-circle"></i> Credentials sent via SMS.</span>';
+    else if (emailOk)      sentLine = '<br><span style="color:#10b981;font-size:12px;"><i class="fa-solid fa-check-circle"></i> Credentials sent via email.</span>';
+    else                   sentLine = '<br><span style="color:#f59e0b;font-size:12px;"><i class="fa-solid fa-exclamation-circle"></i> Credentials not sent — no mobile/email or notifications not configured. Share manually.</span>';
+
+    await Swal.fire({
+      title: 'Account created',
+      html:  '<div style="text-align:left;font-size:14px;line-height:1.9;">'
+           + '<b>ID / Username:</b> <code style="background:#f1f5f9;padding:2px 7px;border-radius:5px;">' + _cuId + '</code><br>'
+           + '<b>Initial password:</b> <code style="background:#f1f5f9;padding:2px 7px;border-radius:5px;">' + password + '</code>'
+           + sentLine + '<br><br>'
+           + '<span style="color:#64748b;font-size:12px;">The user will be asked to change their password on first login.</span>'
+           + '</div>',
+      icon: 'success', confirmButtonColor:'#2563eb',
+      background:'var(--card-bg)', color:'var(--text-main)'
     });
-    if (result.isConfirmed) {
-        const res = await fetch('/api/delete_user', {
-            method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({username})
-        });
-        const data = await res.json();
-        if (data.success) {
-            document.getElementById('row-'+username)?.remove();
-            popAlert('Deleted', username+' has been removed.', 'success');
-        } else {
-            popAlert('Error', data.error, 'error');
-        }
+    location.reload();
+  } else {
+    cuShowError(data.error || 'Failed to create account. Please try again.');
+  }
+}
+
+/* ── delete ── */
+async function umDelete(username) {
+  var result = await Swal.fire({
+    title:'Remove '+username+'?', text:'This action cannot be undone.',
+    icon:'warning', showCancelButton:true,
+    confirmButtonColor:'#ef4444', cancelButtonColor:'#64748b',
+    confirmButtonText:'<i class="fa-solid fa-trash"></i> Yes, remove',
+    cancelButtonText:'Cancel',
+    background:'var(--card-bg)', color:'var(--text-main)'
+  });
+  if (!result.isConfirmed) return;
+  var res  = await fetch('/api/delete_user', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:username}) });
+  var data = await res.json();
+  if (data.success) {
+    var card = document.querySelector('.um-card[data-username="'+username+'"]');
+    if (card) {
+      var role = card.dataset.role;
+      card.remove();
+      var cnt = document.getElementById('cnt-'+role);
+      if (cnt) cnt.textContent = Math.max(0, parseInt(cnt.textContent||'0') - 1);
+      var body = document.getElementById('body-'+role);
+      if (body && body.querySelectorAll('.um-card').length === 0) {
+        var e = document.createElement('div');
+        e.className='um-empty'; e.id='empty-'+role;
+        e.innerHTML='<i class="fa-regular fa-user"></i>No users in this role';
+        var addBtn = body.querySelector('.um-add-btn');
+        if (addBtn) body.insertBefore(e, addBtn);
+        else body.appendChild(e);
+      }
     }
+    popAlert('Removed', username+' has been removed.', 'success');
+  } else {
+    popAlert('Error', data.error||'Could not remove user.', 'error');
+  }
+}
+
+/* ── search ── */
+function umFilter(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('.um-card').forEach(function(c) {
+    c.style.display = c.dataset.search.includes(q) ? '' : 'none';
+  });
 }
 </script>
 {% endblock %}

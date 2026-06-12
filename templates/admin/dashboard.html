@@ -1,98 +1,391 @@
 {% extends "layout.html" %}
 {% block content %}
 
-<div class="page-row">
-    <div class="page-header" style="margin-bottom:0;">
-        <h1 class="page-title">Global Command Center</h1>
-        <p class="page-subtitle">Real-time fleet analytics &amp; GNSS spatial tracking — CDO Region</p>
-    </div>
-    <button onclick="showLoader('Generating Report...')" class="btn btn-dark">
-        <i class="fa-solid fa-download"></i> Export Report
-    </button>
+<style>
+  .db-grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-bottom:22px; }
+  .db-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:22px; }
+  .db-grid-main { display:grid; grid-template-columns:2fr 1fr; gap:18px; margin-bottom:22px; }
+
+  /* stat cards */
+  .db-stat { background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:20px 24px; display:flex; align-items:center; gap:16px; transition:box-shadow .2s,transform .2s; }
+  .db-stat:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); }
+  .db-stat-icon { width:50px; height:50px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+  .db-stat-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:var(--text-muted); margin-bottom:4px; }
+  .db-stat-value { font-size:30px; font-weight:800; line-height:1; }
+  .db-stat-sub { font-size:11px; color:var(--text-muted); margin-top:4px; }
+
+  /* analytics cards */
+  .db-card { background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:22px 24px; }
+  .db-card-title { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; }
+  .db-card-title span { font-size:18px; font-weight:800; color:var(--text-main); text-transform:none; letter-spacing:0; }
+
+  /* compliance gauge */
+  .gauge-wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:10px 0; }
+  .gauge-ring { position:relative; width:140px; height:140px; }
+  .gauge-ring svg { transform:rotate(-90deg); }
+  .gauge-label { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .gauge-pct { font-size:28px; font-weight:800; }
+  .gauge-sub { font-size:11px; color:var(--text-muted); font-weight:600; }
+
+  /* bar chart */
+  .bar-chart { display:flex; align-items:flex-end; gap:6px; height:120px; padding-top:8px; }
+  .bar-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .bar { width:100%; border-radius:5px 5px 0 0; transition:opacity .2s; min-height:4px; }
+  .bar:hover { opacity:.8; }
+  .bar-label { font-size:10px; color:var(--text-muted); font-weight:600; }
+  .bar-val { font-size:10px; font-weight:700; }
+
+  /* donut */
+  .donut-wrap { display:flex; align-items:center; gap:22px; }
+  .donut-legend { display:flex; flex-direction:column; gap:10px; }
+  .donut-legend-item { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; }
+  .donut-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+
+  /* top violators */
+  .violator-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border-color); }
+  .violator-row:last-child { border-bottom:none; }
+  .violator-rank { width:22px; height:22px; border-radius:50%; font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .violator-bar-wrap { flex:1; }
+  .violator-name { font-size:13px; font-weight:700; margin-bottom:3px; }
+  .violator-sub  { font-size:11px; color:var(--text-muted); }
+  .violator-bar-track { height:5px; background:var(--border-color); border-radius:3px; overflow:hidden; margin-top:4px; }
+  .violator-bar-fill  { height:100%; border-radius:3px; }
+  .violator-count { font-size:18px; font-weight:800; flex-shrink:0; }
+
+  /* citations summary */
+  .cit-row { display:flex; align-items:center; justify-content:space-between; padding:11px 0; border-bottom:1px solid var(--border-color); font-size:13px; }
+  .cit-row:last-child { border-bottom:none; }
+
+  /* activity feed */
+  .feed-item { display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--hover-bg); border-radius:12px; cursor:pointer; transition:background .2s; border:1px solid var(--border-color); }
+  .feed-item:hover { background:var(--border-color); }
+  .feed-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+</style>
+
+<div class="page-row" style="margin-bottom:22px;">
+  <div>
+    <h1 class="page-title">Dashboard</h1>
+    <p class="page-subtitle">Live fleet overview — CDO Region</p>
+  </div>
+  <button onclick="showLoader('Generating report...')" class="btn btn-dark">
+    <i class="fa-solid fa-download"></i> Export report
+  </button>
 </div>
 
-<!-- STAT CARDS -->
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:26px;">
-    <div class="stat-card" style="border-bottom:3px solid #2563eb;">
-        <div class="stat-icon" style="background:rgba(37,99,235,0.1);color:#2563eb;">
-            <i class="fa-solid fa-bus"></i>
-        </div>
-        <div>
-            <div class="stat-label">Network Units</div>
-            <div class="stat-value">{{ stats.total_units }}</div>
-        </div>
+{# ── precompute all analytics in Jinja ── #}
+{% set total      = puvs | length %}
+{% set violations = puvs | selectattr('is_violator') | list %}
+{% set thermal    = puvs | selectattr('is_overheating') | list %}
+{% set compliant  = puvs | rejectattr('is_violator') | rejectattr('is_overheating') | list %}
+{% set viol_count = violations | length %}
+{% set therm_count= thermal | length %}
+{% set comp_count = compliant | length %}
+{% set comp_pct   = ((comp_count / total * 100) | int) if total > 0 else 100 %}
+
+{# citation stats #}
+{% set pending_cits  = citations | selectattr('status','equalto','PENDING')  | list %}
+{% set resolved_cits = citations | selectattr('status','equalto','RESOLVED') | list %}
+{% set total_cits    = citations | length %}
+
+<!-- ── Row 1: Stat cards ── -->
+<div class="db-grid-3" style="grid-template-columns:repeat(3,1fr) repeat(2,1fr);grid-template-columns:1fr 1fr 1fr 1fr 1fr;">
+
+  <div class="db-stat" style="border-bottom:3px solid #2563eb;">
+    <div class="db-stat-icon" style="background:rgba(37,99,235,.1);color:#2563eb;"><i class="fa-solid fa-bus"></i></div>
+    <div>
+      <div class="db-stat-label">Total vehicles</div>
+      <div class="db-stat-value">{{ total }}</div>
+      <div class="db-stat-sub">{{ stats.moving_units }} on the road</div>
     </div>
-    <div class="stat-card" style="border-bottom:3px solid #10b981;">
-        <div class="stat-icon" style="background:rgba(16,185,129,0.1);color:#10b981;">
-            <i class="fa-solid fa-route"></i>
-        </div>
-        <div>
-            <div class="stat-label">Active &amp; Moving</div>
-            <div class="stat-value" style="color:#10b981;">{{ stats.moving_units }}</div>
-        </div>
+  </div>
+
+  <div class="db-stat" style="border-bottom:3px solid #10b981;">
+    <div class="db-stat-icon" style="background:rgba(16,185,129,.1);color:#10b981;"><i class="fa-solid fa-circle-check"></i></div>
+    <div>
+      <div class="db-stat-label">Compliant now</div>
+      <div class="db-stat-value" style="color:#10b981;">{{ comp_count }}</div>
+      <div class="db-stat-sub">{{ comp_pct }}% of fleet</div>
     </div>
-    <div class="stat-card" style="border-bottom:3px solid #ef4444;">
-        <div class="stat-icon" style="background:rgba(239,68,68,0.12);color:#ef4444;">
-            <i class="fa-solid fa-triangle-exclamation"></i>
-        </div>
-        <div>
-            <div class="stat-label">Active Violations</div>
-            <div class="stat-value" style="color:#ef4444;">{{ stats.active_violations }}</div>
-        </div>
+  </div>
+
+  <div class="db-stat" style="border-bottom:3px solid #ef4444;">
+    <div class="db-stat-icon" style="background:rgba(239,68,68,.12);color:#ef4444;"><i class="fa-solid fa-triangle-exclamation"></i></div>
+    <div>
+      <div class="db-stat-label">Active violations</div>
+      <div class="db-stat-value" style="color:#ef4444;">{{ viol_count }}</div>
+      <div class="db-stat-sub">{{ therm_count }} thermal alert{{ 's' if therm_count != 1 }}</div>
     </div>
+  </div>
+
+  <div class="db-stat" style="border-bottom:3px solid #f59e0b;">
+    <div class="db-stat-icon" style="background:rgba(245,158,11,.1);color:#f59e0b;"><i class="fa-solid fa-ticket"></i></div>
+    <div>
+      <div class="db-stat-label">Citations pending</div>
+      <div class="db-stat-value" style="color:#f59e0b;">{{ pending_cits | length }}</div>
+      <div class="db-stat-sub">{{ total_cits }} total issued</div>
+    </div>
+  </div>
+
+  <div class="db-stat" style="border-bottom:3px solid #10b981;">
+    <div class="db-stat-icon" style="background:rgba(16,185,129,.1);color:#10b981;"><i class="fa-solid fa-gavel"></i></div>
+    <div>
+      <div class="db-stat-label">Citations resolved</div>
+      <div class="db-stat-value" style="color:#10b981;">{{ resolved_cits | length }}</div>
+      <div class="db-stat-sub">
+        {% if total_cits > 0 %}{{ ((resolved_cits|length / total_cits)*100)|int }}% resolution rate{% else %}No citations yet{% endif %}
+      </div>
+    </div>
+  </div>
+
 </div>
 
-<!-- MAP + ACTIVITY FEED -->
-<div style="display:grid;grid-template-columns:2fr 1fr;gap:22px;">
-    <div class="card" style="padding:12px;margin-bottom:0;display:flex;flex-direction:column;">
-        <div style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <span style="font-weight:700;font-size:15px;">GNSS Live Map</span>
-            <span class="badge badge-green">CDO Region Online</span>
-        </div>
-        <div id="map" style="flex:1;min-height:380px;border-radius:16px;border:2px solid var(--border-color);z-index:1;"></div>
+<!-- ── Row 2: Map + Activity feed ── -->
+<div class="db-grid-main">
+  <div class="db-card" style="padding:12px;">
+    <div style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <span style="font-weight:700;font-size:15px;">Live map</span>
+      <span class="badge badge-green">CDO Region online</span>
     </div>
+    <div id="map" style="height:340px;border-radius:14px;border:2px solid var(--border-color);z-index:1;"></div>
+  </div>
 
-    <div class="card" style="margin-bottom:0;overflow-y:auto;max-height:470px;">
-        <div class="card-header" style="margin-bottom:16px;padding-bottom:14px;">
-            <span style="font-weight:700;font-size:15px;">Activity Feed</span>
-            <span class="badge badge-blue">{{ puvs|length }} units</span>
+  <div class="db-card" style="overflow-y:auto;max-height:410px;">
+    <div class="db-card-title">Activity feed <span class="badge badge-blue" style="font-size:11px;">{{ puvs|length }} units</span></div>
+    {% if puvs %}
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      {% for p in puvs %}
+      <div class="feed-item" data-lat="{{ p.lat }}" data-lng="{{ p.lng }}">
+        <div class="feed-dot" style="background:{{ '#ef4444' if p.is_violator or p.is_overheating else '#10b981' }};box-shadow:0 0 6px {{ '#ef4444' if p.is_violator or p.is_overheating else '#10b981' }};"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:13px;">{{ p.plate }}</div>
+          <div style="font-size:11px;color:var(--text-muted);">{{ p.loc_name }}</div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:10px;">
-            {% for p in puvs %}
-            <div class="feed-item" data-lat="{{ p.lat }}" data-lng="{{ p.lng }}"
-                 style="display:flex;align-items:center;gap:12px;padding:13px 14px;background:var(--hover-bg);border-radius:12px;cursor:pointer;transition:background 0.2s;border:1px solid var(--border-color);">
-                <div style="width:10px;height:10px;border-radius:50%;background:{{ '#ef4444' if p.is_violator else '#10b981' }};box-shadow:0 0 8px {{ '#ef4444' if p.is_violator else '#10b981' }};flex-shrink:0;"></div>
-                <div style="flex:1;min-width:0;">
-                    <div style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ p.plate }}</div>
-                    <div style="font-size:11px;color:var(--text-muted);">{{ p.loc_name }}</div>
-                </div>
-                <div style="text-align:right;flex-shrink:0;">
-                    <div style="font-weight:800;font-size:13px;">{{ p.passengers }}/{{ p.capacity }}</div>
-                    <div style="font-size:10px;color:var(--text-muted);">{{ p.last_update }}</div>
-                </div>
-            </div>
-            {% endfor %}
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-weight:800;font-size:13px;color:{{ '#ef4444' if p.is_violator else 'var(--text-main)' }};">{{ p.passengers }}/{{ p.capacity }}</div>
+          <div style="font-size:10px;color:var(--text-muted);">{{ p.last_update }}</div>
         </div>
+      </div>
+      {% endfor %}
     </div>
+    {% else %}
+    <div class="empty-state" style="padding:30px 10px;">
+      <i class="fa-solid fa-bus" style="font-size:30px;"></i>
+      <h3>No vehicles yet</h3>
+      <p>Add vehicles to see live activity here.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Row 3: Compliance gauge + Violation breakdown + Peak hours ── -->
+<div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:18px;margin-bottom:22px;">
+
+  <!-- Fleet compliance rate -->
+  <div class="db-card">
+    <div class="db-card-title">Fleet compliance rate</div>
+    <div class="gauge-wrap">
+      <div class="gauge-ring">
+        <svg width="140" height="140" viewBox="0 0 140 140">
+          <circle cx="70" cy="70" r="54" fill="none" stroke="var(--border-color)" stroke-width="14"/>
+          <circle cx="70" cy="70" r="54" fill="none"
+            stroke="{{ '#10b981' if comp_pct >= 80 else ('#f59e0b' if comp_pct >= 50 else '#ef4444') }}"
+            stroke-width="14"
+            stroke-dasharray="{{ (comp_pct / 100 * 339.3) | round(1) }} 339.3"
+            stroke-linecap="round"/>
+        </svg>
+        <div class="gauge-label">
+          <div class="gauge-pct" style="color:{{ '#10b981' if comp_pct >= 80 else ('#f59e0b' if comp_pct >= 50 else '#ef4444') }};">{{ comp_pct }}%</div>
+          <div class="gauge-sub">compliant</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:16px;margin-top:14px;font-size:12px;font-weight:700;">
+        <span style="color:#10b981;"><i class="fa-solid fa-circle" style="font-size:8px;margin-right:4px;"></i>{{ comp_count }} OK</span>
+        <span style="color:#ef4444;"><i class="fa-solid fa-circle" style="font-size:8px;margin-right:4px;"></i>{{ viol_count }} Violation</span>
+        <span style="color:#f59e0b;"><i class="fa-solid fa-circle" style="font-size:8px;margin-right:4px;"></i>{{ therm_count }} Thermal</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Violation type breakdown -->
+  <div class="db-card">
+    <div class="db-card-title">Violation types</div>
+    {% set overload_only = puvs | selectattr('is_violator') | rejectattr('is_overheating') | list | length %}
+    {% set thermal_only  = puvs | rejectattr('is_violator') | selectattr('is_overheating') | list | length %}
+    {% set both          = puvs | selectattr('is_violator') | selectattr('is_overheating') | list | length %}
+    {% set any_v         = overload_only + thermal_only + both %}
+    {% if any_v == 0 %}
+    <div class="empty-state" style="padding:20px 10px;">
+      <i class="fa-solid fa-shield-check"></i>
+      <h3>All clear</h3>
+      <p>No active violations.</p>
+    </div>
+    {% else %}
+    <div class="donut-wrap" style="justify-content:center;padding:10px 0;">
+      <svg width="110" height="110" viewBox="0 0 110 110">
+        {% set r = 42 %}
+        {% set cx = 55 %}
+        {% set cy = 55 %}
+        {% set circ = 263.9 %}
+        {% set ol_pct = (overload_only / any_v * circ) | round(1) %}
+        {% set th_pct = (thermal_only  / any_v * circ) | round(1) %}
+        {% set bo_pct = (both          / any_v * circ) | round(1) %}
+        <circle cx="{{ cx }}" cy="{{ cy }}" r="{{ r }}" fill="none" stroke="#ef4444" stroke-width="18"
+          stroke-dasharray="{{ ol_pct }} {{ circ }}" stroke-dashoffset="0" transform="rotate(-90 {{ cx }} {{ cy }})"/>
+        <circle cx="{{ cx }}" cy="{{ cy }}" r="{{ r }}" fill="none" stroke="#f59e0b" stroke-width="18"
+          stroke-dasharray="{{ th_pct }} {{ circ }}" stroke-dashoffset="-{{ ol_pct }}" transform="rotate(-90 {{ cx }} {{ cy }})"/>
+        <circle cx="{{ cx }}" cy="{{ cy }}" r="{{ r }}" fill="none" stroke="#8b5cf6" stroke-width="18"
+          stroke-dasharray="{{ bo_pct }} {{ circ }}" stroke-dashoffset="-{{ ol_pct + th_pct }}" transform="rotate(-90 {{ cx }} {{ cy }})"/>
+        <text x="{{ cx }}" y="{{ cy }}" text-anchor="middle" dominant-baseline="middle"
+          style="font-size:18px;font-weight:800;fill:var(--text-main);">{{ any_v }}</text>
+      </svg>
+      <div class="donut-legend">
+        <div class="donut-legend-item"><div class="donut-dot" style="background:#ef4444;"></div> Overload only <strong style="margin-left:auto;padding-left:8px;">{{ overload_only }}</strong></div>
+        <div class="donut-legend-item"><div class="donut-dot" style="background:#f59e0b;"></div> Thermal only <strong style="margin-left:auto;padding-left:8px;">{{ thermal_only }}</strong></div>
+        <div class="donut-legend-item"><div class="donut-dot" style="background:#8b5cf6;"></div> Both <strong style="margin-left:auto;padding-left:8px;">{{ both }}</strong></div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Peak violation hours (based on citations) -->
+  <div class="db-card">
+    <div class="db-card-title">Citations this month <span style="font-size:13px;font-weight:700;">{{ total_cits }} total</span></div>
+    {% if citations %}
+    <div style="display:flex;gap:18px;align-items:flex-start;">
+      <!-- pending vs resolved bars -->
+      <div style="flex:1;">
+        <div style="display:flex;gap:10px;margin-bottom:10px;">
+          <div style="flex:1;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.2);border-radius:var(--radius-sm);padding:12px;text-align:center;">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#f59e0b;margin-bottom:4px;">Pending</div>
+            <div style="font-size:26px;font-weight:800;color:#f59e0b;">{{ pending_cits | length }}</div>
+          </div>
+          <div style="flex:1;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.2);border-radius:var(--radius-sm);padding:12px;text-align:center;">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#10b981;margin-bottom:4px;">Resolved</div>
+            <div style="font-size:26px;font-weight:800;color:#10b981;">{{ resolved_cits | length }}</div>
+          </div>
+        </div>
+        <!-- resolution bar -->
+        <div style="margin-top:8px;">
+          <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:5px;">
+            <span>Resolution rate</span>
+            <span>{% if total_cits > 0 %}{{ ((resolved_cits|length / total_cits)*100)|int }}%{% else %}—{% endif %}</span>
+          </div>
+          <div style="height:8px;background:var(--border-color);border-radius:4px;overflow:hidden;">
+            <div style="height:100%;background:#10b981;border-radius:4px;width:{% if total_cits > 0 %}{{ ((resolved_cits|length / total_cits)*100)|int }}{% else %}0{% endif %}%;transition:width .5s;"></div>
+          </div>
+        </div>
+      </div>
+      <!-- recent citations list -->
+      <div style="flex:1.2;border-left:1px solid var(--border-color);padding-left:18px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px;">Recent</div>
+        {% for c in citations[:4] %}
+        <div class="cit-row">
+          <div>
+            <div style="font-weight:700;font-size:13px;">{{ c.plate }}</div>
+            <div style="font-size:11px;color:var(--text-muted);">{{ c.date }}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-weight:700;font-size:13px;">{{ c.fine }}</div>
+            <span class="badge {{ 'badge-yellow' if c.status == 'PENDING' else 'badge-green' }}" style="font-size:10px;">{{ c.status }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding:20px 10px;">
+      <i class="fa-solid fa-ticket"></i>
+      <h3>No citations yet</h3>
+      <p>Issued citations will appear here.</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- ── Row 4: Top violators + Most recent audit ── -->
+<div class="db-grid-2">
+
+  <!-- Top violating operators -->
+  <div class="db-card">
+    <div class="db-card-title">Most cited operators</div>
+    {% if citations %}
+    {# group citations by company #}
+    {% set ns = namespace(companies={}) %}
+    {% for c in citations %}
+      {% if c.company in ns.companies %}
+        {% set _ = ns.companies.update({c.company: ns.companies[c.company] + 1}) %}
+      {% else %}
+        {% set _ = ns.companies.update({c.company: 1}) %}
+      {% endif %}
+    {% endfor %}
+    {% set sorted_cos = ns.companies.items() | sort(attribute='1', reverse=True) %}
+    {% set max_count  = sorted_cos | first %}
+    {% for company, count in sorted_cos[:5] %}
+    <div class="violator-row">
+      <div class="violator-rank" style="background:{{ '#ef4444' if loop.index == 1 else ('#f59e0b' if loop.index == 2 else 'var(--hover-bg)') }};color:{{ '#fff' if loop.index <= 2 else 'var(--text-muted)' }};">{{ loop.index }}</div>
+      <div class="violator-bar-wrap">
+        <div class="violator-name">{{ company }}</div>
+        <div class="violator-sub">{{ count }} citation{{ 's' if count != 1 }}</div>
+        <div class="violator-bar-track">
+          <div class="violator-bar-fill" style="width:{{ (count / max_count[1] * 100)|int }}%;background:{{ '#ef4444' if loop.index == 1 else ('#f59e0b' if loop.index == 2 else '#2563eb') }};"></div>
+        </div>
+      </div>
+      <div class="violator-count" style="color:{{ '#ef4444' if loop.index == 1 else 'var(--text-main)' }};">{{ count }}</div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty-state" style="padding:24px 10px;">
+      <i class="fa-solid fa-ranking-star"></i>
+      <h3>No data yet</h3>
+      <p>Citation data will populate this list.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Recent activity log -->
+  <div class="db-card">
+    <div class="db-card-title">Recent activity <a href="/audit_logs" style="font-size:12px;font-weight:700;color:var(--primary);text-decoration:none;text-transform:none;letter-spacing:0;">View all →</a></div>
+    {% if audit_logs %}
+    <div style="display:flex;flex-direction:column;gap:0;">
+      {% for log in audit_logs[:6] %}
+      <div style="display:flex;align-items:flex-start;gap:11px;padding:10px 0;border-bottom:1px solid var(--border-color);">
+        <div style="width:7px;height:7px;border-radius:50%;margin-top:5px;flex-shrink:0;background:{{ '#10b981' if log.category == 'green' else ('#ef4444' if log.category == 'red' else '#2563eb') }};"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:700;">{{ log.actor }}</div>
+          <div style="font-size:11px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ log.event }}</div>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);flex-shrink:0;font-family:monospace;">{{ log.timestamp[11:16] }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding:24px 10px;">
+      <i class="fa-solid fa-clock-rotate-left"></i>
+      <h3>No activity yet</h3>
+      <p>System events will appear here.</p>
+    </div>
+    {% endif %}
+  </div>
+
 </div>
 
 <script id="admin-puv-data" type="application/json">{{ puvs | tojson | safe if puvs else '[]' }}</script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    const map = L.map('map', {zoomControl:false}).setView([8.486, 124.65], 13);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
-    const puvData = JSON.parse(document.getElementById('admin-puv-data').textContent);
-    puvData.forEach(p => {
-        const color = p.is_violator ? '#ef4444' : '#10b981';
-        L.circleMarker([p.lat, p.lng], {radius:10,fillColor:color,color:'#fff',weight:3,fillOpacity:1}).addTo(map)
-         .bindPopup(`<div style="text-align:center;"><b>${p.company}</b><br>Plate: ${p.plate}<br>Load: ${p.passengers}/${p.capacity}</div>`);
+  var map = L.map('map', {zoomControl:false}).setView([8.486, 124.65], 13);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+  var puvData = JSON.parse(document.getElementById('admin-puv-data').textContent);
+  puvData.forEach(function(p) {
+    var color = (p.is_violator || p.is_overheating) ? '#ef4444' : '#10b981';
+    L.circleMarker([p.lat, p.lng], {radius:10,fillColor:color,color:'#fff',weight:3,fillOpacity:1})
+      .addTo(map)
+      .bindPopup('<div style="text-align:center;font-family:inherit;"><b>'+p.company+'</b><br>'+p.plate+'<br>'+p.passengers+'/'+p.capacity+' PAX</div>');
+  });
+  document.querySelectorAll('.feed-item').forEach(function(item) {
+    item.addEventListener('click', function() {
+      map.flyTo([this.dataset.lat, this.dataset.lng], 16, {animate:true, duration:1});
     });
-    document.querySelectorAll('.feed-item').forEach(item => {
-        item.addEventListener('click', function() {
-            map.flyTo([this.dataset.lat, this.dataset.lng], 16, {animate:true, duration:1});
-        });
-        item.addEventListener('mouseenter', function() { this.style.background='var(--border-color)'; });
-        item.addEventListener('mouseleave', function() { this.style.background='var(--hover-bg)'; });
-    });
+  });
 </script>
 {% endblock %}
