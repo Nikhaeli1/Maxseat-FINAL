@@ -10,6 +10,15 @@ from starlette.middleware.sessions import SessionMiddleware
 from typing import List
 import json, datetime, secrets, uuid
 
+from database import (
+    init_db,
+    db_save_user, db_delete_user, db_load_users,
+    db_save_puv,  db_delete_puv,  db_load_puvs,
+    db_append_audit,    db_load_audit_logs,
+    db_append_citation, db_load_citations,
+    db_append_complaint, db_load_complaints,
+)
+
 # In-memory mobile token stores
 mobile_tokens:    dict = {}   # enforcer Bearer tokens
 passenger_tokens: dict = {}   # passenger Bearer tokens
@@ -64,19 +73,36 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 # --- GLOBAL IN-MEMORY DATABASE ---
-users = {
-    "admin": {
-        "password": "admin@2026001", "role": "admin", "email": "admin@maxseat.ph",
-        "must_change_password": True, "full_name": "System Administrator",
-        "department": "Central Command Authority", "clearance": "Level 5 - Global"
-    },
+# Populated from the database at startup (see @app.on_event("startup") below).
+# The default admin account is seeded only when the DB has no users yet.
+_DEFAULT_ADMIN = {
+    "password": "admin@2026001", "role": "admin", "email": "admin@maxseat.ph",
+    "must_change_password": False, "full_name": "System Administrator",
+    "department": "Central Command Authority", "clearance": "Level 5 - Global"
 }
 
-puv_database = []
+users: dict        = {}
+puv_database: list = []
+audit_logs: list   = []
+citations_db: list = []
 
-audit_logs = []
+# --- STARTUP: init DB and load persisted data into memory ---
+@app.on_event("startup")
+async def startup_event():
+    init_db()
 
-citations_db = []
+    loaded_users = db_load_users()
+    if loaded_users:
+        users.update(loaded_users)
+    else:
+        # First run — seed the default admin account
+        users["admin"] = _DEFAULT_ADMIN.copy()
+        db_save_user("admin", users["admin"])
+
+    puv_database.extend(db_load_puvs())
+    audit_logs.extend(db_load_audit_logs())
+    citations_db.extend(db_load_citations())
+    complaints_db.extend(db_load_complaints())
 
 # --- HELPERS ---
 def is_logged_in(request: Request):
@@ -140,10 +166,12 @@ def compute_puv_stats_for(puvs: list):
     }
 
 def log_audit(actor: str, event: str, ip: str, category: str = "blue"):
-    audit_logs.insert(0, {
+    entry = {
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "actor": actor, "event": event, "ip": ip, "category": category
-    })
+    }
+    audit_logs.insert(0, entry)
+    db_append_audit(entry)
 
 def TR(request: Request, name: str, context: dict = {}):
     context.setdefault("users_data", users)
@@ -312,6 +340,7 @@ async def change_password_post(
     username = request.session.get('username')
     users[username]['password']             = new_password
     users[username]['must_change_password'] = False
+    db_save_user(username, users[username])
     request.session.pop('pending_password_change', None)
     return RedirectResponse(url="/dashboard", status_code=302)
 
@@ -338,6 +367,7 @@ async def update_settings_post(request: Request):
     for key, value in form_data.items():
         if key in allowed.get(role, []):
             users[username][key] = value
+    db_save_user(username, users[username])
     flash(request, "Settings updated successfully.")
     return RedirectResponse(url="/settings", status_code=302)
 
@@ -435,6 +465,7 @@ async def create_user(request: Request):
         record["email"]  = data.get("email", "")
 
     users[username] = record
+    db_save_user(username, record)
     log_audit(
         request.session.get('username', 'admin'),
         f"USER_CREATED: {username} ({role.upper()})",
@@ -455,6 +486,7 @@ async def delete_puv(request: Request):
     if not puv:
         return JSONResponse({"success": False, "error": "Vehicle not found."})
     puv_database.remove(puv)
+    db_delete_puv(puv['id'])
     log_audit(request.session.get('username', 'admin'), f"PUV_REMOVED: {puv['plate']}", request.client.host if request.client else "unknown", "red")
     return JSONResponse({"success": True, "plate": puv['plate']})
 
@@ -468,6 +500,7 @@ async def delete_user(request: Request):
         return JSONResponse({"success": False, "error": "You cannot delete your own account."})
     if username in users:
         del users[username]
+        db_delete_user(username)
         return JSONResponse({"success": True})
     return JSONResponse({"success": False, "error": "User not found."})
 
@@ -488,6 +521,7 @@ async def update_capacity(request: Request):
     puv = next((p for p in puv_database if p['id'] == puv_id), None)
     if puv and new_capacity and int(new_capacity) > 0:
         puv['capacity'] = int(new_capacity)
+        db_save_puv(puv['id'], puv)
         return JSONResponse({"success": True, "plate": puv['plate'], "capacity": puv['capacity']})
     return JSONResponse({"success": False, "error": "Vehicle not found or invalid capacity."})
 
@@ -554,7 +588,7 @@ async def submit_interception(
     notes:  str = Form(...)
 ):
     if get_role(request) != 'enforcer': return RedirectResponse(url="/login", status_code=302)
-    citations_db.append({
+    citation = {
         "serial":  f"CT-{len(citations_db)+1:04d}-X",
         "plate":   plate,
         "company": next((p['company'] for p in puv_database if p['plate'] == plate), "Unknown"),
@@ -562,7 +596,9 @@ async def submit_interception(
         "fine":    "₱5,000.00" if action == "ticket" else "₱0.00",
         "status":  "PENDING" if action == "ticket" else "RESOLVED",
         "date":    datetime.date.today().isoformat()
-    })
+    }
+    citations_db.append(citation)
+    db_append_citation(citation)
     log_audit(request.session.get('username', 'enforcer'), "INTERCEPTION_LOGGED", request.client.host if request.client else "unknown", "red")
     flash(request, f"Interception report for {plate} submitted successfully.")
     return RedirectResponse(url="/interception_status", status_code=302)
@@ -621,6 +657,7 @@ async def coop_update_capacity(request: Request):
     puv = next((p for p in puv_database if p['id'] == puv_id), None)
     if puv and new_capacity and int(new_capacity) > 0:
         puv['capacity'] = int(new_capacity)
+        db_save_puv(puv['id'], puv)
         log_audit(request.session.get('username', 'cooperative'), "CAPACITY_UPDATED", request.client.host if request.client else "unknown", "blue")
         return JSONResponse({"success": True, "plate": puv['plate'], "capacity": puv['capacity']})
     return JSONResponse({"success": False, "error": "Vehicle not found or invalid capacity."})
@@ -643,11 +680,14 @@ async def coop_update_driver(request: Request):
             if p["username"] == username:
                 p["username"] = ""
                 p["driver"]   = "Unassigned"
+                db_save_puv(p["id"], p)
         if assigned_puv_id != "":
             puv = next((p for p in puv_database if p["id"] == int(assigned_puv_id)), None)
             if puv:
                 puv["username"] = username
                 puv["driver"]   = users[username].get("full_name", username)
+                db_save_puv(puv["id"], puv)
+    db_save_user(username, users[username])
     log_audit(request.session.get('username', 'cooperative'), f"DRIVER_UPDATED: {username}", request.client.host if request.client else "unknown", "blue")
     return JSONResponse({"success": True})
 
@@ -756,7 +796,7 @@ async def mobile_intercept(request: Request):
         return JSONResponse({"success": False, "error": "Plate and action are required."})
     serial = f"CT-{len(citations_db)+1:04d}-M"
     fine_map = {"ticket": "₱5,000.00", "apprehend": "₱10,000.00", "warning": "₱0.00"}
-    citations_db.append({
+    citation = {
         "serial":  serial,
         "plate":   plate,
         "company": next((p["company"] for p in puv_database if p["plate"] == plate), "Unknown"),
@@ -766,7 +806,9 @@ async def mobile_intercept(request: Request):
         "date":    datetime.date.today().isoformat(),
         "notes":   notes,
         "source":  "mobile",
-    })
+    }
+    citations_db.append(citation)
+    db_append_citation(citation)
     log_audit(mobile_user["username"], f"MOBILE_INTERCEPT: {plate} — {action.upper()}", request.client.host if request.client else "unknown", "red")
     return JSONResponse({
         "success": True,
@@ -905,6 +947,7 @@ async def passenger_complaint(request: Request):
         "status":      "open",
     }
     complaints_db.append(record)
+    db_append_complaint(record)
     log_audit(pax_user["username"], f"PASSENGER_COMPLAINT: {plate} — {complaint.upper()}", request.client.host if request.client else "unknown", "blue")
     return JSONResponse({
         "message": "Complaint submitted successfully. Thank you for your report.",
@@ -949,6 +992,7 @@ async def update_profile(request: Request):
     for key, value in data.items():
         if key in allowed.get(role, []) and value is not None:
             users[username][key] = value
+    db_save_user(username, users[username])
     log_audit(username, "PROFILE_UPDATED", request.client.host if request.client else "unknown", "blue")
     return JSONResponse({"success": True})
 
@@ -966,6 +1010,7 @@ async def change_password_api(request: Request):
         return JSONResponse({"success": False, "error": "New password must be at least 6 characters."})
     users[username]['password']             = new_pw
     users[username]['must_change_password'] = False
+    db_save_user(username, users[username])
     log_audit(username, "PASSWORD_CHANGED", request.client.host if request.client else "unknown", "green")
     return JSONResponse({"success": True})
 
@@ -1006,6 +1051,7 @@ async def upload_avatar(request: Request, file: UploadFile = File(...)):
 
     avatar_url = f"/static/avatars/{filename}"
     users[username]['avatar'] = avatar_url
+    db_save_user(username, users[username])
     log_audit(username, "AVATAR_UPDATED", request.client.host if request.client else "unknown", "blue")
     return JSONResponse({"success": True, "avatar_url": avatar_url})
 
@@ -1019,6 +1065,7 @@ async def remove_avatar(request: Request):
         if os.path.exists(path):
             os.remove(path)
     users[username].pop('avatar', None)
+    db_save_user(username, users[username])
     return JSONResponse({"success": True})
 
 
@@ -1072,9 +1119,11 @@ async def coop_add_vehicle(request: Request):
         "color_coding":      data.get("color_coding", ""),
     }
     puv_database.append(new_puv)
+    db_save_puv(new_id, new_puv)
     # Assign to driver record
     if driver_username and driver_username in users:
         users[driver_username]["plate"] = plate
+        db_save_user(driver_username, users[driver_username])
     log_audit(
         request.session.get('username', 'cooperative'),
         f"VEHICLE_ADDED: {plate}",
@@ -1103,6 +1152,7 @@ async def coop_request_capacity(request: Request):
         "standing": standing,
         "total":    int(new_capacity) + standing
     }
+    db_save_puv(puv['id'], puv)
     log_audit(
         request.session.get('username', 'cooperative'),
         f"CAPACITY_REQUEST: {puv['plate']} — {new_capacity} seated + {standing} standing (Pending LTFRB)",
