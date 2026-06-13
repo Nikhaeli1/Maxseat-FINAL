@@ -1,0 +1,11 @@
+{
+  "css.validate": false,
+  "html.validate.styles": false,
+  "html.validate.scripts": false,
+  "files.associations": {
+    "*.html": "html"
+  },
+  "emmet.includeLanguages": {
+    "html": "html"
+  }
+}
