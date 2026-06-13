@@ -1,5 +1,6 @@
-from fastapi import FastAPI, Request, Form, WebSocket, WebSocketDisconnect
-import smtplib, httpx
+from fastapi import FastAPI, Request, Form, WebSocket, WebSocketDisconnect, UploadFile, File
+from fastapi.staticfiles import StaticFiles
+import smtplib, httpx, os, shutil, base64
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -7,41 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from typing import List
-import json, datetime, secrets, uuid, os
-from dotenv import load_dotenv
-
-load_dotenv()  # loads .env locally; Railway uses its own env vars directly
-
-# ── Input validation helpers ──────────────────────────────────────────────────
-import re
-
-PLATE_RE    = re.compile(r'^[A-Z0-9\-]{3,10}$')
-USERNAME_RE = re.compile(r'^[A-Za-z0-9_\-\.]{3,32}$')
-
-def _str(v, max_len=200) -> str:
-    """Coerce to stripped string and enforce max length."""
-    return str(v or '').strip()[:max_len]
-
-def validate_plate(plate: str):
-    """Return cleaned plate or raise ValueError."""
-    p = _str(plate, 10).upper()
-    if not p or not PLATE_RE.match(p):
-        raise ValueError(f"Invalid plate number: '{plate}'")
-    return p
-
-def validate_complaint_type(t: str):
-    allowed = {'overload', 'thermal', 'other'}
-    t = _str(t, 20).lower()
-    if t not in allowed:
-        raise ValueError(f"Complaint type must be one of: {', '.join(allowed)}")
-    return t
-
-def validate_action(a: str):
-    allowed = {'ticket', 'warning', 'apprehend'}
-    a = _str(a, 20).lower()
-    if a not in allowed:
-        raise ValueError(f"Action must be one of: {', '.join(allowed)}")
-    return a
+import json, datetime, secrets, uuid
 
 # In-memory mobile token stores
 mobile_tokens:    dict = {}   # enforcer Bearer tokens
@@ -65,11 +32,7 @@ GMAIL_SENDER_NAME  = "MaxSeat Alert System"
 app = FastAPI(title="MaxSeat Alert System")
 
 # --- MIDDLEWARE ---
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=os.getenv("SECRET_KEY", "maxseat_dev_fallback_key_change_in_production"),
-    max_age=604800,
-)
+app.add_middleware(SessionMiddleware, secret_key="maxseat_enterprise_premium_secure_key", max_age=604800)
 
 # --- STATIC & TEMPLATES ---
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -132,6 +95,26 @@ def get_flash(request: Request):
     msg = request.session.pop("_flash", None)
     return [msg] if msg else []
 
+def get_coop_puvs(username: str):
+    """Return only PUVs belonging to a cooperative.
+    Vehicles are tagged with coop_owner when added via /api/coop/add_vehicle.
+    Falls back to company-name matching for legacy vehicles.
+    """
+    udata = users.get(username, {})
+    org   = udata.get('organization', '').strip().lower()
+
+    result = []
+    for p in puv_database:
+        # Primary: vehicle was added by this coop
+        if p.get('coop_owner') == username:
+            result.append(p)
+            continue
+        # Secondary: company name fuzzy match
+        company = p.get('company', '').strip().lower()
+        if org and company and (org in company or company in org):
+            result.append(p)
+    return result
+
 def compute_puv_stats():
     for p in puv_database:
         p['is_violator']    = p['passengers'] > p['capacity']
@@ -144,6 +127,18 @@ def compute_puv_stats():
         "moving_units":      len([p for p in puv_database if p['status'] == 'Active']),
     }
 
+def compute_puv_stats_for(puvs: list):
+    for p in puvs:
+        p['is_violator']    = p['passengers'] > p['capacity']
+        p['is_overheating'] = p.get('temp', 0) >= 37.5
+        p['load_percentage'] = int((p['passengers'] / p['capacity']) * 100) if p['capacity'] > 0 else 0
+    return {
+        "total_units":       len(puvs),
+        "active_violations": len([p for p in puvs if p['is_violator']]),
+        "thermal_warnings":  len([p for p in puvs if p.get('is_overheating')]),
+        "moving_units":      len([p for p in puvs if p['status'] == 'Active']),
+    }
+
 def log_audit(actor: str, event: str, ip: str, category: str = "blue"):
     audit_logs.insert(0, {
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -151,6 +146,7 @@ def log_audit(actor: str, event: str, ip: str, category: str = "blue"):
     })
 
 def TR(request: Request, name: str, context: dict = {}):
+    context.setdefault("users_data", users)
     return templates.TemplateResponse(request=request, name=name, context=context)
 
 # ══════════════════════════════════════════════
@@ -280,11 +276,6 @@ async def login_post(
     username: str = Form(...),
     password: str = Form(...)
 ):
-    # Server-side validation
-    if not username or not password or len(username) > 64 or len(password) > 128:
-        flash(request, "Invalid credentials for the selected role.")
-        return RedirectResponse(url="/login", status_code=302)
-
     user = users.get(username)
     if user and user['password'] == password and user['role'] == role:
         request.session['logged_in'] = True
@@ -366,22 +357,14 @@ async def dashboard(request: Request):
         sorted_puvs = sorted(puv_database, key=lambda x: (x['passengers'] / x['capacity']) if x['capacity'] > 0 else 0, reverse=True)
         return TR(request, "enforcer/dashboard.html", {"puvs": sorted_puvs, "role": role, "stats": stats})
     elif role == 'driver':
-        username = request.session.get('username')
-        my_puv   = next((p for p in puv_database if p['username'] == username), None)
-        if my_puv is None:
-            # Driver has no assigned PUV — return a safe placeholder so the template never errors
-            my_puv = {
-                "id": None, "plate": "UNASSIGNED",
-                "driver": users.get(username, {}).get("full_name", username),
-                "passengers": 0, "capacity": 22, "temp": 0.0, "speed": "—",
-                "loc_name": "Not assigned", "lat": 8.4822, "lng": 124.6472,
-                "status": "Inactive", "show_name": False, "schedule": "—",
-                "company": "—", "last_update": "—", "route": "—",
-                "is_violator": False, "is_overheating": False, "load_percentage": 0,
-            }
+        my_puv = next((p for p in puv_database if p['username'] == request.session.get('username')), None)
         return TR(request, "driver/dashboard.html", {"puv": my_puv, "role": role})
     elif role == 'cooperative':
-        return TR(request, "cooperative/dashboard.html", {"puvs": puv_database, "role": role, "stats": stats})
+        username   = request.session.get('username')
+        udata      = users.get(username, {})
+        coop_puvs  = get_coop_puvs(username)
+        coop_stats = compute_puv_stats_for(coop_puvs)
+        return TR(request, "cooperative/dashboard.html", {"puvs": coop_puvs, "role": role, "stats": coop_stats, "user_data": udata})
     return RedirectResponse(url="/logout", status_code=302)
 
 # ==========================================
@@ -491,7 +474,9 @@ async def delete_user(request: Request):
 @app.get("/configure_seating", response_class=HTMLResponse)
 async def configure_seating(request: Request):
     if get_role(request) != 'cooperative': return RedirectResponse(url="/dashboard", status_code=302)
-    return TR(request, "cooperative/configure_seating.html", {"role": "cooperative", "puvs": puv_database, "messages": get_flash(request)})
+    username  = request.session.get('username')
+    coop_puvs = get_coop_puvs(username)
+    return TR(request, "cooperative/configure_seating.html", {"role": "cooperative", "puvs": coop_puvs, "messages": get_flash(request)})
 
 @app.post("/api/update_capacity")
 async def update_capacity(request: Request):
@@ -513,9 +498,16 @@ async def audit_logs_page(request: Request):
 
 @app.get("/records", response_class=HTMLResponse)
 async def records(request: Request):
-    if get_role(request) not in ['admin', 'enforcer', 'cooperative']: return RedirectResponse(url="/dashboard", status_code=302)
-    stats = compute_puv_stats()
-    return TR(request, "records.html", {"role": get_role(request), "puvs": puv_database, "stats": stats})
+    role = get_role(request)
+    if role not in ['admin', 'enforcer', 'cooperative']: return RedirectResponse(url="/dashboard", status_code=302)
+    if role == 'cooperative':
+        username  = request.session.get('username')
+        puvs      = get_coop_puvs(username)
+        stats     = compute_puv_stats_for(puvs)
+    else:
+        puvs  = puv_database
+        stats = compute_puv_stats()
+    return TR(request, "records.html", {"role": role, "puvs": puvs, "stats": stats})
 
 @app.get("/admin_reports", response_class=HTMLResponse)
 async def admin_reports(request: Request):
@@ -581,25 +573,43 @@ async def submit_interception(
 @app.get("/coop/fleet", response_class=HTMLResponse)
 async def coop_fleet(request: Request):
     if get_role(request) != 'cooperative': return RedirectResponse(url="/dashboard", status_code=302)
-    return TR(request, "cooperative/fleet.html", {"role": "cooperative", "puvs": puv_database})
+    username  = request.session.get('username')
+    udata     = users.get(username, {})
+    coop_puvs = get_coop_puvs(username)
+    drivers   = {k: v for k, v in users.items() if v.get('role') == 'driver'}
+    return TR(request, "cooperative/fleet.html", {"role": "cooperative", "puvs": coop_puvs, "drivers": drivers, "user_data": udata})
 
 @app.get("/coop/drivers", response_class=HTMLResponse)
 async def coop_drivers(request: Request):
     if get_role(request) != 'cooperative': return RedirectResponse(url="/dashboard", status_code=302)
-    drivers = {k: v for k, v in users.items() if v.get('role') == 'driver'}
-    return TR(request, "cooperative/drivers.html", {"role": "cooperative", "drivers": drivers, "puvs": puv_database, "messages": get_flash(request)})
+    username  = request.session.get('username')
+    coop_puvs = get_coop_puvs(username)
+    # Only show drivers assigned to this coop's vehicles
+    coop_driver_usernames = {p.get('username') for p in coop_puvs if p.get('username')}
+    drivers = {k: v for k, v in users.items() if v.get('role') == 'driver' and k in coop_driver_usernames}
+    # Also include unassigned drivers for assignment purposes
+    all_drivers = {k: v for k, v in users.items() if v.get('role') == 'driver'}
+    return TR(request, "cooperative/drivers.html", {"role": "cooperative", "drivers": drivers, "all_drivers": all_drivers, "puvs": coop_puvs, "messages": get_flash(request)})
 
 @app.get("/coop/violations", response_class=HTMLResponse)
 async def coop_violations(request: Request):
     if get_role(request) != 'cooperative': return RedirectResponse(url="/dashboard", status_code=302)
-    stats = compute_puv_stats()
-    return TR(request, "cooperative/violations.html", {"role": "cooperative", "puvs": puv_database, "citations": citations_db, "stats": stats})
+    username  = request.session.get('username')
+    coop_puvs = get_coop_puvs(username)
+    coop_plates = {p['plate'] for p in coop_puvs}
+    coop_cits = [c for c in citations_db if c.get('plate') in coop_plates]
+    stats = compute_puv_stats_for(coop_puvs)
+    return TR(request, "cooperative/violations.html", {"role": "cooperative", "puvs": coop_puvs, "citations": coop_cits, "stats": stats})
 
 @app.get("/coop/reports", response_class=HTMLResponse)
 async def coop_reports(request: Request):
     if get_role(request) != 'cooperative': return RedirectResponse(url="/dashboard", status_code=302)
-    stats = compute_puv_stats()
-    return TR(request, "cooperative/reports.html", {"role": "cooperative", "citations": citations_db, "puvs": puv_database, "stats": stats})
+    username    = request.session.get('username')
+    coop_puvs   = get_coop_puvs(username)
+    coop_plates = {p['plate'] for p in coop_puvs}
+    coop_cits   = [c for c in citations_db if c.get('plate') in coop_plates]
+    stats = compute_puv_stats_for(coop_puvs)
+    return TR(request, "cooperative/reports.html", {"role": "cooperative", "citations": coop_cits, "puvs": coop_puvs, "stats": stats})
 
 @app.post("/api/coop/update_capacity")
 async def coop_update_capacity(request: Request):
@@ -766,68 +776,6 @@ async def mobile_intercept(request: Request):
         "message": f"Interception report {serial} submitted successfully.",
     })
 
-# ── Enforcer Profile & Citations ──────────────────────────────────────────────
-
-@app.get("/api/mobile/profile")
-async def mobile_get_profile(request: Request):
-    """Return the logged-in enforcer's full profile."""
-    mobile_user = get_mobile_user(request)
-    if not mobile_user:
-        return JSONResponse({"error": "Unauthorized."}, status_code=401)
-    username = mobile_user["username"]
-    user = users.get(username, {})
-    return JSONResponse({
-        "username":     username,
-        "full_name":    user.get("full_name", username),
-        "badge":        user.get("badge", ""),
-        "precinct":     user.get("precinct", ""),
-        "mobile":       user.get("mobile", ""),
-        "email":        user.get("email", ""),
-        "shift_status": user.get("shift_status", "On Duty"),
-    })
-
-@app.put("/api/mobile/profile")
-async def mobile_update_profile(request: Request):
-    """Update mobile number and shift status for the enforcer."""
-    mobile_user = get_mobile_user(request)
-    if not mobile_user:
-        return JSONResponse({"error": "Unauthorized."}, status_code=401)
-    data     = await request.json()
-    username = mobile_user["username"]
-    for field in ["mobile", "shift_status"]:
-        if field in data:
-            users[username][field] = data[field]
-    log_audit(username, "MOBILE_PROFILE_UPDATED", request.client.host if request.client else "unknown", "blue")
-    return JSONResponse({"success": True})
-
-@app.put("/api/mobile/change-password")
-async def mobile_change_password(request: Request):
-    """Change the enforcer's password."""
-    mobile_user = get_mobile_user(request)
-    if not mobile_user:
-        return JSONResponse({"error": "Unauthorized."}, status_code=401)
-    data     = await request.json()
-    current  = data.get("current_password", "")
-    new_pw   = data.get("new_password", "")
-    username = mobile_user["username"]
-    if users[username]["password"] != current:
-        return JSONResponse({"error": "Current password is incorrect."}, status_code=400)
-    if len(new_pw) < 6:
-        return JSONResponse({"error": "Password must be at least 6 characters."}, status_code=400)
-    users[username]["password"] = new_pw
-    log_audit(username, "PASSWORD_CHANGED", request.client.host if request.client else "unknown", "blue")
-    return JSONResponse({"success": True})
-
-@app.get("/api/mobile/citations")
-async def mobile_citations(request: Request):
-    """Return all citations submitted by the logged-in enforcer."""
-    mobile_user = get_mobile_user(request)
-    if not mobile_user:
-        return JSONResponse({"error": "Unauthorized."}, status_code=401)
-    username     = mobile_user["username"]
-    my_citations = [c for c in citations_db if c.get("officer") == username]
-    return JSONResponse({"citations": list(reversed(my_citations))})
-
 # ==========================================
 # MOBILE API  (React Native — Passenger)
 # ==========================================
@@ -981,6 +929,188 @@ async def next_id(role: str, request: Request):
     next_id_val = f"{prefix}{next_seq:03d}"
     return JSONResponse({"next_id": next_id_val})
 
+
+# --- PROFILE & PASSWORD API ---
+@app.post("/api/update_profile")
+async def update_profile(request: Request):
+    if not is_logged_in(request):
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+    username = request.session.get('username')
+    role     = get_role(request)
+    data     = await request.json()
+
+    allowed = {
+        'admin':       ['full_name', 'email'],
+        'enforcer':    ['full_name', 'email', 'mobile', 'shift_status'],
+        'driver':      ['full_name', 'mobile', 'emergency_contact'],
+        'cooperative': ['full_name', 'email', 'mobile', 'address'],
+        'passenger':   ['full_name', 'mobile', 'email'],
+    }
+    for key, value in data.items():
+        if key in allowed.get(role, []) and value is not None:
+            users[username][key] = value
+    log_audit(username, "PROFILE_UPDATED", request.client.host if request.client else "unknown", "blue")
+    return JSONResponse({"success": True})
+
+@app.post("/api/change_password")
+async def change_password_api(request: Request):
+    if not is_logged_in(request):
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+    username = request.session.get('username')
+    data     = await request.json()
+    current  = data.get("current_password", "")
+    new_pw   = data.get("new_password", "")
+    if users.get(username, {}).get('password') != current:
+        return JSONResponse({"success": False, "error": "Current password is incorrect."})
+    if len(new_pw) < 6:
+        return JSONResponse({"success": False, "error": "New password must be at least 6 characters."})
+    users[username]['password']             = new_pw
+    users[username]['must_change_password'] = False
+    log_audit(username, "PASSWORD_CHANGED", request.client.host if request.client else "unknown", "green")
+    return JSONResponse({"success": True})
+
+
+# --- AVATAR UPLOAD ---
+AVATAR_DIR = "static/avatars"
+os.makedirs(AVATAR_DIR, exist_ok=True)
+
+@app.post("/api/upload_avatar")
+async def upload_avatar(request: Request, file: UploadFile = File(...)):
+    if not is_logged_in(request):
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+    username = request.session.get('username')
+
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+    if file.content_type not in allowed_types:
+        return JSONResponse({"success": False, "error": "Only JPG, PNG, WEBP or GIF images are allowed."})
+
+    # Validate file size (max 2MB)
+    contents = await file.read()
+    if len(contents) > 2 * 1024 * 1024:
+        return JSONResponse({"success": False, "error": "Image must be under 2MB."})
+
+    # Save with username as filename
+    ext      = file.filename.rsplit(".", 1)[-1].lower()
+    filename = f"{username}.{ext}"
+    filepath = os.path.join(AVATAR_DIR, filename)
+
+    # Remove old avatar if different extension
+    for old_ext in ["jpg", "jpeg", "png", "webp", "gif"]:
+        old_path = os.path.join(AVATAR_DIR, f"{username}.{old_ext}")
+        if os.path.exists(old_path) and old_path != filepath:
+            os.remove(old_path)
+
+    with open(filepath, "wb") as f_out:
+        f_out.write(contents)
+
+    avatar_url = f"/static/avatars/{filename}"
+    users[username]['avatar'] = avatar_url
+    log_audit(username, "AVATAR_UPDATED", request.client.host if request.client else "unknown", "blue")
+    return JSONResponse({"success": True, "avatar_url": avatar_url})
+
+@app.post("/api/remove_avatar")
+async def remove_avatar(request: Request):
+    if not is_logged_in(request):
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+    username = request.session.get('username')
+    for ext in ["jpg", "jpeg", "png", "webp", "gif"]:
+        path = os.path.join(AVATAR_DIR, f"{username}.{ext}")
+        if os.path.exists(path):
+            os.remove(path)
+    users[username].pop('avatar', None)
+    return JSONResponse({"success": True})
+
+
+@app.post("/api/coop/add_vehicle")
+async def coop_add_vehicle(request: Request):
+    if get_role(request) != 'cooperative':
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
+    data     = await request.json()
+    plate    = data.get("plate", "").strip().upper()
+    company  = data.get("company", "").strip()
+    capacity = data.get("capacity", 22)
+
+    if not plate:
+        return JSONResponse({"success": False, "error": "Plate number is required."})
+    if any(p["plate"].upper() == plate for p in puv_database):
+        return JSONResponse({"success": False, "error": f"Plate {plate} is already registered."})
+
+    # Assign driver if provided
+    driver_username = data.get("driver_username", "")
+    driver_name     = "Unassigned"
+    if driver_username and driver_username in users:
+        driver_name = users[driver_username].get("full_name", driver_username)
+
+    new_id = max((p["id"] for p in puv_database), default=0) + 1
+    coop_username = request.session.get('username', '')
+    new_puv = {
+        "id":                new_id,
+        "username":          driver_username or "",
+        "coop_owner":        coop_username,
+        "company":           company,
+        "plate":             plate,
+        "driver":            driver_name,
+        "passengers":        0,
+        "capacity":          int(capacity),
+        "standing_capacity": int(data.get("standing_capacity", 0)),
+        "loc_name":          "CDO — Not yet tracked",
+        "lat":               8.4822,
+        "lng":               124.6472,
+        "status":            "Active",
+        "speed":             "0 km/h",
+        "temp":              0.0,
+        "last_update":       "Just now",
+        "show_name":         True,
+        "schedule":          data.get("schedule", ""),
+        "route":             data.get("route", ""),
+        "vehicle_type":      data.get("vehicle_type", ""),
+        "engine_type":       data.get("engine_type", ""),
+        "year_model":        data.get("year_model", ""),
+        "chassis_no":        data.get("chassis_no", ""),
+        "franchise_no":      data.get("franchise_no", ""),
+        "color_coding":      data.get("color_coding", ""),
+    }
+    puv_database.append(new_puv)
+    # Assign to driver record
+    if driver_username and driver_username in users:
+        users[driver_username]["plate"] = plate
+    log_audit(
+        request.session.get('username', 'cooperative'),
+        f"VEHICLE_ADDED: {plate}",
+        request.client.host if request.client else "unknown",
+        "blue"
+    )
+    return JSONResponse({"success": True, "plate": plate, "id": new_id})
+
+
+@app.post("/api/coop/request_capacity")
+async def coop_request_capacity(request: Request):
+    if get_role(request) != 'cooperative':
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
+    data         = await request.json()
+    puv_id       = data.get("puv_id")
+    new_capacity = data.get("capacity")
+    puv = next((p for p in puv_database if p['id'] == puv_id), None)
+    if not puv:
+        return JSONResponse({"success": False, "error": "Vehicle not found."})
+    if not new_capacity or int(new_capacity) < 1:
+        return JSONResponse({"success": False, "error": "Invalid capacity value."})
+    standing = int(data.get("standing_capacity", 0))
+    # Store as pending — not applied until LTFRB approves
+    puv['pending_capacity'] = {
+        "seated":   int(new_capacity),
+        "standing": standing,
+        "total":    int(new_capacity) + standing
+    }
+    log_audit(
+        request.session.get('username', 'cooperative'),
+        f"CAPACITY_REQUEST: {puv['plate']} — {new_capacity} seated + {standing} standing (Pending LTFRB)",
+        request.client.host if request.client else "unknown",
+        "blue"
+    )
+    return JSONResponse({"success": True, "plate": puv['plate'], "pending_capacity": puv['pending_capacity']})
+
 # --- SENSOR APIs ---
 @app.post("/api/update_sensor")
 async def update_sensor(request: Request):
@@ -1048,4 +1178,4 @@ async def websocket_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

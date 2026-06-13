@@ -1,145 +1,508 @@
 {% extends "layout.html" %}
 {% block content %}
+
 <style>
-    .fleet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 18px; }
-    .puv-card { background: var(--card-bg); border-radius: var(--radius-lg); border: 1px solid var(--border-color); padding: 22px; box-shadow: var(--shadow-sm); transition: box-shadow 0.2s, transform 0.2s; }
-    .puv-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
-    .puv-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
-    .puv-plate { font-size: 20px; font-weight: 800; color: var(--primary); }
-    .puv-company { font-size: 12px; color: var(--text-muted); font-weight: 600; margin-top: 3px; }
-    .puv-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
-    .puv-meta-item { background: var(--hover-bg); border-radius: var(--radius-sm); padding: 10px 12px; }
-    .puv-meta-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); margin-bottom: 3px; }
-    .puv-meta-value { font-size: 14px; font-weight: 700; color: var(--text-main); }
-    .capacity-row { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
-    .cap-input { width: 80px; padding: 9px 12px; border-radius: var(--radius-sm); border: 1.5px solid var(--border-color); background: var(--bg); color: var(--text-main); font-family: inherit; font-size: 15px; font-weight: 700; text-align: center; transition: border-color 0.2s; }
-    .cap-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
-    .save-cap-btn { flex: 1; padding: 9px 14px; background: var(--primary); color: #fff; border: none; border-radius: var(--radius-sm); font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit; transition: all 0.2s; }
-    .save-cap-btn:hover { background: var(--primary-dark); transform: translateY(-1px); }
-    .load-bar { height: 6px; background: var(--border-color); border-radius: 4px; overflow: hidden; margin-top: 6px; }
-    .load-fill { height: 100%; border-radius: 4px; }
+  .fleet-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(360px,1fr)); gap:18px; }
+  .puv-card { background:var(--card-bg); border-radius:var(--radius-lg); border:1px solid var(--border-color); padding:22px; box-shadow:var(--shadow-sm); transition:box-shadow .2s,transform .2s; }
+  .puv-card:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); }
+  .puv-plate { font-size:20px; font-weight:800; color:var(--primary); }
+  .puv-company { font-size:12px; color:var(--text-muted); font-weight:600; margin-top:3px; }
+  .puv-meta { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0; }
+  .puv-meta-item { background:var(--hover-bg); border-radius:var(--radius-sm); padding:10px 12px; border:1px solid var(--border-color); }
+  .puv-meta-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); margin-bottom:3px; }
+  .puv-meta-value { font-size:13px; font-weight:700; }
+  .load-bar { height:6px; background:var(--border-color); border-radius:4px; overflow:hidden; margin-top:5px; }
+  .load-fill { height:100%; border-radius:4px; }
+  .cap-row { display:flex; align-items:center; gap:10px; margin-top:8px; }
+  .cap-input { width:72px; padding:9px 10px; border-radius:var(--radius-sm); border:1.5px solid var(--border-color); background:var(--bg); color:var(--text-main); font-family:inherit; font-size:14px; font-weight:700; text-align:center; transition:border-color .2s; }
+  .cap-input:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-glow); }
+  .section-div { height:1px; background:var(--border-color); margin:14px 0; }
+  .badge-pending-ltfrb { background:rgba(139,92,246,.1); color:#8b5cf6; border:1px solid rgba(139,92,246,.2); font-size:10px; font-weight:700; padding:3px 9px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; }
+  .total-load-box { background:var(--hover-bg); border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:10px 14px; display:flex; align-items:center; justify-content:space-between; margin-top:10px; }
+  .total-load-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); }
+  .total-load-value { font-size:18px; font-weight:800; color:var(--primary); }
+
+  /* infra badge */
+  .infra-tag { display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:6px; font-size:11px; font-weight:700; background:var(--hover-bg); border:1px solid var(--border-color); color:var(--text-muted); margin-right:4px; margin-bottom:4px; }
+
+  /* Add vehicle full page */
+  .add-page { display:none; }
+  .add-page.show { display:block; }
+  .fleet-view.hide { display:none; }
+  .av-back { display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:700; color:var(--text-muted); cursor:pointer; background:none; border:none; font-family:inherit; padding:0; margin-bottom:20px; transition:color .15s; }
+  .av-back:hover { color:var(--primary); }
+  .av-step { background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:26px 30px; margin-bottom:20px; }
+  .av-step-title { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+  .av-step-title::after { content:''; flex:1; height:1px; background:var(--border-color); }
+  .av-step-num { font-size:11px; width:20px; height:20px; background:var(--primary); color:#fff; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .av-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .av-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+  .av-grid-4 { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:14px; }
+  .av-full { grid-column:1/-1; }
+  .av-error { display:none; align-items:center; gap:8px; padding:11px 14px; border-radius:var(--radius-sm); margin-bottom:14px; font-size:13px; font-weight:600; background:rgba(239,68,68,.08); color:#dc2626; border:1px solid rgba(239,68,68,.2); }
+  .av-error.show { display:flex; }
+
+  /* capacity summary preview */
+  .cap-summary { background:rgba(37,99,235,.05); border:1px solid rgba(37,99,235,.15); border-radius:var(--radius-sm); padding:14px 16px; margin-top:14px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; text-align:center; }
+  .cap-summary-val { font-size:22px; font-weight:800; }
+  .cap-summary-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); margin-top:2px; }
 </style>
 
-<div class="page-row">
+<!-- ══════════════════════════════
+     VIEW A — Fleet list
+══════════════════════════════ -->
+<div class="fleet-view" id="fleet-view">
+
+  <div class="page-row">
     <div>
-        <div class="page-title">Fleet &amp; Seating Configuration</div>
-        <div class="page-subtitle">Configure capacity limits and monitor your registered PUVs</div>
+      <h1 class="page-title">Vehicles &amp; seating</h1>
+      <p class="page-subtitle">Manage your fleet, assign drivers, and configure seating capacity.</p>
     </div>
-    <a href="/dashboard" class="btn btn-outline" onclick="showLoader('Loading...')">
-        <i class="fa-solid fa-arrow-left"></i> Back to Dashboard
-    </a>
-</div>
+    <button class="btn btn-dark" onclick="showAddPage()">
+      <i class="fa-solid fa-plus"></i> Add vehicle
+    </button>
+  </div>
 
-<div class="fleet-grid">
+  {% if puvs %}
+  <div class="fleet-grid">
     {% for puv in puvs %}
-    {% set pct = (puv.passengers / puv.capacity * 100)|int if puv.capacity > 0 else 0 %}
-    {% set overload = puv.passengers > puv.capacity %}
+    {% set seated   = puv.capacity %}
+    {% set standing = puv.get('standing_capacity', 0) %}
+    {% set total_max = seated + standing %}
+    {% set pct      = (puv.passengers / total_max * 100)|int if total_max > 0 else 0 %}
+    {% set overload = puv.passengers > total_max %}
+    {% set hot      = puv.temp >= 37.5 %}
+    {% set pending_cap = puv.get('pending_capacity') %}
     <div class="puv-card">
-        <div class="puv-card-header">
-            <div>
-                <div class="puv-plate">{{ puv.plate }}</div>
-                <div class="puv-company">{{ puv.company }}</div>
-            </div>
-            {% if overload %}
-                <span class="badge badge-red"><i class="fa-solid fa-triangle-exclamation"></i> Overloaded</span>
-            {% else %}
-                <span class="badge badge-green"><i class="fa-solid fa-circle-check"></i> Normal</span>
-            {% endif %}
-        </div>
 
-        <div class="puv-meta">
-            <div class="puv-meta-item">
-                <div class="puv-meta-label">Driver</div>
-                <div class="puv-meta-value" style="font-size:13px;">{{ puv.driver }}</div>
-            </div>
-            <div class="puv-meta-item">
-                <div class="puv-meta-label">Location</div>
-                <div class="puv-meta-value" style="font-size:12px;">{{ puv.loc_name }}</div>
-            </div>
-            <div class="puv-meta-item">
-                <div class="puv-meta-label">Passengers Now</div>
-                <div class="puv-meta-value" style="color:{{ '#ef4444' if overload else 'var(--text-main)' }};">{{ puv.passengers }}</div>
-            </div>
-            <div class="puv-meta-item">
-                <div class="puv-meta-label">Cabin Temp</div>
-                <div class="puv-meta-value" style="color:{{ '#ef4444' if puv.temp >= 37.5 else ('#f59e0b' if puv.temp >= 35 else '#10b981') }};">{{ puv.temp }}°C</div>
-            </div>
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div class="puv-plate">{{ puv.plate }}</div>
+          <div class="puv-company">{{ puv.company }}</div>
         </div>
+        {% if overload %}
+        <span class="badge badge-red"><i class="fa-solid fa-triangle-exclamation"></i> Overloaded</span>
+        {% elif hot %}
+        <span class="badge badge-yellow"><i class="fa-solid fa-fire"></i> Overheating</span>
+        {% else %}
+        <span class="badge badge-green"><i class="fa-solid fa-circle-check"></i> Normal</span>
+        {% endif %}
+      </div>
 
-        <div style="margin-bottom:6px;">
-            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);">Load</span>
-                <span style="font-size:12px;font-weight:700;color:{{ '#ef4444' if overload else 'var(--text-muted)' }};">{{ pct }}%</span>
-            </div>
-            <div class="load-bar">
-                <div class="load-fill" style="width:{{ [pct,100]|min }}%;background:{{ '#ef4444' if overload else ('#f59e0b' if pct >= 80 else '#10b981') }};"></div>
-            </div>
-        </div>
+      <!-- Infrastructure tags -->
+      {% if puv.get('vehicle_type') or puv.get('engine_type') or puv.get('year_model') %}
+      <div style="margin-top:10px;margin-bottom:2px;">
+        {% if puv.get('vehicle_type') %}<span class="infra-tag"><i class="fa-solid fa-bus" style="font-size:9px;"></i>{{ puv.vehicle_type }}</span>{% endif %}
+        {% if puv.get('engine_type') %}<span class="infra-tag"><i class="fa-solid fa-gear" style="font-size:9px;"></i>{{ puv.engine_type }}</span>{% endif %}
+        {% if puv.get('year_model') %}<span class="infra-tag"><i class="fa-solid fa-calendar" style="font-size:9px;"></i>{{ puv.year_model }}</span>{% endif %}
+        {% if puv.get('color_coding') %}<span class="infra-tag"><i class="fa-solid fa-circle" style="font-size:8px;color:{{ '#ef4444' if puv.color_coding == 'Red' else ('#f59e0b' if puv.color_coding == 'Yellow' else ('#10b981' if puv.color_coding == 'Green' else 'var(--text-muted)')) }};"></i>{{ puv.color_coding }}</span>{% endif %}
+      </div>
+      {% endif %}
 
-        <div style="margin-top:16px;">
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);margin-bottom:8px;">Set Seating Capacity</div>
-            <div class="capacity-row">
-                <input type="number" class="cap-input" id="cap-{{ puv.id }}" value="{{ puv.capacity }}" min="1" max="99">
-                <button class="save-cap-btn" onclick="saveCap({{ puv.id }}, '{{ puv.plate }}')">
-                    <i class="fa-solid fa-floppy-disk" style="margin-right:5px;"></i>Save
-                </button>
-            </div>
-        </div>
+      <!-- Infrastructure details -->
+      {% if puv.get('franchise_no') or puv.get('chassis_no') %}
+      <div style="margin-top:6px;margin-bottom:2px;">
+        {% if puv.get('franchise_no') %}<span style="font-size:11px;color:var(--text-muted);margin-right:12px;"><i class="fa-solid fa-file-contract" style="margin-right:4px;"></i>FR: {{ puv.franchise_no }}</span>{% endif %}
+        {% if puv.get('chassis_no') %}<span style="font-size:11px;color:var(--text-muted);"><i class="fa-solid fa-hashtag" style="margin-right:4px;"></i>CH: {{ puv.chassis_no }}</span>{% endif %}
+      </div>
+      {% endif %}
 
-        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-color);">
-            <button onclick="removePuv({{ puv.id }}, '{{ puv.plate }}')"
-                    style="width:100%;padding:9px;background:rgba(239,68,68,0.07);border:1.5px solid rgba(239,68,68,0.2);color:#ef4444;border-radius:var(--radius-sm);font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;transition:all 0.2s;"
-                    onmouseover="this.style.background='rgba(239,68,68,0.15)'" onmouseout="this.style.background='rgba(239,68,68,0.07)'">
-                <i class="fa-solid fa-trash" style="margin-right:6px;"></i>Remove from Fleet
-            </button>
+      <!-- Meta -->
+      <div class="puv-meta">
+        <div class="puv-meta-item">
+          <div class="puv-meta-label">Driver</div>
+          <div class="puv-meta-value" style="font-size:12px;">{{ puv.driver if puv.driver != 'Unassigned' else '— Unassigned —' }}</div>
         </div>
+        <div class="puv-meta-item">
+          <div class="puv-meta-label">Location</div>
+          <div class="puv-meta-value" style="font-size:12px;">{{ puv.loc_name }}</div>
+        </div>
+        <div class="puv-meta-item">
+          <div class="puv-meta-label">Seated capacity</div>
+          <div class="puv-meta-value">{{ seated }}</div>
+        </div>
+        <div class="puv-meta-item">
+          <div class="puv-meta-label">Standing allowance</div>
+          <div class="puv-meta-value">{{ standing }}</div>
+        </div>
+      </div>
+
+      <!-- Total max load -->
+      <div class="total-load-box">
+        <div>
+          <div class="total-load-label">Total max load</div>
+          <div style="font-size:11px;color:var(--text-muted);">{{ seated }} seated + {{ standing }} standing</div>
+        </div>
+        <div class="total-load-value">{{ total_max }} PAX</div>
+      </div>
+
+      <!-- Load bar -->
+      <div style="margin-top:12px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);">Current load</span>
+          <span style="font-size:12px;font-weight:700;color:{{ '#ef4444' if overload else 'var(--text-muted)' }};">{{ puv.passengers }}/{{ total_max }} ({{ pct }}%)</span>
+        </div>
+        <div class="load-bar">
+          <div class="load-fill" style="width:{{ [pct,100]|min }}%;background:{{ '#ef4444' if overload else ('#f59e0b' if pct >= 80 else '#10b981') }};"></div>
+        </div>
+      </div>
+
+      <div class="section-div"></div>
+
+      <!-- Assign Driver to Shift -->
+      <div>
+        <div class="puv-meta-label" style="margin-bottom:8px;"><i class="fa-solid fa-id-card" style="margin-right:5px;color:var(--primary);"></i>Assign driver to shift</div>
+        <div style="display:flex;gap:8px;">
+          <select id="shift-{{ puv.id }}" class="form-control" style="flex:1;padding:9px 12px;font-size:13px;">
+            <option value="">— Select driver —</option>
+            {% for uname, udata in drivers.items() %}
+            <option value="{{ uname }}" {{ 'selected' if puv.username == uname }}>{{ udata.get('full_name', uname) }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-primary" style="padding:9px 14px;" onclick="assignDriver({{ puv.id }}, '{{ puv.plate }}')">
+            <i class="fa-solid fa-check"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="section-div"></div>
+
+      <!-- Seating configuration -->
+      <div>
+        <div class="puv-meta-label" style="margin-bottom:8px;"><i class="fa-solid fa-sliders" style="margin-right:5px;color:var(--primary);"></i>Seating configuration</div>
+        {% if pending_cap %}
+        <div style="margin-bottom:8px;">
+          <span class="badge-pending-ltfrb"><i class="fa-solid fa-clock"></i> Pending LTFRB Approval — {{ pending_cap.seated }} seated + {{ pending_cap.standing }} standing = {{ pending_cap.total }} total</span>
+        </div>
+        {% endif %}
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Approved: <strong>{{ seated }} seated + {{ standing }} standing = {{ total_max }} total</strong></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div>
+            <label class="form-label">Seated capacity</label>
+            <input type="number" class="cap-input" id="cap-{{ puv.id }}" value="{{ seated }}" min="1" max="99" style="width:100%;">
+          </div>
+          <div>
+            <label class="form-label">Standing allowance</label>
+            <input type="number" class="cap-input" id="stand-{{ puv.id }}" value="{{ standing }}" min="0" max="30" style="width:100%;">
+          </div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:10px;font-size:12px;" onclick="saveCap({{ puv.id }}, '{{ puv.plate }}')">
+          <i class="fa-solid fa-paper-plane"></i> Submit to LTFRB
+        </button>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:5px;"><i class="fa-solid fa-circle-info" style="margin-right:3px;"></i>Changes require LTFRB approval before taking effect.</div>
+      </div>
+
+      <div class="section-div"></div>
+
+      <!-- Remove -->
+      <button onclick="removePuv({{ puv.id }}, '{{ puv.plate }}')"
+        style="width:100%;padding:9px;background:rgba(239,68,68,.07);border:1.5px solid rgba(239,68,68,.2);color:#ef4444;border-radius:var(--radius-sm);font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;transition:all .2s;"
+        onmouseover="this.style.background='rgba(239,68,68,.15)'" onmouseout="this.style.background='rgba(239,68,68,.07)'">
+        <i class="fa-solid fa-trash" style="margin-right:6px;"></i>Remove vehicle
+      </button>
     </div>
     {% endfor %}
-</div>
+  </div>
+
+  {% else %}
+  <div class="card" style="text-align:center;padding:60px 20px;">
+    <i class="fa-solid fa-bus" style="font-size:44px;color:var(--border-color);display:block;margin-bottom:16px;"></i>
+    <h3 style="font-size:18px;font-weight:800;margin-bottom:6px;">No vehicles yet</h3>
+    <p style="color:var(--text-muted);margin-bottom:20px;">Add your first vehicle to start monitoring your fleet.</p>
+    <button class="btn btn-primary" onclick="showAddPage()"><i class="fa-solid fa-plus"></i> Add first vehicle</button>
+  </div>
+  {% endif %}
+
+  <div class="card" style="background:rgba(37,99,235,.04);border-color:rgba(37,99,235,.15);margin-top:22px;">
+    <div style="display:flex;align-items:flex-start;gap:14px;">
+      <i class="fa-solid fa-circle-info" style="color:var(--primary);font-size:18px;margin-top:2px;"></i>
+      <div>
+        <div style="font-weight:700;margin-bottom:4px;">LTFRB standard capacity</div>
+        <p style="font-size:13.5px;color:var(--text-muted);line-height:1.6;margin:0;">
+          Modern UV Express units (Class 2 PUV) are authorized to carry a maximum of <strong>22 seated passengers</strong> per LTFRB MC-2018-012. Standing allowance is subject to separate LTFRB approval. Any capacity change will be marked <strong>Pending LTFRB Approval</strong> until confirmed.
+        </p>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /fleet-view -->
+
+
+<!-- ══════════════════════════════
+     VIEW B — Add vehicle (full page)
+══════════════════════════════ -->
+<div class="add-page" id="add-page">
+
+  <button class="av-back" onclick="showFleetView()">
+    <i class="fa-solid fa-arrow-left"></i> Back to vehicles
+  </button>
+
+  <div class="page-row" style="margin-bottom:26px;">
+    <div>
+      <h1 class="page-title">Add a vehicle</h1>
+      <p class="page-subtitle">Register a new PUV — fill in all details below</p>
+    </div>
+  </div>
+
+  <div class="av-error" id="av-error"><i class="fa-solid fa-circle-exclamation"></i> <span id="av-error-text"></span></div>
+
+  <!-- Step 1 — Basic vehicle info -->
+  <div class="av-step">
+    <div class="av-step-title"><span class="av-step-num">1</span> Vehicle information</div>
+    <div class="av-grid-2">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Plate number <span style="color:#ef4444;">*</span></label>
+        <input id="av-plate" type="text" class="form-control" placeholder="e.g. KVR-102">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Company / operator <span style="color:#ef4444;">*</span></label>
+        <input id="av-company" type="text" class="form-control" placeholder="e.g. OROTSCO">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Route</label>
+        <input id="av-route" type="text" class="form-control" placeholder="e.g. Bugo–Igpit">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Schedule</label>
+        <input id="av-schedule" type="text" class="form-control" placeholder="e.g. 06:00 AM – 08:00 PM">
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2 — Infrastructure -->
+  <div class="av-step">
+    <div class="av-step-title"><span class="av-step-num">2</span> Vehicle infrastructure</div>
+    <div class="av-grid-3">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Vehicle type</label>
+        <select id="av-vehicle-type" class="form-control">
+          <option value="">— Select —</option>
+          <option>UV Express</option>
+          <option>Bus</option>
+          <option>Jeepney</option>
+          <option>Minibus</option>
+          <option>Van</option>
+          <option>E-Jeepney</option>
+          <option>E-Bus</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Engine type</label>
+        <select id="av-engine-type" class="form-control">
+          <option value="">— Select —</option>
+          <option>Diesel</option>
+          <option>Gasoline</option>
+          <option>Electric</option>
+          <option>Hybrid</option>
+          <option>LPG</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Year model</label>
+        <input id="av-year" type="number" class="form-control" placeholder="e.g. 2022" min="1990" max="2030">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Chassis / body number</label>
+        <input id="av-chassis" type="text" class="form-control" placeholder="e.g. MHFJNK4P5NK123456">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Franchise number</label>
+        <input id="av-franchise" type="text" class="form-control" placeholder="e.g. FR-2024-00123">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Color coding</label>
+        <select id="av-color" class="form-control">
+          <option value="">— Select —</option>
+          <option>Monday (Yellow)</option>
+          <option>Tuesday (Pink)</option>
+          <option>Wednesday (Red)</option>
+          <option>Thursday (White)</option>
+          <option>Friday (Blue)</option>
+          <option>Saturday (Green)</option>
+          <option>No Coding</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3 — Seating configuration -->
+  <div class="av-step">
+    <div class="av-step-title"><span class="av-step-num">3</span> Seating configuration</div>
+    <div class="av-grid-2">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Seated capacity <span style="color:#ef4444;">*</span></label>
+        <input id="av-capacity" type="number" class="form-control" value="22" min="1" max="99" oninput="updateCapPreview()">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">LTFRB standard: 22 seats</div>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Allowable standing</label>
+        <input id="av-standing" type="number" class="form-control" value="0" min="0" max="30" oninput="updateCapPreview()">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Subject to LTFRB approval</div>
+      </div>
+    </div>
+    <!-- Live preview -->
+    <div class="cap-summary" id="cap-summary">
+      <div>
+        <div class="cap-summary-val" id="prev-seated" style="color:#2563eb;">22</div>
+        <div class="cap-summary-lbl">Seated</div>
+      </div>
+      <div>
+        <div class="cap-summary-val" id="prev-standing" style="color:#8b5cf6;">0</div>
+        <div class="cap-summary-lbl">Standing</div>
+      </div>
+      <div>
+        <div class="cap-summary-val" id="prev-total" style="color:#10b981;">22</div>
+        <div class="cap-summary-lbl">Total max load</div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:#8b5cf6;margin-top:10px;">
+      <i class="fa-solid fa-clock" style="margin-right:5px;"></i>
+      Capacity will be submitted for <strong>LTFRB approval</strong> before taking effect.
+    </div>
+  </div>
+
+  <!-- Step 4 — Assign driver -->
+  <div class="av-step">
+    <div class="av-step-title"><span class="av-step-num">4</span> Assign driver to shift <span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:none;letter-spacing:0;margin-left:4px;">(optional)</span></div>
+    <div class="av-grid-2">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Driver</label>
+        <select id="av-driver" class="form-control">
+          <option value="">— Unassigned —</option>
+          {% for uname, udata in drivers.items() %}
+          <option value="{{ uname }}">{{ udata.get('full_name', uname) }} ({{ uname }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;align-items:flex-end;padding-bottom:2px;">
+        <div style="font-size:12px;color:var(--text-muted);line-height:1.6;">
+          <i class="fa-solid fa-circle-info" style="color:var(--primary);margin-right:4px;"></i>
+          You can assign or change the driver later from the vehicle card.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div style="display:flex;gap:12px;margin-top:4px;">
+    <button class="btn btn-outline" onclick="showFleetView()"><i class="fa-solid fa-xmark"></i> Cancel</button>
+    <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="submitAddVehicle()">
+      <i class="fa-solid fa-plus"></i> Add vehicle
+    </button>
+  </div>
+
+</div><!-- /add-page -->
+
 
 <script>
-async function removePuv(puvId, plate) {
-    const result = await Swal.fire({
-        title: `Remove ${plate}?`,
-        text: 'This will permanently remove the PUV from the fleet.',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#ef4444',
-        cancelButtonColor: '#64748b',
-        confirmButtonText: '<i class="fa-solid fa-trash"></i> Yes, Remove',
-        cancelButtonText: 'Cancel',
-        background: 'var(--card-bg)',
-        color: 'var(--text-main)'
-    });
-    if (!result.isConfirmed) return;
-    const res  = await fetch('/api/delete_puv', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({puv_id: puvId})
-    });
-    const data = await res.json();
-    if (data.success) {
-        await Swal.fire({ title: 'Removed', text: `${data.plate} has been removed from the fleet.`, icon: 'success', confirmButtonColor: '#2563eb', background: 'var(--card-bg)', color: 'var(--text-main)' });
-        location.reload();
-    } else {
-        Swal.fire({ title: 'Error', text: data.error || 'Could not remove PUV.', icon: 'error', background: 'var(--card-bg)', color: 'var(--text-main)' });
-    }
+function showAddPage() {
+  document.getElementById('fleet-view').classList.add('hide');
+  document.getElementById('add-page').classList.add('show');
+  document.getElementById('av-error').classList.remove('show');
+  ['av-plate','av-company','av-route','av-schedule','av-chassis','av-franchise','av-year'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
+  });
+  ['av-vehicle-type','av-engine-type','av-color','av-driver'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('av-capacity').value  = '22';
+  document.getElementById('av-standing').value  = '0';
+  updateCapPreview();
+  window.scrollTo(0,0);
+}
+function showFleetView() {
+  document.getElementById('add-page').classList.remove('show');
+  document.getElementById('fleet-view').classList.remove('hide');
+  window.scrollTo(0,0);
+}
+
+function updateCapPreview() {
+  var s = parseInt(document.getElementById('av-capacity').value) || 0;
+  var st= parseInt(document.getElementById('av-standing').value) || 0;
+  document.getElementById('prev-seated').textContent   = s;
+  document.getElementById('prev-standing').textContent = st;
+  document.getElementById('prev-total').textContent    = s + st;
+}
+
+function avVal(id) { var el=document.getElementById(id); return el ? el.value.trim() : ''; }
+function avShowError(msg) {
+  document.getElementById('av-error-text').textContent = msg;
+  document.getElementById('av-error').classList.add('show');
+  document.getElementById('av-error').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+async function submitAddVehicle() {
+  var plate    = avVal('av-plate');
+  var company  = avVal('av-company');
+  var capacity = parseInt(avVal('av-capacity'));
+  var standing = parseInt(avVal('av-standing')) || 0;
+  if (!plate)   { avShowError('Plate number is required.'); return; }
+  if (!company) { avShowError('Company / operator is required.'); return; }
+  if (!capacity || capacity < 1) { avShowError('Please enter a valid seated capacity.'); return; }
+
+  showLoader('Adding vehicle...');
+  var res = await fetch('/api/coop/add_vehicle', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      plate, company, capacity, standing_capacity: standing,
+      route:           avVal('av-route'),
+      schedule:        avVal('av-schedule'),
+      vehicle_type:    avVal('av-vehicle-type'),
+      engine_type:     avVal('av-engine-type'),
+      year_model:      avVal('av-year'),
+      chassis_no:      avVal('av-chassis'),
+      franchise_no:    avVal('av-franchise'),
+      color_coding:    avVal('av-color'),
+      driver_username: avVal('av-driver'),
+    })
+  });
+  var data = await res.json();
+  hideLoader();
+  if (data.success) {
+    await Swal.fire({ title:'Vehicle added', text:plate+' has been added to your fleet.', icon:'success', confirmButtonColor:'#2563eb', background:'var(--card-bg)', color:'var(--text-main)' });
+    location.reload();
+  } else { avShowError(data.error || 'Could not add vehicle.'); }
+}
+
+async function assignDriver(puvId, plate) {
+  var sel = document.getElementById('shift-'+puvId);
+  var username = sel ? sel.value : '';
+  if (!username) { popAlert('No driver selected', 'Please select a driver from the dropdown.', 'warning'); return; }
+  showLoader('Assigning driver...');
+  var res  = await fetch('/api/coop/update_driver', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ username, assigned_puv_id: puvId.toString() }) });
+  var data = await res.json();
+  hideLoader();
+  if (data.success) { popAlert('Assigned', 'Driver updated for '+plate+'.', 'success'); setTimeout(function(){ location.reload(); }, 1200); }
+  else { popAlert('Error', data.error||'Could not assign driver.', 'error'); }
 }
 
 async function saveCap(puvId, plate) {
-    const val = parseInt(document.getElementById('cap-' + puvId).value);
-    if (!val || val < 1) { popAlert('Invalid', 'Please enter a valid capacity.', 'warning'); return; }
-    const res  = await fetch('/api/coop/update_capacity', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({puv_id: puvId, capacity: val})
+  var seated   = parseInt(document.getElementById('cap-'+puvId).value);
+  var standing = parseInt(document.getElementById('stand-'+puvId).value) || 0;
+  if (!seated || seated < 1) { popAlert('Invalid', 'Please enter a valid seated capacity.', 'warning'); return; }
+  showLoader('Submitting to LTFRB...');
+  var res  = await fetch('/api/coop/request_capacity', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ puv_id:puvId, capacity:seated, standing_capacity:standing }) });
+  var data = await res.json();
+  hideLoader();
+  if (data.success) {
+    await Swal.fire({
+      title:'Submitted',
+      html:'Capacity change for <b>'+plate+'</b> submitted.<br><br>'
+         + '<span style="background:rgba(139,92,246,.1);color:#8b5cf6;border:1px solid rgba(139,92,246,.2);padding:4px 12px;border-radius:6px;font-weight:700;font-size:12px;display:inline-flex;align-items:center;gap:5px;"><i class="fa-solid fa-clock"></i> Pending LTFRB Approval — '+seated+' seated + '+standing+' standing = '+(seated+standing)+' total</span>',
+      icon:'success', confirmButtonColor:'#2563eb', background:'var(--card-bg)', color:'var(--text-main)'
     });
-    const data = await res.json();
-    if (data.success) {
-        popAlert('Saved', `Capacity for ${plate} updated to ${data.capacity} seats.`, 'success');
-    } else {
-        popAlert('Error', data.error || 'Could not update capacity.', 'error');
-    }
+    location.reload();
+  } else { popAlert('Error', data.error||'Could not submit request.', 'error'); }
+}
+
+async function removePuv(puvId, plate) {
+  var result = await Swal.fire({ title:'Remove '+plate+'?', text:'This will permanently remove the vehicle from your fleet.', icon:'warning', showCancelButton:true, confirmButtonColor:'#ef4444', cancelButtonColor:'#64748b', confirmButtonText:'<i class="fa-solid fa-trash"></i> Yes, remove', cancelButtonText:'Cancel', background:'var(--card-bg)', color:'var(--text-main)' });
+  if (!result.isConfirmed) return;
+  var res  = await fetch('/api/delete_puv', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ puv_id: puvId }) });
+  var data = await res.json();
+  if (data.success) { await Swal.fire({ title:'Removed', text:data.plate+' removed.', icon:'success', confirmButtonColor:'#2563eb', background:'var(--card-bg)', color:'var(--text-main)' }); location.reload(); }
+  else { Swal.fire({ title:'Error', text:data.error||'Could not remove.', icon:'error', background:'var(--card-bg)', color:'var(--text-main)' }); }
 }
 </script>
 {% endblock %}

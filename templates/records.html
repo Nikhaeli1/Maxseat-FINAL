@@ -1,87 +1,95 @@
 {% extends "layout.html" %}
 {% block content %}
+
 <div class="page-row">
-    <div>
-        <h1 class="page-title">Violation Records</h1>
-        <p class="page-subtitle">Historical log of all detected passenger overload and thermal incidents.</p>
-    </div>
-    <div style="display:flex;gap:10px;">
-        <span class="badge badge-red" style="padding:8px 14px;font-size:12px;">
-            {{ stats.active_violations }} Active
-        </span>
-        <span class="badge badge-yellow" style="padding:8px 14px;font-size:12px;">
-            {{ stats.thermal_warnings }} Thermal
-        </span>
-    </div>
+  <div>
+    <h1 class="page-title">Violation records</h1>
+    <p class="page-subtitle">Historical log of all detected passenger overload and thermal incidents.</p>
+  </div>
+  <div style="display:flex;gap:10px;">
+    {% set active_v = puvs | selectattr('is_violator') | list | length %}
+    {% set thermal_v = puvs | selectattr('is_overheating') | list | length %}
+    {% if active_v > 0 %}
+    <span class="badge badge-red" style="padding:8px 14px;font-size:12px;">
+      {{ active_v }} ACTIVE
+    </span>
+    {% endif %}
+    {% if thermal_v > 0 %}
+    <span class="badge badge-yellow" style="padding:8px 14px;font-size:12px;">
+      {{ thermal_v }} THERMAL
+    </span>
+    {% endif %}
+  </div>
 </div>
 
 <div class="table-wrap">
-    <table>
-        <thead>
-            <tr>
-                <th>Target Entity</th>
-                <th>Driver</th>
-                <th>Violation Type</th>
-                <th>GNSS Location</th>
-                <th>Last Update</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for p in puvs %}
-            {% set overloaded = p.passengers > p.capacity %}
-            {% set overheating = p.temp >= 37.5 %}
-            <tr>
-                <td>
-                    <div style="font-weight:700;font-size:14px;">{{ p.company }}</div>
-                    <div style="font-size:12px;color:var(--primary);font-weight:600;">{{ p.plate }}</div>
-                </td>
-                <td style="font-weight:600;">{{ p.driver }}</td>
-                <td>
-                    {% if overloaded %}
-                    <span class="badge badge-red">
-                        <i class="fa-solid fa-scale-unbalanced"></i> Overload ({{ p.passengers }}/{{ p.capacity }})
-                    </span>
-                    {% endif %}
-                    {% if overheating %}
-                    <span class="badge badge-yellow" style="margin-top:4px;">
-                        <i class="fa-solid fa-thermometer-half"></i> Thermal ({{ p.temp }}°C)
-                    </span>
-                    {% endif %}
-                    {% if not overloaded and not overheating %}
-                    <span class="badge badge-green"><i class="fa-solid fa-check"></i> Compliant</span>
-                    {% endif %}
-                </td>
-                <td>
-                    <div style="font-weight:600;">{{ p.loc_name }}</div>
-                    <div style="font-size:12px;color:var(--text-muted);font-family:monospace;">{{ p.lat }}, {{ p.lng }}</div>
-                </td>
-                <td style="font-size:13px;color:var(--text-muted);">{{ p.last_update }}</td>
-                <td>
-                    {% if role == 'admin' or role == 'enforcer' %}
-                    {% if overloaded or overheating %}
-                    <button onclick="popAlert('Dispatch', 'Dispatching response unit to {{ p.loc_name }}', 'success')"
-                            class="btn btn-danger" style="padding:8px 15px;font-size:12px;">
-                        <i class="fa-solid fa-location-crosshairs"></i> Dispatch
-                    </button>
-                    {% else %}
-                    <span style="font-size:12px;color:var(--text-muted);">—</span>
-                    {% endif %}
-                    {% endif %}
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="6">
-                    <div class="empty-state">
-                        <i class="fa-solid fa-folder-open"></i>
-                        <h3>No Records Found</h3>
-                        <p>All units are operating within limits.</p>
-                    </div>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+  <table>
+    <thead>
+      <tr>
+        <th>Operator / plate</th>
+        <th>Driver</th>
+        <th>Violation</th>
+        <th>Location</th>
+        <th>Last update</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in puvs %}
+      {% set overloaded   = p.passengers > p.capacity %}
+      {% set overheating  = p.get('temp', 0) >= 37.5 %}
+      <tr>
+        <td>
+          <div style="font-weight:700;color:var(--primary);">{{ p.company }}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">{{ p.plate }}</div>
+        </td>
+        <td style="font-weight:600;">{{ p.driver }}</td>
+        <td>
+          {% if overloaded %}
+          <span class="badge badge-red" style="margin-bottom:4px;">
+            <i class="fa-solid fa-users"></i> Overload ({{ p.passengers }}/{{ p.capacity }})
+          </span>
+          {% endif %}
+          {% if overheating %}
+          <span class="badge badge-yellow">
+            <i class="fa-solid fa-temperature-high"></i> Thermal ({{ p.temp }}°C)
+          </span>
+          {% endif %}
+          {% if not overloaded and not overheating %}
+          <span class="badge badge-green"><i class="fa-solid fa-check"></i> Compliant</span>
+          {% endif %}
+        </td>
+        <td>
+          <div style="font-weight:600;">{{ p.loc_name }}</div>
+          <div style="font-size:12px;color:var(--text-muted);">{{ p.lat }}, {{ p.lng }}</div>
+        </td>
+        <td style="color:var(--text-muted);font-size:13px;">{{ p.last_update }}</td>
+        <td>
+          {% if overloaded or overheating %}
+          {% if role == 'enforcer' %}
+          <a href="/dispatch_orders" class="btn btn-danger" style="padding:8px 16px;font-size:12px;">
+            <i class="fa-solid fa-location-crosshairs"></i> Dispatch
+          </a>
+          {% else %}
+          <span style="color:var(--text-muted);font-size:13px;">—</span>
+          {% endif %}
+          {% else %}
+          <span style="color:var(--text-muted);font-size:13px;">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="6">
+          <div class="empty-state">
+            <i class="fa-solid fa-shield-check"></i>
+            <h3>No records found</h3>
+            <p>Violations will appear here when detected.</p>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endblock %}
