@@ -226,8 +226,8 @@ async def send_sms(mobile: str, message: str) -> dict:
     except Exception as e:
         return {"success": False, "reason": str(e)}
 
-def send_email(to_email: str, full_name: str, message: str) -> dict:
-    """Send email via Gmail SMTP."""
+def _send_email_sync(to_email: str, full_name: str, message: str) -> dict:
+    """Blocking SMTP send — run via asyncio executor, never call directly from async code."""
     if not to_email or GMAIL_ADDRESS == "your@gmail.com":
         return {"success": False, "reason": "Email not configured or no email address."}
     try:
@@ -261,12 +261,28 @@ def send_email(to_email: str, full_name: str, message: str) -> dict:
         </div>"""
         msg.attach(MIMEText(html, "html"))
 
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
-            server.sendmail(GMAIL_ADDRESS, to_email, msg.as_string())
+        # Try SSL (port 465) first, fall back to STARTTLS (port 587)
+        try:
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
+                server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+                server.sendmail(GMAIL_ADDRESS, to_email, msg.as_string())
+        except Exception:
+            with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
+                server.ehlo()
+                server.starttls()
+                server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+                server.sendmail(GMAIL_ADDRESS, to_email, msg.as_string())
+
         return {"success": True}
     except Exception as e:
+        print(f"[EMAIL] Failed to send to {to_email}: {e}")
         return {"success": False, "reason": str(e)}
+
+async def send_email(to_email: str, full_name: str, message: str) -> dict:
+    """Async wrapper — runs the blocking SMTP call in a thread pool."""
+    import asyncio
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _send_email_sync, to_email, full_name, message)
 
 async def notify_new_user(user_data: dict, username: str, password: str):
     """Send credentials via SMS and/or email."""
@@ -280,7 +296,7 @@ async def notify_new_user(user_data: dict, username: str, password: str):
     if mobile:
         results["sms"]   = await send_sms(mobile, message)
     if email:
-        results["email"] = send_email(email, full_name, message)
+        results["email"] = await send_email(email, full_name, message)
     return results
 
 # --- ROOT ---
@@ -450,6 +466,7 @@ async def create_user(request: Request):
         record["license"]           = data.get("license", "")
         record["operator"]          = data.get("operator", "")
         record["mobile"]            = data.get("mobile", "")
+        record["email"]             = data.get("email", "")
         record["emergency_contact"] = data.get("emergency_contact", "")
         record["plate"]             = ""  # assigned later
 
@@ -827,6 +844,51 @@ def get_passenger_user(request: Request):
         return None
     token = auth[7:]
     return passenger_tokens.get(token)
+
+@app.post("/api/passenger/register")
+async def passenger_register(request: Request):
+    data      = await request.json()
+    username  = data.get("username", "").strip().lower()
+    password  = data.get("password", "")
+    full_name = data.get("full_name", "").strip()
+    mobile    = data.get("mobile", "").strip()
+
+    if not username:
+        return JSONResponse({"error": "Username is required."}, status_code=400)
+    if username in users:
+        return JSONResponse({"error": "Username already taken."}, status_code=409)
+    if len(password) < 6:
+        return JSONResponse({"error": "Password must be at least 6 characters."}, status_code=400)
+    if not full_name:
+        return JSONResponse({"error": "Full name is required."}, status_code=400)
+
+    record = {
+        "password":             password,
+        "role":                 "passenger",
+        "full_name":            full_name,
+        "mobile":               mobile,
+        "email":                data.get("email", ""),
+        "must_change_password": False,
+    }
+    users[username] = record
+    db_save_user(username, record)
+    log_audit("self-register", f"PASSENGER_REGISTERED: {username}", request.client.host if request.client else "unknown", "green")
+
+    # Auto-issue a token so the user is logged in immediately after registering
+    token = secrets.token_hex(32)
+    passenger_tokens[token] = {
+        "username":  username,
+        "full_name": full_name,
+        "mobile":    mobile,
+        "role":      "passenger",
+    }
+    return JSONResponse({
+        "token":     token,
+        "username":  username,
+        "full_name": full_name,
+        "mobile":    mobile,
+        "role":      "passenger",
+    }, status_code=201)
 
 @app.post("/api/passenger/login")
 async def passenger_login(request: Request):

@@ -373,6 +373,10 @@
           <input id="f-drv-mobile" type="text" class="form-control" placeholder="0920-xxx-xxxx">
         </div>
         <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Email address</label>
+          <input id="f-drv-email" type="email" class="form-control" placeholder="driver@example.com">
+        </div>
+        <div class="form-group cu-full" style="margin-bottom:0;">
           <label class="form-label">Emergency contact</label>
           <input id="f-emergency" type="text" class="form-control" placeholder="Name (09xx-xxx-xxxx)">
         </div>
@@ -549,6 +553,7 @@ async function cuSubmit() {
     payload.license           = cuVal('f-license');
     payload.operator          = cuVal('f-operator');
     payload.mobile            = cuVal('f-drv-mobile');
+    payload.email             = cuVal('f-drv-email');
     payload.emergency_contact = cuVal('f-emergency');
   } else if (_cuRole === 'cooperative') {
     payload.organization = cuVal('f-org');
