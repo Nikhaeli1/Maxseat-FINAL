@@ -1,112 +1,400 @@
 {% extends "layout.html" %}
 {% block content %}
+
+<style>
+  .settings-grid { display:grid; grid-template-columns:1fr 1fr; gap:22px; }
+  .settings-card { background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:28px 30px; }
+  .settings-card-title { font-size:15px; font-weight:800; margin-bottom:4px; display:flex; align-items:center; gap:10px; }
+  .settings-card-title i { width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
+  .settings-card-sub { font-size:13px; color:var(--text-muted); margin-bottom:22px; padding-bottom:18px; border-bottom:1px solid var(--border-color); }
+  .settings-row { display:flex; align-items:center; justify-content:space-between; padding:14px 0; border-bottom:1px solid var(--border-color); }
+  .settings-row:last-child { border-bottom:none; padding-bottom:0; }
+  .settings-row-label { font-size:14px; font-weight:700; }
+  .settings-row-sub { font-size:12px; color:var(--text-muted); margin-top:2px; }
+
+  /* avatar */
+  .avatar-circle { width:64px; height:64px; border-radius:50%; background:var(--primary); color:#fff; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:800; flex-shrink:0; margin-bottom:14px; }
+
+  /* session info */
+  .session-item { display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--hover-bg); border-radius:var(--radius-sm); border:1px solid var(--border-color); margin-bottom:8px; font-size:13px; }
+  .session-item i { color:var(--primary); width:16px; text-align:center; }
+
+  /* password strength */
+  .pw-strength { height:5px; border-radius:3px; margin-top:6px; transition:all .3s; background:var(--border-color); overflow:hidden; }
+  .pw-strength-fill { height:100%; border-radius:3px; transition:all .3s; width:0%; }
+
+  /* success/error banners */
+  .banner-ok  { display:none; align-items:center; gap:9px; padding:12px 16px; border-radius:var(--radius-sm); margin-bottom:16px; font-size:13px; font-weight:600; background:rgba(16,185,129,.08); color:#059669; border:1px solid rgba(16,185,129,.18); }
+  .banner-err { display:none; align-items:center; gap:9px; padding:12px 16px; border-radius:var(--radius-sm); margin-bottom:16px; font-size:13px; font-weight:600; background:rgba(239,68,68,.08); color:#dc2626; border:1px solid rgba(239,68,68,.2); }
+  .banner-ok.show, .banner-err.show { display:flex; }
+
+  /* role badge */
+  .role-pill { display:inline-flex; align-items:center; gap:5px; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; }
+</style>
+
 <div class="page-header">
-    <h1 class="page-title">System Configuration</h1>
-    <p class="page-subtitle">Manage profile, appearance, notifications, and account security.</p>
+  <h1 class="page-title">Settings</h1>
+  <p class="page-subtitle">Manage your profile, appearance, and account security.</p>
 </div>
 
 {% if messages %}
 <div class="flash-ok"><i class="fa-solid fa-circle-check"></i> {{ messages[0] }}</div>
 {% endif %}
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
-    <!-- LEFT COLUMN -->
-    <div>
-        <div class="card">
-            <h3 style="font-size:16px;font-weight:700;margin-bottom:18px;padding-bottom:13px;border-bottom:1px solid var(--border-color);">
-                <i class="fa-solid fa-user-circle" style="margin-right:8px;color:var(--primary);"></i>Profile Information
-            </h3>
-            <form action="/update_settings" method="POST">
-                <div class="form-group">
-                    <label class="form-label">Username</label>
-                    <input type="text" value="{{ request.session.get('username') }}" disabled class="form-control">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Contact Email</label>
-                    <input type="email" name="email" value="{{ user_data.get('email','') }}" class="form-control" placeholder="update@email.com">
-                </div>
-                <button type="submit" class="btn btn-primary" style="width:100%;">
-                    <i class="fa-solid fa-floppy-disk"></i> Save Changes
-                </button>
-            </form>
-        </div>
+{% set udata = user_data %}
+{% set fname = udata.get('full_name', request.session.get('username')) %}
+{% set initials = (fname ~ ' ').split()[:2] | map('first') | join | upper %}
 
-        <div class="card">
-            <h3 style="font-size:16px;font-weight:700;margin-bottom:18px;padding-bottom:13px;border-bottom:1px solid var(--border-color);">
-                <i class="fa-solid fa-moon" style="margin-right:8px;color:var(--primary);"></i>Appearance
-            </h3>
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-                <div>
-                    <div style="font-weight:700;font-size:15px;">Dark Mode</div>
-                    <div style="font-size:13px;color:var(--text-muted);margin-top:3px;">Toggle low-light interface</div>
-                </div>
-                <label class="switch">
-                    <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
-                    <span class="slider"></span>
-                </label>
-            </div>
+<div class="settings-grid">
+
+  <!-- ── Profile information ── -->
+  <div class="settings-card">
+    <div class="settings-card-title">
+      <i class="fa-solid fa-user" style="background:rgba(37,99,235,.1);color:#2563eb;"></i>
+      Profile information
+    </div>
+    <div class="settings-card-sub">Update your name and contact details.</div>
+
+    <div id="profile-ok"  class="banner-ok" ><i class="fa-solid fa-circle-check"></i> Profile updated successfully.</div>
+    <div id="profile-err" class="banner-err"><i class="fa-solid fa-circle-exclamation"></i> <span id="profile-err-text"></span></div>
+
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:22px;">
+      <!-- avatar -->
+      <div style="position:relative;flex-shrink:0;">
+        {% if udata.get('avatar') %}
+        <img id="avatar-preview" src="{{ udata.get('avatar') }}"
+          style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--primary);">
+        {% else %}
+        <div id="avatar-preview-initials" class="avatar-circle" style="width:72px;height:72px;font-size:24px;">{{ initials }}</div>
+        <img id="avatar-preview" src="" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--primary);display:none;">
+        {% endif %}
+        <label for="avatar-input" title="Change photo"
+          style="position:absolute;bottom:0;right:0;width:24px;height:24px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;border:2px solid var(--card-bg);">
+          <i class="fa-solid fa-camera"></i>
+        </label>
+        <input type="file" id="avatar-input" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="uploadAvatar(this)">
+      </div>
+      <div style="flex:1;">
+        <div style="font-size:18px;font-weight:800;">{{ fname }}</div>
+        <div style="font-size:13px;color:var(--text-muted);">{{ request.session.get('username') }}</div>
+        <span class="role-pill badge-blue" style="margin-top:5px;">
+          <i class="fa-solid fa-shield" style="font-size:10px;"></i> {{ role | capitalize }} access
+        </span>
+        {% if udata.get('avatar') %}
+        <div style="margin-top:8px;">
+          <button onclick="removeAvatar()" style="background:none;border:none;color:#ef4444;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;padding:0;">
+            <i class="fa-solid fa-trash" style="margin-right:4px;"></i> Remove photo
+          </button>
         </div>
+        {% endif %}
+      </div>
+    </div>
+    <div id="avatar-ok"  style="display:none;" class="banner-ok" ><i class="fa-solid fa-circle-check"></i> Profile photo updated.</div>
+    <div id="avatar-err" style="display:none;" class="banner-err"><i class="fa-solid fa-circle-exclamation"></i> <span id="avatar-err-text"></span></div>
+
+    <div class="form-group">
+      <label class="form-label">Full name</label>
+      <input id="p-fullname" type="text" class="form-control" value="{{ udata.get('full_name', '') }}" placeholder="First Last">
     </div>
 
-    <!-- RIGHT COLUMN -->
-    <div>
-        <div class="card">
-            <h3 style="font-size:16px;font-weight:700;margin-bottom:18px;padding-bottom:13px;border-bottom:1px solid var(--border-color);">
-                <i class="fa-solid fa-bell" style="margin-right:8px;color:var(--primary);"></i>Notification Preferences
-            </h3>
-            <div style="display:flex;flex-direction:column;gap:0;">
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--border-color);">
-                    <div>
-                        <div style="font-weight:600;"><i class="fa-solid fa-envelope" style="color:var(--text-muted);margin-right:8px;"></i>Email Alerts</div>
-                        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Receive violation summaries via email</div>
-                    </div>
-                    <label class="switch"><input type="checkbox" checked onchange="popAlert('Saved','Email preferences updated.','success')"><span class="slider"></span></label>
-                </div>
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--border-color);">
-                    <div>
-                        <div style="font-weight:600;"><i class="fa-solid fa-mobile-screen" style="color:var(--text-muted);margin-right:8px;"></i>SMS Push Notifications</div>
-                        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Receive SMS for critical alerts</div>
-                    </div>
-                    <label class="switch"><input type="checkbox" onchange="popAlert('Saved','SMS preferences updated.','success')"><span class="slider"></span></label>
-                </div>
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;">
-                    <div>
-                        <div style="font-weight:600;"><i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;margin-right:8px;"></i>Critical Overload Pings</div>
-                        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Always active — cannot be disabled</div>
-                    </div>
-                    <label class="switch"><input type="checkbox" checked disabled><span class="slider"></span></label>
-                </div>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3 style="font-size:16px;font-weight:700;margin-bottom:18px;padding-bottom:13px;border-bottom:1px solid var(--border-color);">
-                <i class="fa-solid fa-shield-halved" style="margin-right:8px;color:var(--primary);"></i>Account Security
-            </h3>
-            <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--hover-bg);border-radius:14px;margin-bottom:18px;border:1px solid var(--border-color);">
-                <div style="width:52px;height:52px;background:var(--primary);color:white;border-radius:50%;display:flex;justify-content:center;align-items:center;font-size:22px;font-weight:800;flex-shrink:0;">
-                    {{ request.session.get('username','?')[0]|upper }}
-                </div>
-                <div>
-                    <div style="font-weight:800;font-size:16px;">{{ request.session.get('username') }}</div>
-                    <span class="badge badge-blue" style="margin-top:4px;text-transform:capitalize;">{{ request.session.get('role') }} Access</span>
-                </div>
-            </div>
-            <div style="display:flex;gap:10px;">
-                <button onclick="popAlert('Check Email','Password reset instructions sent.','info')"
-                        class="btn btn-outline" style="flex:1;">
-                    <i class="fa-solid fa-key"></i> Reset Password
-                </button>
-                <button onclick="triggerLogout()" class="btn btn-danger" style="flex:1;">
-                    <i class="fa-solid fa-power-off"></i> Terminate Session
-                </button>
-            </div>
-        </div>
+    {% if role == 'admin' or role == 'cooperative' or role == 'enforcer' %}
+    <div class="form-group">
+      <label class="form-label">Email address</label>
+      <input id="p-email" type="email" class="form-control" value="{{ udata.get('email', '') }}" placeholder="your@email.com">
     </div>
+    {% endif %}
+
+    {% if role == 'enforcer' %}
+    <div class="form-group">
+      <label class="form-label">Mobile number</label>
+      <input id="p-mobile" type="text" class="form-control" value="{{ udata.get('mobile', '') }}" placeholder="0917-xxx-xxxx">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Shift status</label>
+      <select id="p-shift" class="form-control">
+        <option value="On Duty"  {{ 'selected' if udata.get('shift_status') == 'On Duty' }}>On Duty</option>
+        <option value="Off Duty" {{ 'selected' if udata.get('shift_status') == 'Off Duty' }}>Off Duty</option>
+        <option value="On Break" {{ 'selected' if udata.get('shift_status') == 'On Break' }}>On Break</option>
+      </select>
+    </div>
+    {% endif %}
+
+    {% if role == 'driver' %}
+    <div class="form-group">
+      <label class="form-label">Mobile number</label>
+      <input id="p-mobile" type="text" class="form-control" value="{{ udata.get('mobile', '') }}" placeholder="0920-xxx-xxxx">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Emergency contact</label>
+      <input id="p-emergency" type="text" class="form-control" value="{{ udata.get('emergency_contact', '') }}" placeholder="Name (09xx-xxx-xxxx)">
+    </div>
+    {% endif %}
+
+    {% if role == 'cooperative' %}
+    <div class="form-group">
+      <label class="form-label">Mobile number</label>
+      <input id="p-mobile" type="text" class="form-control" value="{{ udata.get('mobile', '') }}" placeholder="0912-xxx-xxxx">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Office address / route</label>
+      <input id="p-address" type="text" class="form-control" value="{{ udata.get('address', '') }}" placeholder="Route, City">
+    </div>
+    {% endif %}
+
+    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:4px;" onclick="saveProfile()">
+      <i class="fa-solid fa-floppy-disk"></i> Save changes
+    </button>
+  </div>
+
+  <!-- ── Change password ── -->
+  <div class="settings-card">
+    <div class="settings-card-title">
+      <i class="fa-solid fa-lock" style="background:rgba(239,68,68,.1);color:#ef4444;"></i>
+      Change password
+    </div>
+    <div class="settings-card-sub">Choose a strong password you haven't used before.</div>
+
+    <div id="pw-ok"  class="banner-ok" ><i class="fa-solid fa-circle-check"></i> Password changed successfully.</div>
+    <div id="pw-err" class="banner-err"><i class="fa-solid fa-circle-exclamation"></i> <span id="pw-err-text"></span></div>
+
+    <div class="form-group">
+      <label class="form-label">Current password</label>
+      <input id="pw-current" type="password" class="form-control" placeholder="Enter current password">
+    </div>
+    <div class="form-group">
+      <label class="form-label">New password</label>
+      <input id="pw-new" type="password" class="form-control" placeholder="Min. 6 characters" oninput="checkStrength(this.value)">
+      <div class="pw-strength"><div class="pw-strength-fill" id="pw-strength-fill"></div></div>
+      <div id="pw-strength-label" style="font-size:11px;color:var(--text-muted);margin-top:4px;"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Confirm new password</label>
+      <input id="pw-confirm" type="password" class="form-control" placeholder="Repeat new password">
+    </div>
+    <button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:4px;" onclick="changePassword()">
+      <i class="fa-solid fa-lock"></i> Update password
+    </button>
+  </div>
+
+  <!-- ── Appearance ── -->
+  <div class="settings-card">
+    <div class="settings-card-title">
+      <i class="fa-solid fa-moon" style="background:rgba(139,92,246,.1);color:#8b5cf6;"></i>
+      Appearance
+    </div>
+    <div class="settings-card-sub">Customize how the interface looks.</div>
+
+    <div class="settings-row">
+      <div>
+        <div class="settings-row-label">Dark mode</div>
+        <div class="settings-row-sub">Toggle low-light interface</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="dark-toggle" onchange="toggleTheme()" {{ 'checked' if '' }}>
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <!-- ── Current session ── -->
+  <div class="settings-card">
+    <div class="settings-card-title">
+      <i class="fa-solid fa-shield-halved" style="background:rgba(16,185,129,.1);color:#10b981;"></i>
+      Current session
+    </div>
+    <div class="settings-card-sub">Details about your active login.</div>
+
+    <div class="session-item">
+      <i class="fa-solid fa-user"></i>
+      <div>
+        <div style="font-weight:700;">{{ request.session.get('username') }}</div>
+        <div style="font-size:11px;color:var(--text-muted);">Logged in as {{ role }}</div>
+      </div>
+    </div>
+    <div class="session-item">
+      <i class="fa-solid fa-id-card"></i>
+      <div>
+        <div style="font-weight:700;">{{ udata.get('full_name', '—') }}</div>
+        <div style="font-size:11px;color:var(--text-muted);">Full name on record</div>
+      </div>
+    </div>
+    {% if udata.get('email') %}
+    <div class="session-item">
+      <i class="fa-regular fa-envelope"></i>
+      <div>
+        <div style="font-weight:700;">{{ udata.get('email') }}</div>
+        <div style="font-size:11px;color:var(--text-muted);">Email address</div>
+      </div>
+    </div>
+    {% endif %}
+    {% if udata.get('badge') %}
+    <div class="session-item">
+      <i class="fa-solid fa-id-badge"></i>
+      <div>
+        <div style="font-weight:700;">{{ udata.get('badge') }}</div>
+        <div style="font-size:11px;color:var(--text-muted);">Badge number</div>
+      </div>
+    </div>
+    {% endif %}
+    {% if udata.get('organization') %}
+    <div class="session-item">
+      <i class="fa-solid fa-building"></i>
+      <div>
+        <div style="font-weight:700;">{{ udata.get('organization') }}</div>
+        <div style="font-size:11px;color:var(--text-muted);">Organization</div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-color);">
+      <button onclick="triggerLogout()" class="btn btn-danger" style="width:100%;justify-content:center;">
+        <i class="fa-solid fa-power-off"></i> Logout
+      </button>
+    </div>
+  </div>
+
 </div>
 
 <script>
-const t = document.getElementById('theme-toggle');
-if (localStorage.getItem('theme') === 'dark') t.checked = true;
+// dark mode init
+(function(){
+  var tog = document.getElementById('dark-toggle');
+  if (tog) tog.checked = localStorage.getItem('theme') === 'dark';
+})();
+
+// profile save
+async function saveProfile() {
+  var payload = {
+    full_name: document.getElementById('p-fullname') ? document.getElementById('p-fullname').value.trim() : ''
+  };
+  var fields = ['p-email','p-mobile','p-shift','p-emergency','p-address'];
+  var keys   = ['email','mobile','shift_status','emergency_contact','address'];
+  fields.forEach(function(id, i) {
+    var el = document.getElementById(id);
+    if (el) payload[keys[i]] = el.value.trim();
+  });
+
+  var res  = await fetch('/api/update_profile', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+  var data = await res.json();
+  if (data.success) {
+    document.getElementById('profile-ok').classList.add('show');
+    document.getElementById('profile-err').classList.remove('show');
+    setTimeout(function(){ document.getElementById('profile-ok').classList.remove('show'); }, 3000);
+    // update avatar initials and name live
+    var name = payload.full_name || '?';
+    var parts = name.trim().split(' ');
+    var initials = parts.map(function(p){ return p[0]; }).slice(0,2).join('').toUpperCase();
+    document.querySelectorAll('.avatar-circle').forEach(function(el){ el.textContent = initials; });
+  } else {
+    document.getElementById('profile-err-text').textContent = data.error || 'Could not save changes.';
+    document.getElementById('profile-err').classList.add('show');
+  }
+}
+
+// password strength
+function checkStrength(val) {
+  var fill  = document.getElementById('pw-strength-fill');
+  var label = document.getElementById('pw-strength-label');
+  var score = 0;
+  if (val.length >= 6)  score++;
+  if (val.length >= 10) score++;
+  if (/[A-Z]/.test(val)) score++;
+  if (/[0-9]/.test(val)) score++;
+  if (/[^A-Za-z0-9]/.test(val)) score++;
+  var colors = ['#ef4444','#f59e0b','#f59e0b','#10b981','#10b981'];
+  var labels = ['Too short','Weak','Fair','Good','Strong'];
+  fill.style.width  = (score * 20) + '%';
+  fill.style.background = colors[Math.max(0,score-1)] || '#e2e8f0';
+  label.textContent = val.length ? labels[Math.max(0,score-1)] : '';
+  label.style.color = colors[Math.max(0,score-1)] || 'var(--text-muted)';
+}
+
+// change password
+async function changePassword() {
+  var current = document.getElementById('pw-current').value;
+  var newpw   = document.getElementById('pw-new').value;
+  var confirm = document.getElementById('pw-confirm').value;
+  if (!current) { showPwErr('Please enter your current password.'); return; }
+  if (!newpw || newpw.length < 6) { showPwErr('New password must be at least 6 characters.'); return; }
+  if (newpw !== confirm) { showPwErr('Passwords do not match.'); return; }
+
+  var res  = await fetch('/api/change_password', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({current_password:current, new_password:newpw}) });
+  var data = await res.json();
+  if (data.success) {
+    document.getElementById('pw-ok').classList.add('show');
+    document.getElementById('pw-err').classList.remove('show');
+    document.getElementById('pw-current').value = '';
+    document.getElementById('pw-new').value     = '';
+    document.getElementById('pw-confirm').value = '';
+    document.getElementById('pw-strength-fill').style.width = '0%';
+    document.getElementById('pw-strength-label').textContent = '';
+    setTimeout(function(){ document.getElementById('pw-ok').classList.remove('show'); }, 3000);
+  } else {
+    showPwErr(data.error || 'Could not update password.');
+  }
+}
+
+async function uploadAvatar(input) {
+  if (!input.files || !input.files[0]) return;
+  var file = input.files[0];
+  if (file.size > 2 * 1024 * 1024) {
+    showAvatarErr('Image must be under 2MB.'); return;
+  }
+  var formData = new FormData();
+  formData.append('file', file);
+
+  // preview immediately
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = document.getElementById('avatar-preview');
+    var ini = document.getElementById('avatar-preview-initials');
+    if (img) { img.src = e.target.result; img.style.display = 'block'; }
+    if (ini) ini.style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+
+  showLoader('Uploading photo...');
+  var res  = await fetch('/api/upload_avatar', { method:'POST', body:formData });
+  var data = await res.json();
+  hideLoader();
+  if (data.success) {
+    document.getElementById('avatar-ok').classList.add('show');
+    document.getElementById('avatar-err').classList.remove('show');
+    setTimeout(function(){ document.getElementById('avatar-ok').classList.remove('show'); }, 3000);
+    // update top-right avatar
+    var topImg = document.querySelector('.top-nav img[alt="avatar"]');
+    if (topImg) topImg.src = data.avatar_url;
+  } else {
+    showAvatarErr(data.error || 'Upload failed.');
+  }
+}
+
+async function removeAvatar() {
+  var result = await Swal.fire({
+    title: 'Remove photo?', text: 'Your profile photo will be deleted.',
+    icon: 'warning', showCancelButton: true,
+    confirmButtonColor: '#ef4444', cancelButtonColor: '#64748b',
+    confirmButtonText: 'Yes, remove', cancelButtonText: 'Cancel',
+    background: 'var(--card-bg)', color: 'var(--text-main)'
+  });
+  if (!result.isConfirmed) return;
+  var res  = await fetch('/api/remove_avatar', { method:'POST' });
+  var data = await res.json();
+  if (data.success) {
+    location.reload();
+  }
+}
+
+function showAvatarErr(msg) {
+  document.getElementById('avatar-err-text').textContent = msg;
+  document.getElementById('avatar-err').style.display = 'flex';
+  document.getElementById('avatar-ok').style.display  = 'none';
+}
+
+function showPwErr(msg) {
+  document.getElementById('pw-err-text').textContent = msg;
+  document.getElementById('pw-err').classList.add('show');
+  document.getElementById('pw-ok').classList.remove('show');
+}
 </script>
 {% endblock %}
