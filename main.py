@@ -1,8 +1,6 @@
 from fastapi import FastAPI, Request, Form, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.staticfiles import StaticFiles
-import smtplib, httpx, os, shutil, base64
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import httpx, os, shutil, base64
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -32,9 +30,13 @@ complaints_db: list = []
 SEMAPHORE_API_KEY  = "YOUR_SEMAPHORE_API_KEY"   # get from semaphore.co
 SEMAPHORE_SENDER   = "MaxSeat"                   # your registered sender name (max 11 chars)
 
-GMAIL_ADDRESS      = "asok.marielle04@gmail.com"            # your Gmail address
-GMAIL_APP_PASSWORD = "vwut ckwz nuno dnto"       # Gmail App Password (not your login password)
+GMAIL_ADDRESS      = "asok.marielle04@gmail.com"
 GMAIL_SENDER_NAME  = "MaxSeat Alert System"
+
+# ── Resend (HTTP email API — works on Railway) ──────────────────────────────
+# Sign up free at https://resend.com → API Keys → Create Key
+# Then set this as an environment variable on Railway: RESEND_API_KEY=re_xxxx
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 
 # ══════════════════════════════════════════════
 
@@ -226,63 +228,57 @@ async def send_sms(mobile: str, message: str) -> dict:
     except Exception as e:
         return {"success": False, "reason": str(e)}
 
-def _send_email_sync(to_email: str, full_name: str, message: str) -> dict:
-    """Blocking SMTP send — run via asyncio executor, never call directly from async code."""
-    if not to_email or GMAIL_ADDRESS == "your@gmail.com":
-        return {"success": False, "reason": "Email not configured or no email address."}
+async def send_email(to_email: str, full_name: str, message: str) -> dict:
+    """Send email via Resend HTTP API (works on Railway — no SMTP ports needed)."""
+    if not to_email:
+        return {"success": False, "reason": "No email address provided."}
+    if not RESEND_API_KEY:
+        return {"success": False, "reason": "RESEND_API_KEY not set. Add it in Railway environment variables."}
+
+    html_body = message.replace("\n\n", "</p><p>").replace("\n", "<br>")
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+      <div style="background:#0f172a;padding:24px 32px;">
+        <h2 style="color:#fff;margin:0;font-size:20px;">MaxSeat Alert System</h2>
+        <p style="color:#94a3b8;margin:4px 0 0;font-size:13px;">Account Credentials</p>
+      </div>
+      <div style="padding:28px 32px;background:#fff;">
+        <p style="color:#0f172a;">Good day, <strong>{full_name}</strong>!</p>
+        <p>{html_body}</p>
+        <div style="background:#f1f5f9;border-radius:8px;padding:16px 20px;margin:20px 0;font-family:monospace;font-size:14px;">
+          {message.split("credentials:")[1].split("Please")[0].strip().replace(chr(10),"<br>") if "credentials:" in message else ""}
+        </div>
+        <p style="color:#64748b;font-size:12px;">Do not share your credentials with anyone.</p>
+      </div>
+      <div style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;">
+        <p style="color:#94a3b8;font-size:11px;margin:0;">MaxSeat Alert System — CDO Region</p>
+      </div>
+    </div>"""
+
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = "MaxSeat Alert — Your Account Credentials"
-        msg["From"]    = f"{GMAIL_SENDER_NAME} <{GMAIL_ADDRESS}>"
-        msg["To"]      = to_email
-
-        # Plain text
-        msg.attach(MIMEText(message, "plain"))
-
-        # HTML version
-        html_body = message.replace("\n\n", "</p><p>").replace("\n", "<br>")
-        html = f"""
-        <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
-          <div style="background:#0f172a;padding:24px 32px;">
-            <h2 style="color:#fff;margin:0;font-size:20px;">MaxSeat Alert System</h2>
-            <p style="color:#94a3b8;margin:4px 0 0;font-size:13px;">Account Credentials</p>
-          </div>
-          <div style="padding:28px 32px;background:#fff;">
-            <p style="color:#0f172a;">Good day, <strong>{full_name}</strong>!</p>
-            <p>{html_body}</p>
-            <div style="background:#f1f5f9;border-radius:8px;padding:16px 20px;margin:20px 0;font-family:monospace;font-size:14px;">
-              {message.split("credentials:")[1].split("Please")[0].strip().replace(chr(10),"<br>") if "credentials:" in message else ""}
-            </div>
-            <p style="color:#64748b;font-size:12px;">Do not share your credentials with anyone.</p>
-          </div>
-          <div style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;">
-            <p style="color:#94a3b8;font-size:11px;margin:0;">MaxSeat Alert System — CDO Region</p>
-          </div>
-        </div>"""
-        msg.attach(MIMEText(html, "html"))
-
-        # Try SSL (port 465) first, fall back to STARTTLS (port 587)
-        try:
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
-                server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
-                server.sendmail(GMAIL_ADDRESS, to_email, msg.as_string())
-        except Exception:
-            with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
-                server.ehlo()
-                server.starttls()
-                server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
-                server.sendmail(GMAIL_ADDRESS, to_email, msg.as_string())
-
-        return {"success": True}
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {RESEND_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "from":    f"{GMAIL_SENDER_NAME} <onboarding@resend.dev>",
+                    "to":      [to_email],
+                    "subject": "MaxSeat Alert — Your Account Credentials",
+                    "text":    message,
+                    "html":    html,
+                }
+            )
+        if resp.status_code in (200, 201):
+            return {"success": True}
+        else:
+            print(f"[EMAIL] Resend error {resp.status_code}: {resp.text}")
+            return {"success": False, "reason": resp.text}
     except Exception as e:
         print(f"[EMAIL] Failed to send to {to_email}: {e}")
         return {"success": False, "reason": str(e)}
-
-async def send_email(to_email: str, full_name: str, message: str) -> dict:
-    """Async wrapper — runs the blocking SMTP call in a thread pool."""
-    import asyncio
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _send_email_sync, to_email, full_name, message)
 
 async def notify_new_user(user_data: dict, username: str, password: str):
     """Send credentials via SMS and/or email."""
