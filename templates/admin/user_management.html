@@ -570,13 +570,25 @@ async function cuSubmit() {
 
   if (data.success) {
     var notifs = data.notifications || {};
-    var smsOk   = notifs.sms   && notifs.sms.success;
-    var emailOk = notifs.email && notifs.email.success;
+    var smsOk    = notifs.sms   && notifs.sms.success;
+    var emailOk  = notifs.email && notifs.email.success;
+    var emailErr = notifs.email && notifs.email.reason ? notifs.email.reason : null;
+    var smsErr   = notifs.sms   && notifs.sms.reason   ? notifs.sms.reason   : null;
     var sentLine = '';
-    if (smsOk && emailOk)  sentLine = '<br><span style="color:#10b981;font-size:12px;"><i class="fa-solid fa-check-circle"></i> Credentials sent via SMS &amp; email.</span>';
-    else if (smsOk)        sentLine = '<br><span style="color:#10b981;font-size:12px;"><i class="fa-solid fa-check-circle"></i> Credentials sent via SMS.</span>';
-    else if (emailOk)      sentLine = '<br><span style="color:#10b981;font-size:12px;"><i class="fa-solid fa-check-circle"></i> Credentials sent via email.</span>';
-    else                   sentLine = '<br><span style="color:#f59e0b;font-size:12px;"><i class="fa-solid fa-exclamation-circle"></i> Credentials not sent — no mobile/email or notifications not configured. Share manually.</span>';
+    if (smsOk && emailOk) {
+      sentLine = '<br><span style="color:#10b981;font-size:12px;"><i class="fa-solid fa-check-circle"></i> Credentials sent via SMS &amp; email.</span>';
+    } else if (smsOk) {
+      sentLine = '<br><span style="color:#10b981;font-size:12px;"><i class="fa-solid fa-check-circle"></i> Credentials sent via SMS.</span>';
+      if (emailErr) sentLine += '<br><span style="color:#ef4444;font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> Email failed: ' + emailErr + '</span>';
+    } else if (emailOk) {
+      sentLine = '<br><span style="color:#10b981;font-size:12px;"><i class="fa-solid fa-check-circle"></i> Credentials sent via email.</span>';
+      if (smsErr) sentLine += '<br><span style="color:#ef4444;font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> SMS failed: ' + smsErr + '</span>';
+    } else {
+      sentLine = '<br>';
+      if (emailErr) sentLine += '<span style="color:#ef4444;font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> Email failed: ' + emailErr + '</span><br>';
+      if (smsErr)   sentLine += '<span style="color:#ef4444;font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> SMS failed: ' + smsErr + '</span><br>';
+      if (!emailErr && !smsErr) sentLine += '<span style="color:#f59e0b;font-size:12px;"><i class="fa-solid fa-exclamation-circle"></i> No email or mobile provided — share credentials manually.</span>';
+    }
 
     await Swal.fire({
       title: 'Account created',
