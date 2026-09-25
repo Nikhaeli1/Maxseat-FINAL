@@ -90,9 +90,65 @@
     .toggle-btn { background: none; border: 1.5px solid var(--border-color); color: var(--text-muted); padding: 8px 16px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 12px; font-family: inherit; transition: all 0.2s; }
     .toggle-btn:hover { border-color: var(--primary); color: var(--primary); }
 
+    .driver-logout-btn { display:flex; align-items:center; gap:8px; padding:10px 18px; border-radius:12px; border:1.5px solid rgba(239,68,68,0.35); background:rgba(239,68,68,0.08); color:#ef4444; font-weight:700; font-size:13px; cursor:pointer; font-family:inherit; transition:all 0.2s; }
+    .driver-logout-btn:hover { background:rgba(239,68,68,0.16); }
+    .live-badge { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:var(--text-muted); }
+    .live-badge .dot { width:8px; height:8px; border-radius:50%; background:#94a3b8; }
+    .live-badge[data-state="connected"] .dot { background:#10b981; box-shadow:0 0 6px #10b981; }
+    .live-badge[data-state="connecting"] .dot { background:#f59e0b; }
+    .live-badge[data-state="disconnected"] .dot { background:#ef4444; }
+    .flash-update { animation: flashUpdate 0.6s ease-out; }
+    @keyframes flashUpdate { 0%{transform:scale(1.06);} 100%{transform:scale(1);} }
+
     @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
 </style>
 
+{% if not puv %}
+<!-- NO VEHICLE ASSIGNED YET: shown instead of crashing when the driver has no PUV -->
+<div class="driver-wrap">
+    <div class="driver-topbar">
+        <div class="driver-topbar-left">
+            <img src="{{ url_for('static', path='logo.png') }}" class="driver-logo" alt="MaxSeat Alert">
+            <div class="driver-divider"></div>
+            <div>
+                <div class="driver-vehicle">Driver Console</div>
+                <div class="driver-route">{{ request.session.get('username') }}</div>
+            </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:18px;">
+            <div id="lcd-clock" class="driver-clock"></div>
+            <button onclick="triggerLogout()" class="driver-logout-btn"><i class="fa-solid fa-power-off"></i> Logout</button>
+        </div>
+    </div>
+    <div class="driver-body" style="align-items:center;justify-content:center;">
+        <div class="passenger-panel" style="flex:0 1 560px;padding:48px 36px;">
+            <div class="temp-icon warning" style="width:72px;height:72px;font-size:30px;border-radius:20px;margin-bottom:18px;">
+                <i class="fa-solid fa-bus"></i>
+            </div>
+            <div style="font-size:24px;font-weight:800;margin-bottom:8px;">No vehicle assigned yet</div>
+            <p style="font-size:14px;color:var(--text-muted);line-height:1.6;max-width:420px;margin:0 auto;">
+                Your cooperative hasn't assigned you to a vehicle. Once they do, your passenger count and cabin temperature will show here automatically.
+            </p>
+            <div style="margin-top:18px;font-size:12px;color:var(--text-muted);font-weight:600;">
+                <i class="fa-solid fa-rotate" style="margin-right:5px;"></i>Checking for an assignment every 15 seconds
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    (function tick() {
+        document.getElementById('lcd-clock').textContent = new Date().toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', second:'2-digit', hour12:true});
+        setTimeout(tick, 1000);
+    })();
+    // Reload once, only when the cooperative assigns a vehicle
+    setInterval(async function () {
+        try {
+            const res = await fetch('/api/driver/status', {cache: 'no-store'});
+            if (res.ok && (await res.json()).assigned) location.reload();
+        } catch (e) { /* offline: try again next tick */ }
+    }, 15000);
+</script>
+{% else %}
 <div class="driver-wrap">
     <!-- TOP BAR -->
     <div class="driver-topbar">
@@ -101,7 +157,7 @@
             <div class="driver-divider"></div>
             <div>
                 <div class="driver-vehicle">{{ puv.plate }} — {{ puv.company }}</div>
-                <div class="driver-route"><i class="fa-solid fa-location-dot" style="margin-right:5px;color:var(--primary);"></i>{{ puv.loc_name }}</div>
+                <div class="driver-route"><i class="fa-solid fa-location-dot" style="margin-right:5px;color:var(--primary);"></i><span id="loc-name">{{ puv.loc_name }}</span></div>
             </div>
         </div>
         <div style="display:flex;align-items:center;gap:18px;">
@@ -109,7 +165,7 @@
                 <div id="lcd-clock" class="driver-clock"></div>
                 <div class="driver-schedule"><i class="fa-solid fa-clock" style="margin-right:4px;"></i>{{ puv.schedule }}</div>
             </div>
-            <button onclick="triggerLogout()" style="display:flex;align-items:center;gap:8px;padding:10px 18px;border-radius:12px;border:1.5px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.08);color:#ef4444;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;transition:all 0.2s;" onmouseover="this.style.background='rgba(239,68,68,0.16)'" onmouseout="this.style.background='rgba(239,68,68,0.08)'">
+            <button onclick="triggerLogout()" class="driver-logout-btn">
                 <i class="fa-solid fa-power-off"></i> Logout
             </button>
         </div>
@@ -120,10 +176,12 @@
 
         <!-- PASSENGER COUNT PANEL -->
         <div class="passenger-panel">
+            <div id="ws-status" class="live-badge" data-state="connecting" style="position:absolute;top:20px;left:24px;"><span class="dot"></span><span class="ws-status-text">Connecting…</span></div>
+            <div id="last-update" style="position:absolute;top:20px;right:24px;font-size:11px;font-weight:600;color:var(--text-muted);">Updated {{ puv.last_update }}</div>
             <div class="panel-label">Current Passengers</div>
             <div id="pass-count" class="passenger-count {{ 'danger' if puv.passengers > puv.capacity else 'safe' }}">
                 <span id="curr-val">{{ puv.passengers }}</span>
-                <span class="passenger-denom">/{{ puv.capacity }}</span>
+                <span class="passenger-denom">/<span id="cap-val">{{ puv.capacity }}</span></span>
             </div>
             <div id="status-pill" class="status-pill {{ 'danger' if puv.passengers > puv.capacity else 'safe' }}">
                 {% if puv.passengers > puv.capacity %}
@@ -155,14 +213,14 @@
                 {% set temp_label = 'Normal — Cabin Temperature OK' %}
             {% endif %}
 
-            <div class="temp-card" style="border-left: 4px solid {{ '#ef4444' if temp_class == 'danger' else ('#f59e0b' if temp_class == 'warning' else '#10b981') }};">
-                <div class="temp-icon {{ temp_class }}">
+            <div id="temp-card" class="temp-card" style="border-left: 4px solid {{ '#ef4444' if temp_class == 'danger' else ('#f59e0b' if temp_class == 'warning' else '#10b981') }};">
+                <div id="temp-icon" class="temp-icon {{ temp_class }}">
                     <i class="fa-solid fa-thermometer-half"></i>
                 </div>
                 <div style="flex:1;">
                     <div class="panel-label" style="margin-bottom:4px;">Cabin Temperature</div>
-                    <div class="temp-value {{ temp_class }}">{{ temp }}°C</div>
-                    <div class="temp-status">{{ temp_label }}</div>
+                    <div id="temp-value" class="temp-value {{ temp_class }}">{{ temp }}°C</div>
+                    <div id="temp-status" class="temp-status">{{ temp_label }}</div>
                 </div>
                 <div style="text-align:right;">
                     <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px;">Threshold</div>
@@ -194,9 +252,7 @@
     </div>
 </div>
 
-<script id="driver-puv-data" type="application/json">
-    {"lat": {{ puv.lat }}, "lng": {{ puv.lng }}, "driver": "{{ puv.driver }}"}
-</script>
+<script id="driver-puv-data" type="application/json">{{ {"id": puv.id, "lat": puv.lat, "lng": puv.lng, "driver": puv.driver} | tojson }}</script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
     // Clock
@@ -209,15 +265,15 @@
     const pd = JSON.parse(document.getElementById('driver-puv-data').textContent);
     const map = L.map('driver-map', {zoomControl: false, attributionControl: false}).setView([pd.lat, pd.lng], 16);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
-    L.circleMarker([pd.lat, pd.lng], {radius: 14, fillColor: '#2563eb', color: '#fff', weight: 4, fillOpacity: 1}).addTo(map);
+    const marker = L.circleMarker([pd.lat, pd.lng], {radius: 14, fillColor: '#2563eb', color: '#fff', weight: 4, fillOpacity: 1}).addTo(map);
 
-    // Sensor override
-    async function updateSensor(action) {
-        const res  = await fetch('/api/update_sensor', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({action})});
-        const data = await res.json();
-        if (!data.success) return;
-        document.getElementById('curr-val').textContent = data.passengers;
-        const overload = data.passengers > data.capacity;
+    // ── Live rendering (used by the WebSocket, the +/- override and the fallback poll) ──
+    function renderPassengers(passengers, capacity) {
+        const valEl = document.getElementById('curr-val');
+        const changed = valEl.textContent.trim() !== String(passengers);
+        valEl.textContent = passengers;
+        document.getElementById('cap-val').textContent = capacity;
+        const overload = passengers > capacity;
         const cnt  = document.getElementById('pass-count');
         const pill = document.getElementById('status-pill');
         cnt.className  = 'passenger-count ' + (overload ? 'danger' : 'safe');
@@ -225,6 +281,55 @@
         pill.innerHTML = overload
             ? '<i class="fa-solid fa-triangle-exclamation"></i> OVERLOAD WARNING'
             : '<i class="fa-solid fa-circle-check"></i> SEATS AVAILABLE';
+        if (changed) { valEl.classList.remove('flash-update'); void valEl.offsetWidth; valEl.classList.add('flash-update'); }
+    }
+
+    function renderTemp(temp) {
+        const t = Number(temp) || 0;
+        let cls = 'safe', label = 'Normal — Cabin Temperature OK', border = '#10b981';
+        if (t >= 37.5)      { cls = 'danger';  label = 'Thermal Alert — Cabin Overheating'; border = '#ef4444'; }
+        else if (t >= 35.0) { cls = 'warning'; label = 'Elevated — Monitor Cabin Heat';     border = '#f59e0b'; }
+        document.getElementById('temp-card').style.borderLeft = '4px solid ' + border;
+        document.getElementById('temp-icon').className  = 'temp-icon '  + cls;
+        const v = document.getElementById('temp-value');
+        v.className   = 'temp-value ' + cls;
+        v.textContent = t + '°C';
+        document.getElementById('temp-status').textContent = label;
+    }
+
+    function applyReading(d) {
+        if (typeof d.passengers === 'number') renderPassengers(d.passengers, d.capacity);
+        if (d.temp !== undefined && d.temp !== null) renderTemp(d.temp);
+        if (typeof d.lat === 'number' && typeof d.lng === 'number') {
+            marker.setLatLng([d.lat, d.lng]);
+            map.panTo([d.lat, d.lng], {animate: true});
+        }
+        if (d.loc_name)    document.getElementById('loc-name').textContent = d.loc_name;
+        if (d.last_update) document.getElementById('last-update').textContent = 'Updated ' + d.last_update;
+    }
+
+    // Real-time: every sensor reading for THIS vehicle updates the screen instantly
+    MaxSeatWS.init(function (msg) {
+        if (msg && msg.puv_id === pd.id) applyReading(msg);
+    });
+
+    // Safety net: if the WebSocket is down, poll every 5 s so the numbers still move
+    setInterval(async function () {
+        if (MaxSeatWS.isConnected()) return;
+        try {
+            const res = await fetch('/api/driver/status', {cache: 'no-store'});
+            if (!res.ok || res.redirected) return;
+            const d = await res.json();
+            if (d.assigned === false) { location.reload(); return; }   // vehicle was unassigned
+            applyReading(d);
+        } catch (e) { /* offline */ }
+    }, 5000);
+
+    // Sensor override (+/- buttons)
+    async function updateSensor(action) {
+        const res  = await fetch('/api/update_sensor', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({action})});
+        const data = await res.json();
+        if (data.success) applyReading(data);
     }
 
     // Toggle name
@@ -234,4 +339,5 @@
         if (data.success) document.getElementById('driver-name').textContent = data.show_name ? pd.driver : 'Protected ID';
     }
 </script>
+{% endif %}
 {% endblock %}

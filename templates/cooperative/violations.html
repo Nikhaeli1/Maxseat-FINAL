@@ -27,7 +27,7 @@
 </div>
 
 <!-- STAT CARDS -->
-<div class="violations-grid">
+<div class="violations-grid" data-live="coop-viol-stats">
     <div class="stat-card">
         <div class="stat-icon" style="background:rgba(239,68,68,0.1);color:#ef4444;"><i class="fa-solid fa-bus"></i></div>
         <div>
@@ -59,6 +59,7 @@
 
 <!-- TAB: LIVE VIOLATIONS -->
 <div id="tab-live" class="tab-content active">
+<div data-live="coop-viol-live">
     {% set violators = [] %}
     {% for puv in puvs %}
     {% if puv.passengers > puv.capacity or puv.temp >= 37.5 %}
@@ -91,6 +92,7 @@
         <p>All units are currently operating within legal parameters.</p>
     </div>
     {% endif %}
+</div>
 </div>
 
 <!-- TAB: ENFORCEMENT ACTIONS (CITATIONS) -->

@@ -50,6 +50,7 @@
             <h4 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#ef4444;">
                 <i class="fa-solid fa-triangle-exclamation" style="margin-right:7px;"></i>Currently Active Violations
             </h4>
+            <div data-live="istatus-violations">
             {% if puvs %}
             {% for puv in puvs %}
             <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 13px;background:var(--card-bg);border-radius:10px;margin-bottom:8px;border:1px solid var(--border-color);">
@@ -63,6 +64,7 @@
             {% else %}
             <p style="color:var(--text-muted);font-size:13.5px;">No active violations at this time.</p>
             {% endif %}
+            </div>
         </div>
 
         <div class="card" style="margin-bottom:0;background:rgba(37,99,235,0.03);border-color:rgba(37,99,235,0.12);">

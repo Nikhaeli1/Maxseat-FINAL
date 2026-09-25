@@ -47,7 +47,7 @@
 </div>
 
 <!-- STAT CARDS -->
-<div class="coop-stat-grid">
+<div class="coop-stat-grid" data-live="coop-stats">
   <div class="stat-card" style="border-bottom:3px solid #2563eb;">
     <div class="stat-icon" style="background:rgba(37,99,235,.1);color:#2563eb;"><i class="fa-solid fa-bus"></i></div>
     <div><div class="stat-label">Total vehicles</div><div class="stat-value">{{ stats.total_units }}</div></div>
@@ -89,7 +89,7 @@
         <th>Status</th>
       </tr>
     </thead>
-    <tbody>
+    <tbody data-live="coop-fleet-rows">
       {% for puv in puvs %}
       {% set overload = puv.passengers > puv.capacity %}
       {% set pct = (puv.passengers / puv.capacity * 100)|int if puv.capacity > 0 else 0 %}
@@ -147,7 +147,7 @@
     <div class="map-card"><div id="coop-map"></div></div>
   </div>
 
-  <div class="activity-card">
+  <div class="activity-card" data-live="coop-recent-violations">
     <div style="font-size:14px;font-weight:800;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border-color);">
       <i class="fa-solid fa-bell" style="color:#ef4444;margin-right:8px;"></i>Recent violations
     </div>
@@ -198,13 +198,13 @@ if (puvData.length > 0) {
   var map = L.map('coop-map', {zoomControl:true, attributionControl:false}).setView([8.4822, 124.6472], 13);
 }
 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+function coopColor(p) { return p.passengers > p.capacity ? '#ef4444' : (p.temp >= 37.5 ? '#f59e0b' : '#10b981'); }
+function coopPopup(p) { return '<strong>'+p.plate+'</strong><br>'+p.driver+'<br>'+p.passengers+'/'+p.capacity+' pax<br>'+p.temp+'°C'; }
 puvData.forEach(function(p) {
-  var overload = p.passengers > p.capacity;
-  var hot = p.temp >= 37.5;
-  var color = overload ? '#ef4444' : (hot ? '#f59e0b' : '#10b981');
-  L.circleMarker([p.lat, p.lng], {radius:12, fillColor:color, color:'#fff', weight:3, fillOpacity:1})
+  var m = L.circleMarker([p.lat, p.lng], {radius:12, fillColor:coopColor(p), color:'#fff', weight:3, fillOpacity:1})
     .addTo(map)
-    .bindPopup('<strong>'+p.plate+'</strong><br>'+p.driver+'<br>'+p.passengers+'/'+p.capacity+' pax<br>'+p.temp+'°C');
+    .bindPopup(coopPopup(p));
+  MaxSeatLive.trackMarker(p, m, coopPopup, coopColor);
 });
 </script>
 {% endblock %}

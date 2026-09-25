@@ -21,7 +21,7 @@
                 <th>Actions</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody data-live="admin-fleet-rows">
             {% for p in puvs %}
             {% set load_pct = (p.passengers / p.capacity * 100)|int if p.capacity > 0 else 0 %}
             {% set overloaded = p.passengers > p.capacity %}
@@ -94,6 +94,9 @@
 </div>
 
 <script>
+// Re-apply the search filter after the table refreshes with new sensor data
+document.addEventListener('maxseat:live-updated', function () { filterTable(); });
+
 function filterTable() {
     const q = document.getElementById('search-input').value.toLowerCase();
     document.querySelectorAll('#fleet-table tbody tr').forEach(row => {

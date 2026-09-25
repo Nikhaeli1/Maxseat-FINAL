@@ -5,13 +5,16 @@
         <h1 class="page-title">Active Dispatch Orders</h1>
         <p class="page-subtitle">Real-time interception targets based on confirmed sensor violations.</p>
     </div>
+    <div data-live="dispatch-count">
     {% if puvs %}
     <span class="badge badge-red" style="padding:8px 16px;font-size:13px;animation:pulse 1.5s infinite;">
         <i class="fa-solid fa-siren-on"></i> {{ puvs|length }} Active Order{{ 's' if puvs|length != 1 else '' }}
     </span>
     {% endif %}
+    </div>
 </div>
 
+<div data-live="dispatch-list">
 {% if puvs %}
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:18px;">
     {% for puv in puvs %}
@@ -51,5 +54,6 @@
     </div>
 </div>
 {% endif %}
+</div>
 <style>@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.5;} }</style>
 {% endblock %}

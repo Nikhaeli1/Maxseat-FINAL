@@ -88,7 +88,7 @@
 {% set total_cits    = citations | length %}
 
 <!-- ── Row 1: Stat cards ── -->
-<div class="db-grid-3" style="grid-template-columns:repeat(3,1fr) repeat(2,1fr);grid-template-columns:1fr 1fr 1fr 1fr 1fr;">
+<div class="db-grid-3" data-live="admin-stats" style="grid-template-columns:repeat(3,1fr) repeat(2,1fr);grid-template-columns:1fr 1fr 1fr 1fr 1fr;">
 
   <div class="db-stat" style="border-bottom:3px solid #2563eb;">
     <div class="db-stat-icon" style="background:rgba(37,99,235,.1);color:#2563eb;"><i class="fa-solid fa-bus"></i></div>
@@ -149,7 +149,7 @@
     <div id="map" style="height:340px;border-radius:14px;border:2px solid var(--border-color);z-index:1;"></div>
   </div>
 
-  <div class="db-card" style="overflow-y:auto;max-height:410px;">
+  <div class="db-card" data-live="admin-feed" style="overflow-y:auto;max-height:410px;">
     <div class="db-card-title">Activity feed <span class="badge badge-blue" style="font-size:11px;">{{ puvs|length }} units</span></div>
     {% if puvs %}
     <div style="display:flex;flex-direction:column;gap:8px;">
@@ -178,7 +178,7 @@
 </div>
 
 <!-- ── Row 3: Compliance gauge + Violation breakdown + Peak hours ── -->
-<div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:18px;margin-bottom:22px;">
+<div data-live="admin-analytics" style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:18px;margin-bottom:22px;">
 
   <!-- Fleet compliance rate -->
   <div class="db-card">
@@ -376,16 +376,18 @@
   var map = L.map('map', {zoomControl:false}).setView([8.486, 124.65], 13);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
   var puvData = JSON.parse(document.getElementById('admin-puv-data').textContent);
+  function adminColor(p) { return (p.is_violator || p.is_overheating) ? '#ef4444' : '#10b981'; }
+  function adminPopup(p) { return '<div style="text-align:center;font-family:inherit;"><b>'+p.company+'</b><br>'+p.plate+'<br>'+p.passengers+'/'+p.capacity+' PAX · '+p.temp+'°C</div>'; }
   puvData.forEach(function(p) {
-    var color = (p.is_violator || p.is_overheating) ? '#ef4444' : '#10b981';
-    L.circleMarker([p.lat, p.lng], {radius:10,fillColor:color,color:'#fff',weight:3,fillOpacity:1})
+    var m = L.circleMarker([p.lat, p.lng], {radius:10,fillColor:adminColor(p),color:'#fff',weight:3,fillOpacity:1})
       .addTo(map)
-      .bindPopup('<div style="text-align:center;font-family:inherit;"><b>'+p.company+'</b><br>'+p.plate+'<br>'+p.passengers+'/'+p.capacity+' PAX</div>');
+      .bindPopup(adminPopup(p));
+    MaxSeatLive.trackMarker(p, m, adminPopup, adminColor);   // moves/recolors live
   });
-  document.querySelectorAll('.feed-item').forEach(function(item) {
-    item.addEventListener('click', function() {
-      map.flyTo([this.dataset.lat, this.dataset.lng], 16, {animate:true, duration:1});
-    });
+  // Delegated click so it keeps working after the feed refreshes itself
+  document.addEventListener('click', function(e) {
+    var item = e.target.closest('.feed-item');
+    if (item) map.flyTo([item.dataset.lat, item.dataset.lng], 16, {animate:true, duration:1});
   });
 </script>
 {% endblock %}
