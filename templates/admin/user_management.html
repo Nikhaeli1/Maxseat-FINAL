@@ -44,6 +44,23 @@
   .um-self-reg  { font-size:10px; font-weight:700; display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:6px; color:#8b5cf6; background:rgba(139,92,246,.1); border:1px solid rgba(139,92,246,.2); }
   .um-del-btn   { width:26px; height:26px; border-radius:7px; border:1px solid rgba(239,68,68,.2); background:rgba(239,68,68,.06); color:#ef4444; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; transition:background .15s; flex-shrink:0; }
   .um-del-btn:hover { background:rgba(239,68,68,.2); }
+  .um-card-actions { display:flex; gap:6px; }
+  .um-view-btn  { height:26px; padding:0 9px; border-radius:7px; border:1px solid rgba(37,99,235,.25); background:rgba(37,99,235,.06); color:#2563eb; display:flex; align-items:center; gap:5px; cursor:pointer; font-size:11px; font-weight:700; font-family:inherit; transition:background .15s; flex-shrink:0; }
+  .um-view-btn:hover { background:rgba(37,99,235,.16); }
+  /* account details dialog */
+  .umd { text-align:left; font-size:13.5px; }
+  .umd-head { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+  .umd-avatar { width:44px; height:44px; border-radius:50%; background:var(--primary-glow); color:var(--primary); display:flex; align-items:center; justify-content:center; font-weight:800; flex-shrink:0; }
+  .umd-name { font-size:17px; font-weight:800; }
+  .umd-role { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; color:var(--text-muted); }
+  .umd-box { background:var(--hover-bg); border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:4px 14px; margin-bottom:12px; }
+  .umd-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:9px 0; border-bottom:1px solid var(--border-color); }
+  .umd-row:last-child { border-bottom:none; }
+  .umd-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); flex-shrink:0; }
+  .umd-value { font-weight:600; text-align:right; word-break:break-word; display:inline-flex; align-items:center; justify-content:flex-end; gap:2px; }
+  .umd-code { font-family:monospace; font-size:14px; background:var(--card-bg); border:1px solid var(--border-color); padding:3px 8px; border-radius:6px; }
+  .umd-icon-btn { border:1px solid var(--border-color); background:var(--card-bg); color:var(--text-muted); width:28px; height:28px; border-radius:7px; cursor:pointer; margin-left:4px; }
+  .umd-icon-btn:hover { color:var(--primary); border-color:var(--primary); }
   .um-empty { text-align:center; padding:20px 8px; color:var(--text-muted); font-size:12px; }
   .um-empty i { display:block; font-size:22px; margin-bottom:6px; opacity:.25; }
   .um-add-btn { width:100%; padding:8px; border-radius:var(--radius-sm); border:1.5px dashed var(--border-color); background:transparent; color:var(--text-muted); font-size:12px; font-weight:700; font-family:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px; transition:border-color .15s,color .15s,background .15s; margin-top:2px; }
@@ -191,9 +208,14 @@
               <i class="fa-solid {{ 'fa-circle-check' if pw_ok else 'fa-key' }}"></i>
               {{ 'Active' if pw_ok else 'Reset pending' }}
             </span>
-            <button class="um-del-btn" onclick="umDelete('{{ uname }}')" title="Remove user">
-              <i class="fa-solid fa-trash"></i>
-            </button>
+            <div class="um-card-actions">
+              <button class="um-view-btn" onclick="umView('{{ uname }}')" title="View account details">
+                <i class="fa-solid fa-eye"></i> View
+              </button>
+              <button class="um-del-btn" onclick="umDelete('{{ uname }}')" title="Remove user">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
           </div>
         </div>
         {% else %}
@@ -237,9 +259,14 @@
           </div>
           <div class="um-card-foot">
             <span class="um-self-reg"><i class="fa-solid fa-mobile-screen-button"></i> Self-registered</span>
-            <button class="um-del-btn" onclick="umDelete('{{ uname }}')" title="Remove account">
-              <i class="fa-solid fa-trash"></i>
-            </button>
+            <div class="um-card-actions">
+              <button class="um-view-btn" onclick="umView('{{ uname }}')" title="View account details">
+                <i class="fa-solid fa-eye"></i> View
+              </button>
+              <button class="um-del-btn" onclick="umDelete('{{ uname }}')" title="Remove account">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
           </div>
         </div>
         {% else %}
@@ -641,6 +668,100 @@ async function umDelete(username) {
   } else {
     popAlert('Error', data.error||'Could not remove user.', 'error');
   }
+}
+
+
+/* ── view account details ── */
+var UM_ME = {{ request.session.get('username') | tojson }};
+var _umdPw = '', _umdShown = false;
+
+function umEsc(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function umdRow(label, valueHtml) {
+  return '<div class="umd-row"><span class="umd-label">' + label + '</span><span class="umd-value">' + valueHtml + '</span></div>';
+}
+function umTogglePw() {
+  _umdShown = !_umdShown;
+  document.getElementById('umd-pw').textContent = _umdShown ? _umdPw : '••••••••';
+  document.getElementById('umd-eye').innerHTML = '<i class="fa-solid ' + (_umdShown ? 'fa-eye-slash' : 'fa-eye') + '"></i>';
+}
+function umCopy(text, btn) {
+  var done = function () { btn.innerHTML = '<i class="fa-solid fa-check"></i>'; setTimeout(function () { btn.innerHTML = '<i class="fa-regular fa-copy"></i>'; }, 1200); };
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, function () {});
+  else { var t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); done(); }
+}
+function umSetCardPending(username) {
+  var card = document.querySelector('.um-card[data-username="' + CSS.escape(username) + '"]');
+  var badge = card && card.querySelector('.um-pw-ok, .um-pw-pending');
+  if (badge) { badge.className = 'um-pw-pending'; badge.innerHTML = '<i class="fa-solid fa-key"></i> Reset pending'; }
+}
+
+async function umView(username) {
+  var res, d;
+  try {
+    res = await fetch('/api/admin/user/' + encodeURIComponent(username), {cache: 'no-store'});
+    d = await res.json();
+  } catch (e) { popAlert('Error', 'Could not load account details.', 'error'); return; }
+  if (!d.success) { popAlert('Error', d.error || 'Could not load account details.', 'error'); return; }
+
+  _umdPw = d.password || ''; _umdShown = false;
+  var initials = (d.full_name || d.username).split(' ').filter(Boolean).slice(0, 2).map(function (w) { return w[0]; }).join('').toUpperCase();
+  var status = d.password_pending
+    ? '<span class="um-pw-pending"><i class="fa-solid fa-key"></i> Must change on next login</span>'
+    : '<span class="um-pw-ok"><i class="fa-solid fa-circle-check"></i> Changed by user</span>';
+
+  var html = '<div class="umd">'
+    + '<div class="umd-head"><div class="umd-avatar">' + umEsc(initials) + '</div><div>'
+    + '<div class="umd-name">' + umEsc(d.full_name || '—') + '</div>'
+    + '<div class="umd-role">' + umEsc(d.role) + '</div></div></div>'
+    + '<div class="umd-box">'
+    + umdRow('Username', '<span class="umd-code">' + umEsc(d.username) + '</span>'
+        + '<button class="umd-icon-btn" title="Copy username" onclick="umCopy(' + umEsc(JSON.stringify(d.username)) + ', this)"><i class="fa-regular fa-copy"></i></button>')
+    + umdRow('Password', '<span class="umd-code" id="umd-pw">••••••••</span>'
+        + '<button class="umd-icon-btn" id="umd-eye" title="Show / hide" onclick="umTogglePw()"><i class="fa-solid fa-eye"></i></button>'
+        + '<button class="umd-icon-btn" title="Copy password" onclick="umCopy(_umdPw, this)"><i class="fa-regular fa-copy"></i></button>')
+    + umdRow('Password status', status)
+    + '</div>';
+
+  var info = (d.details || []).map(function (f) { return umdRow(umEsc(f.label), umEsc(f.value)); });
+  if (d.vehicle) info.push(umdRow(d.role === 'cooperative' ? 'Fleet' : 'Assigned vehicle', umEsc(d.vehicle)));
+  else if (d.role === 'driver') info.push(umdRow('Assigned vehicle', '<span style="color:var(--text-muted);">None yet</span>'));
+  if (info.length) html += '<div class="umd-box">' + info.join('') + '</div>';
+  html += '</div>';
+
+  var canReset = d.username !== UM_ME;
+  var r = await Swal.fire({
+    title: 'Account details', html: html, width: 520,
+    showConfirmButton: true, confirmButtonText: 'Close', confirmButtonColor: '#64748b',
+    showDenyButton: canReset, denyButtonText: '<i class="fa-solid fa-rotate"></i> Reset password', denyButtonColor: '#ef4444',
+    background: 'var(--card-bg)', color: 'var(--text-main)'
+  });
+  if (r.isDenied) umResetPassword(d.username);
+}
+
+async function umResetPassword(username) {
+  var ok = await Swal.fire({
+    title: 'Reset password for ' + username + '?',
+    text: 'Their current password will stop working. They will get a temporary password and must change it on next login.',
+    icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, reset', confirmButtonColor: '#ef4444',
+    cancelButtonColor: '#64748b', background: 'var(--card-bg)', color: 'var(--text-main)'
+  });
+  if (!ok.isConfirmed) return;
+  var res  = await fetch('/api/admin/reset_password', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: username})});
+  var data = await res.json();
+  if (!data.success) { popAlert('Error', data.error || 'Could not reset password.', 'error'); return; }
+  umSetCardPending(username);
+  Swal.fire({
+    title: 'Password reset', icon: 'success', confirmButtonColor: '#2563eb',
+    background: 'var(--card-bg)', color: 'var(--text-main)',
+    html: '<div style="text-align:left;font-size:14px;line-height:1.9;">'
+        + '<b>Username:</b> <code style="background:#f1f5f9;padding:2px 7px;border-radius:5px;">' + umEsc(data.username) + '</code><br>'
+        + '<b>Temporary password:</b> <code style="background:#f1f5f9;padding:2px 7px;border-radius:5px;">' + umEsc(data.password) + '</code><br><br>'
+        + '<span style="color:#64748b;font-size:12px;">Give this to the user. They will be asked to set a new password when they log in.</span></div>'
+  });
 }
 
 /* ── search ── */

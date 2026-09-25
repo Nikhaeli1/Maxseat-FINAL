@@ -304,7 +304,7 @@
 </div>
 
 <!-- ── Row 4: Top violators + Most recent audit ── -->
-<div class="db-grid-2">
+<div class="db-grid-2" data-live="admin-records">
 
   <!-- Top violating operators -->
   <div class="db-card">
@@ -370,7 +370,7 @@
 
 </div>
 
-<script id="admin-puv-data" type="application/json">{{ puvs | tojson | safe if puvs else '[]' }}</script>
+<script id="admin-puv-data" type="application/json" data-live="admin-puv-json">{{ puvs | tojson | safe if puvs else '[]' }}</script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
   var map = L.map('map', {zoomControl:false}).setView([8.486, 124.65], 13);
@@ -378,11 +378,18 @@
   var puvData = JSON.parse(document.getElementById('admin-puv-data').textContent);
   function adminColor(p) { return (p.is_violator || p.is_overheating) ? '#ef4444' : '#10b981'; }
   function adminPopup(p) { return '<div style="text-align:center;font-family:inherit;"><b>'+p.company+'</b><br>'+p.plate+'<br>'+p.passengers+'/'+p.capacity+' PAX · '+p.temp+'°C</div>'; }
-  puvData.forEach(function(p) {
+  function addAdminMarker(p) {
     var m = L.circleMarker([p.lat, p.lng], {radius:10,fillColor:adminColor(p),color:'#fff',weight:3,fillOpacity:1})
       .addTo(map)
       .bindPopup(adminPopup(p));
     MaxSeatLive.trackMarker(p, m, adminPopup, adminColor);   // moves/recolors live
+  }
+  puvData.forEach(addAdminMarker);
+  // After a live refresh: add markers for new vehicles, remove deleted ones, update the rest
+  document.addEventListener('maxseat:live-updated', function () {
+    try {
+      MaxSeatLive.syncMarkers(JSON.parse(document.getElementById('admin-puv-data').textContent), addAdminMarker);
+    } catch (e) { /* keep current markers */ }
   });
   // Delegated click so it keeps working after the feed refreshes itself
   document.addEventListener('click', function(e) {

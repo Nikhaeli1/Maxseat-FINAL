@@ -67,7 +67,7 @@
 </div>
 
 <!-- FLEET TABLE -->
-<div class="card" style="padding:0;overflow:hidden;margin-bottom:22px;">
+<div class="card" data-live="coop-fleet-card" style="padding:0;overflow:hidden;margin-bottom:22px;">
   <div style="padding:18px 24px;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;">
     <div>
       <div style="font-size:15px;font-weight:800;">Live fleet status</div>
@@ -89,7 +89,7 @@
         <th>Status</th>
       </tr>
     </thead>
-    <tbody data-live="coop-fleet-rows">
+    <tbody>
       {% for puv in puvs %}
       {% set overload = puv.passengers > puv.capacity %}
       {% set pct = (puv.passengers / puv.capacity * 100)|int if puv.capacity > 0 else 0 %}
@@ -185,7 +185,7 @@
   </div>
 </div>
 
-<script id="coop-puv-data" type="application/json">{{ puvs | tojson | safe if puvs else '[]' }}</script>
+<script id="coop-puv-data" type="application/json" data-live="coop-puv-json">{{ puvs | tojson | safe if puvs else '[]' }}</script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -200,11 +200,15 @@ if (puvData.length > 0) {
 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
 function coopColor(p) { return p.passengers > p.capacity ? '#ef4444' : (p.temp >= 37.5 ? '#f59e0b' : '#10b981'); }
 function coopPopup(p) { return '<strong>'+p.plate+'</strong><br>'+p.driver+'<br>'+p.passengers+'/'+p.capacity+' pax<br>'+p.temp+'°C'; }
-puvData.forEach(function(p) {
+function addCoopMarker(p) {
   var m = L.circleMarker([p.lat, p.lng], {radius:12, fillColor:coopColor(p), color:'#fff', weight:3, fillOpacity:1})
     .addTo(map)
     .bindPopup(coopPopup(p));
   MaxSeatLive.trackMarker(p, m, coopPopup, coopColor);
+}
+puvData.forEach(addCoopMarker);
+document.addEventListener('maxseat:live-updated', function () {
+  try { MaxSeatLive.syncMarkers(JSON.parse(document.getElementById('coop-puv-data').textContent), addCoopMarker); } catch (e) {}
 });
 </script>
 {% endblock %}

@@ -64,7 +64,7 @@
     {% endfor %}
 </div>
 
-<script id="enforcer-puv-data" type="application/json">{{ puvs | tojson | safe if puvs else '[]' }}</script>
+<script id="enforcer-puv-data" type="application/json" data-live="enf-puv-json">{{ puvs | tojson | safe if puvs else '[]' }}</script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
     const map = L.map('map').setView([8.486, 124.65], 13);
@@ -72,11 +72,15 @@
     const pd = JSON.parse(document.getElementById('enforcer-puv-data').textContent);
     const enfColor = p => (p.is_violator || p.is_overheating) ? '#ef4444' : '#10b981';
     const enfPopup = p => `<div style="text-align:center;"><b>${p.company}</b><br>Load: <b>${p.passengers}/${p.capacity}</b><br>Temp: ${p.temp}°C</div>`;
-    pd.forEach(p => {
+    const addEnfMarker = p => {
         const m = L.circleMarker([p.lat, p.lng], {radius:12, fillColor: enfColor(p), color:'#fff', weight:3, fillOpacity:1})
          .addTo(map)
          .bindPopup(enfPopup(p));
         MaxSeatLive.trackMarker(p, m, enfPopup, enfColor);
+    };
+    pd.forEach(addEnfMarker);
+    document.addEventListener('maxseat:live-updated', () => {
+        try { MaxSeatLive.syncMarkers(JSON.parse(document.getElementById('enforcer-puv-data').textContent), addEnfMarker); } catch (e) {}
     });
 </script>
 <style>@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }</style>

@@ -224,6 +224,11 @@ def _as_coord(value, fallback):
     except (TypeError, ValueError):
         return fallback
 
+async def notify_data_changed(scope: str, vehicle_id=None):
+    """Tell every open page that fleet/citation data changed, so it refreshes itself
+    (vehicle added/removed, driver reassigned, capacity changed, citation issued...)."""
+    await manager.broadcast({"type": "data_changed", "scope": scope, "vehicle_id": vehicle_id})
+
 def log_audit(actor: str, event: str, ip: str, category: str = "blue"):
     entry = {
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -561,6 +566,7 @@ async def delete_puv(request: Request):
     puv_database.remove(puv)
     db_delete_puv(puv['id'])
     log_audit(request.session.get('username', 'admin'), f"PUV_REMOVED: {puv['plate']}", request.client.host if request.client else "unknown", "red")
+    await notify_data_changed("fleet", puv['id'])
     return JSONResponse({"success": True, "plate": puv['plate']})
 
 @app.post("/api/delete_user")
@@ -576,6 +582,66 @@ async def delete_user(request: Request):
         db_delete_user(username)
         return JSONResponse({"success": True})
     return JSONResponse({"success": False, "error": "User not found."})
+
+# --- ADMIN: view account details / reset password ---
+_ROLE_FIELDS = {
+    "admin":       [("email", "Email"), ("department", "Department"), ("clearance", "Clearance")],
+    "enforcer":    [("email", "Email"), ("mobile", "Mobile"), ("badge", "Badge no."), ("precinct", "Precinct"), ("shift_status", "Shift status")],
+    "driver":      [("mobile", "Mobile"), ("license", "License no."), ("operator", "Operator"), ("emergency_contact", "Emergency contact")],
+    "cooperative": [("email", "Email"), ("mobile", "Mobile"), ("organization", "Organization"), ("position", "Position"), ("address", "Address")],
+    "passenger":   [("email", "Email"), ("mobile", "Mobile")],
+}
+
+@app.get("/api/admin/user/{username}")
+async def admin_user_details(username: str, request: Request):
+    if get_role(request) != 'admin':
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
+    u = users.get(username)
+    if not u:
+        return JSONResponse({"success": False, "error": "User not found."}, status_code=404)
+    role    = u.get("role", "")
+    details = [{"label": label, "value": u.get(key, "")} for key, label in _ROLE_FIELDS.get(role, []) if u.get(key)]
+    vehicle = None
+    if role == "driver":
+        puv = find_driver_puv(username)
+        if puv:
+            vehicle = f"{puv.get('plate', '')} ({puv.get('company', '')})"
+    elif role == "cooperative":
+        coop_puvs = get_coop_puvs(username)
+        vehicle   = f"{len(coop_puvs)} vehicle{'s' if len(coop_puvs) != 1 else ''}" + (
+            ": " + ", ".join(p.get('plate', '') for p in coop_puvs[:6]) if coop_puvs else "")
+    log_audit(request.session.get('username', 'admin'), f"ACCOUNT_VIEWED: {username}",
+              request.client.host if request.client else "unknown", "blue")
+    return JSONResponse({
+        "success":          True,
+        "username":         username,
+        "full_name":        u.get("full_name", ""),
+        "role":             role,
+        "password":         u.get("password", ""),
+        "password_pending": bool(u.get("must_change_password", False)),
+        "details":          details,
+        "vehicle":          vehicle,
+    })
+
+@app.post("/api/admin/reset_password")
+async def admin_reset_password(request: Request):
+    if get_role(request) != 'admin':
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
+    data     = await request.json()
+    username = data.get("username", "")
+    if username not in users:
+        return JSONResponse({"success": False, "error": "User not found."})
+    if username == request.session.get('username'):
+        return JSONResponse({"success": False, "error": "Use Settings to change your own password."})
+    # Readable temporary password; the user must change it on next login
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
+    temp_pw  = "".join(secrets.choice(alphabet) for _ in range(8))
+    users[username]['password']             = temp_pw
+    users[username]['must_change_password'] = True
+    db_save_user(username, users[username])
+    log_audit(request.session.get('username', 'admin'), f"PASSWORD_RESET: {username}",
+              request.client.host if request.client else "unknown", "red")
+    return JSONResponse({"success": True, "username": username, "password": temp_pw})
 
 @app.get("/configure_seating", response_class=HTMLResponse)
 async def configure_seating(request: Request):
@@ -595,6 +661,7 @@ async def update_capacity(request: Request):
     if puv and new_capacity and int(new_capacity) > 0:
         puv['capacity'] = int(new_capacity)
         db_save_puv(puv['id'], puv)
+        await notify_data_changed("fleet", puv['id'])
         return JSONResponse({"success": True, "plate": puv['plate'], "capacity": puv['capacity']})
     return JSONResponse({"success": False, "error": "Vehicle not found or invalid capacity."})
 
@@ -673,6 +740,7 @@ async def submit_interception(
     citations_db.append(citation)
     db_append_citation(citation)
     log_audit(request.session.get('username', 'enforcer'), "INTERCEPTION_LOGGED", request.client.host if request.client else "unknown", "red")
+    await notify_data_changed("citations")
     flash(request, f"Interception report for {plate} submitted successfully.")
     return RedirectResponse(url="/interception_status", status_code=302)
 
@@ -732,6 +800,7 @@ async def coop_update_capacity(request: Request):
         puv['capacity'] = int(new_capacity)
         db_save_puv(puv['id'], puv)
         log_audit(request.session.get('username', 'cooperative'), "CAPACITY_UPDATED", request.client.host if request.client else "unknown", "blue")
+        await notify_data_changed("fleet", puv['id'])
         return JSONResponse({"success": True, "plate": puv['plate'], "capacity": puv['capacity']})
     return JSONResponse({"success": False, "error": "Vehicle not found or invalid capacity."})
 
@@ -762,6 +831,7 @@ async def coop_update_driver(request: Request):
                 db_save_puv(puv["id"], puv)
     db_save_user(username, users[username])
     log_audit(request.session.get('username', 'cooperative'), f"DRIVER_UPDATED: {username}", request.client.host if request.client else "unknown", "blue")
+    await notify_data_changed("fleet")
     return JSONResponse({"success": True})
 
 # ==========================================
@@ -883,6 +953,7 @@ async def mobile_intercept(request: Request):
     citations_db.append(citation)
     db_append_citation(citation)
     log_audit(mobile_user["username"], f"MOBILE_INTERCEPT: {plate} — {action.upper()}", request.client.host if request.client else "unknown", "red")
+    await notify_data_changed("citations")
     return JSONResponse({
         "success": True,
         "serial":  serial,
@@ -1248,6 +1319,7 @@ async def coop_add_vehicle(request: Request):
         request.client.host if request.client else "unknown",
         "blue"
     )
+    await notify_data_changed("fleet", new_id)
     return JSONResponse({"success": True, "plate": plate, "id": new_id})
 
 
@@ -1277,6 +1349,7 @@ async def coop_request_capacity(request: Request):
         request.client.host if request.client else "unknown",
         "blue"
     )
+    await notify_data_changed("fleet", puv['id'])
     return JSONResponse({"success": True, "plate": puv['plate'], "pending_capacity": puv['pending_capacity']})
 
 # --- SENSOR APIs ---
