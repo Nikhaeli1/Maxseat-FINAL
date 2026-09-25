@@ -13,6 +13,10 @@
  *        server renders it, colors, badges, counts and violation lists all stay correct.
  *      • MaxSeatLive.trackMarker(puv, leafletMarker, popupFn, colorFn) moves/recolors a
  *        map marker instantly when that vehicle's reading changes.
+ *      • MaxSeatLive.syncMarkers(puvList, createFn) adds markers for new vehicles and
+ *        removes markers for deleted ones (call it after a refresh).
+ *      • The server also sends {type: "data_changed"} when a vehicle is added/removed/
+ *        reassigned, a capacity changes or a citation is issued; pages refresh on that too.
  *      • Regions containing a focused input/select/textarea are left alone until the
  *        user is done, so typing is never interrupted.
  *      • If the WebSocket is down, regions are refreshed by polling every 15 s instead.
@@ -150,6 +154,20 @@ const MaxSeatLive = (() => {
     if (entry.popupFn && entry.marker.setPopupContent) entry.marker.setPopupContent(entry.popupFn(d));
   }
 
+  // Add markers for vehicles that are new, drop markers for vehicles that were removed
+  function syncMarkers(puvs, createFn) {
+    if (!Array.isArray(puvs)) return;
+    const seen = new Set();
+    puvs.forEach((p) => {
+      seen.add(String(p.id));
+      if (markers[p.id]) updateMarker(Object.assign({}, p, { puv_id: p.id }));
+      else if (typeof createFn === 'function') createFn(p);
+    });
+    Object.keys(markers).forEach((id) => {
+      if (!seen.has(id)) { markers[id].marker.remove(); delete markers[id]; }
+    });
+  }
+
   // ── Server-rendered live regions ────────────────────────────────────────
   function regions() {
     return document.querySelectorAll('[data-live]');
@@ -212,7 +230,9 @@ const MaxSeatLive = (() => {
   }
 
   function onMessage(msg) {
-    if (!msg || msg.puv_id === undefined) return;
+    if (!msg) return;
+    if (msg.type === 'data_changed') { scheduleRefresh(); return; }
+    if (msg.puv_id === undefined) return;
     updateMarker(msg);
     scheduleRefresh();
   }
@@ -230,5 +250,5 @@ const MaxSeatLive = (() => {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
   else setTimeout(start, 0);
 
-  return { trackMarker, refresh: scheduleRefresh };
+  return { trackMarker, syncMarkers, refresh: scheduleRefresh };
 })();

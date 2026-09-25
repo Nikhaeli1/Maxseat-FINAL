@@ -141,12 +141,15 @@
         setTimeout(tick, 1000);
     })();
     // Reload once, only when the cooperative assigns a vehicle
-    setInterval(async function () {
+    async function checkAssignment() {
         try {
             const res = await fetch('/api/driver/status', {cache: 'no-store'});
             if (res.ok && (await res.json()).assigned) location.reload();
         } catch (e) { /* offline: try again next tick */ }
-    }, 15000);
+    }
+    setInterval(checkAssignment, 15000);
+    // Instant when the server announces a fleet change (e.g. driver assigned)
+    MaxSeatWS.init(function (msg) { if (msg && msg.type === 'data_changed') checkAssignment(); });
 </script>
 {% else %}
 <div class="driver-wrap">
@@ -310,20 +313,23 @@
 
     // Real-time: every sensor reading for THIS vehicle updates the screen instantly
     MaxSeatWS.init(function (msg) {
-        if (msg && msg.puv_id === pd.id) applyReading(msg);
+        if (!msg) return;
+        if (msg.puv_id === pd.id) applyReading(msg);
+        else if (msg.type === 'data_changed') refreshFromServer();   // capacity changed, reassigned, etc.
     });
 
-    // Safety net: if the WebSocket is down, poll every 5 s so the numbers still move
-    setInterval(async function () {
-        if (MaxSeatWS.isConnected()) return;
+    async function refreshFromServer() {
         try {
             const res = await fetch('/api/driver/status', {cache: 'no-store'});
             if (!res.ok || res.redirected) return;
             const d = await res.json();
-            if (d.assigned === false) { location.reload(); return; }   // vehicle was unassigned
+            if (d.assigned === false || d.puv_id !== pd.id) { location.reload(); return; }  // vehicle changed
             applyReading(d);
         } catch (e) { /* offline */ }
-    }, 5000);
+    }
+
+    // Safety net: if the WebSocket is down, poll every 5 s so the numbers still move
+    setInterval(function () { if (!MaxSeatWS.isConnected()) refreshFromServer(); }, 5000);
 
     // Sensor override (+/- buttons)
     async function updateSensor(action) {
