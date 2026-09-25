@@ -63,14 +63,13 @@ class ConnectionManager:
             self.active_connections.remove(websocket)
 
     async def broadcast(self, data: dict):
-        disconnected = []
-        for connection in self.active_connections:
+        # Iterate over a copy: other tasks may connect/disconnect while we await sends
+        message = json.dumps(data)
+        for connection in list(self.active_connections):
             try:
-                await connection.send_text(json.dumps(data))
+                await connection.send_text(message)
             except Exception:
-                disconnected.append(connection)
-        for conn in disconnected:
-            self.active_connections.remove(conn)
+                self.disconnect(connection)
 
 manager = ConnectionManager()
 
@@ -143,8 +142,16 @@ def get_coop_puvs(username: str):
             result.append(p)
     return result
 
+def _normalize_puv(p: dict):
+    """Guard against missing/null sensor values so templates never compare None with numbers."""
+    p['passengers'] = p.get('passengers') or 0
+    p['capacity']   = p.get('capacity') or 0
+    p['temp']       = p.get('temp') or 0
+    p.setdefault('status', 'Active')
+
 def compute_puv_stats():
     for p in puv_database:
+        _normalize_puv(p)
         p['is_violator']    = p['passengers'] > p['capacity']
         p['is_overheating'] = p.get('temp', 0) >= 37.5
         p['load_percentage'] = int((p['passengers'] / p['capacity']) * 100) if p['capacity'] > 0 else 0
@@ -157,6 +164,7 @@ def compute_puv_stats():
 
 def compute_puv_stats_for(puvs: list):
     for p in puvs:
+        _normalize_puv(p)
         p['is_violator']    = p['passengers'] > p['capacity']
         p['is_overheating'] = p.get('temp', 0) >= 37.5
         p['load_percentage'] = int((p['passengers'] / p['capacity']) * 100) if p['capacity'] > 0 else 0
@@ -167,6 +175,55 @@ def compute_puv_stats_for(puvs: list):
         "moving_units":      len([p for p in puvs if p['status'] == 'Active']),
     }
 
+def find_driver_puv(username: str):
+    """Return the PUV assigned to this driver, or None if no vehicle is assigned yet."""
+    if not username:
+        return None
+    return next((p for p in puv_database if p.get('username') == username), None)
+
+def puv_live_payload(puv: dict) -> dict:
+    """Single shape for every real-time update pushed to browsers over /ws."""
+    passengers     = puv.get('passengers', 0) or 0
+    capacity       = puv.get('capacity', 0) or 0
+    temp           = puv.get('temp', 0) or 0
+    is_violator    = passengers > capacity
+    is_overheating = temp >= 37.5
+    return {
+        "type":           "violation" if is_violator or is_overheating else "update",
+        "puv_id":         puv.get('id'),
+        "plate":          puv.get('plate', ''),
+        "company":        puv.get('company', ''),
+        "driver":         puv.get('driver', ''),
+        "passengers":     passengers,
+        "capacity":       capacity,
+        "temp":           temp,
+        "is_violator":    is_violator,
+        "is_overheating": is_overheating,
+        "lat":            puv.get('lat', 8.4822),
+        "lng":            puv.get('lng', 124.6472),
+        "loc_name":       puv.get('loc_name', ''),
+        "speed":          puv.get('speed', ''),
+        "last_update":    puv.get('last_update', ''),
+    }
+
+def _as_int(value, fallback):
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return fallback
+
+def _as_float(value, fallback):
+    try:
+        return round(float(value), 1)
+    except (TypeError, ValueError):
+        return fallback
+
+def _as_coord(value, fallback):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return fallback
+
 def log_audit(actor: str, event: str, ip: str, category: str = "blue"):
     entry = {
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -175,7 +232,8 @@ def log_audit(actor: str, event: str, ip: str, category: str = "blue"):
     audit_logs.insert(0, entry)
     db_append_audit(entry)
 
-def TR(request: Request, name: str, context: dict = {}):
+def TR(request: Request, name: str, context: dict = None):
+    context = dict(context or {})
     context.setdefault("users_data", users)
     return templates.TemplateResponse(request=request, name=name, context=context)
 
@@ -399,7 +457,9 @@ async def dashboard(request: Request):
         sorted_puvs = sorted(puv_database, key=lambda x: (x['passengers'] / x['capacity']) if x['capacity'] > 0 else 0, reverse=True)
         return TR(request, "enforcer/dashboard.html", {"puvs": sorted_puvs, "role": role, "stats": stats})
     elif role == 'driver':
-        my_puv = next((p for p in puv_database if p['username'] == request.session.get('username')), None)
+        # my_puv is None when the cooperative hasn't assigned this driver a vehicle yet;
+        # the template shows a "no vehicle assigned" screen instead of crashing.
+        my_puv = find_driver_puv(request.session.get('username'))
         return TR(request, "driver/dashboard.html", {"puv": my_puv, "role": role})
     elif role == 'cooperative':
         username   = request.session.get('username')
@@ -1220,68 +1280,101 @@ async def coop_request_capacity(request: Request):
     return JSONResponse({"success": True, "plate": puv['plate'], "pending_capacity": puv['pending_capacity']})
 
 # --- SENSOR APIs ---
+PH_TZ = datetime.timezone(datetime.timedelta(hours=8))   # Philippine time (Railway runs in UTC)
+
+def _stamp_now() -> str:
+    return datetime.datetime.now(PH_TZ).strftime("%I:%M:%S %p").lstrip("0")
+
 @app.post("/api/update_sensor")
 async def update_sensor(request: Request):
     if get_role(request) != 'driver': return JSONResponse({"error": "Unauthorized"})
     data   = await request.json()
     action = data.get('action')
-    puv    = next((p for p in puv_database if p['username'] == request.session.get('username')), None)
+    puv    = find_driver_puv(request.session.get('username'))
     if puv:
         if action == 'add':
             puv['passengers'] += 1
         elif action == 'sub' and puv['passengers'] > 0:
             puv['passengers'] -= 1
-        is_violator    = puv['passengers'] > puv['capacity']
-        is_overheating = puv.get('temp', 0) >= 37.5
-        await manager.broadcast({
-            "type": "violation" if is_violator or is_overheating else "update",
-            "puv_id": puv['id'], "plate": puv['plate'],
-            "passengers": puv['passengers'], "capacity": puv['capacity'],
-            "temp": puv.get('temp', 0), "is_violator": is_violator,
-            "is_overheating": is_overheating, "lat": puv['lat'], "lng": puv['lng'],
-            "loc_name": puv['loc_name'],
-        })
-        return JSONResponse({"success": True, "passengers": puv['passengers'], "capacity": puv['capacity'], "temp": puv.get('temp', 0)})
+        puv['last_update'] = _stamp_now()
+        payload = puv_live_payload(puv)
+        await manager.broadcast(payload)
+        return JSONResponse({"success": True, **payload})
     return JSONResponse({"error": "Vehicle not found"})
+
+@app.get("/api/driver/status")
+async def driver_status(request: Request):
+    """Current reading for the logged-in driver's vehicle (used as a fallback when the WebSocket drops)."""
+    if get_role(request) != 'driver':
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    puv = find_driver_puv(request.session.get('username'))
+    if not puv:
+        return JSONResponse({"assigned": False})
+    return JSONResponse({"assigned": True, **puv_live_payload(puv)})
 
 @app.post("/api/toggle_name")
 async def toggle_name(request: Request):
     if get_role(request) != 'driver': return JSONResponse({"error": "Unauthorized"})
-    puv = next((p for p in puv_database if p['username'] == request.session.get('username')), None)
+    puv = find_driver_puv(request.session.get('username'))
     if puv:
-        puv['show_name'] = not puv['show_name']
+        puv['show_name'] = not puv.get('show_name', True)
         return JSONResponse({"success": True, "show_name": puv['show_name']})
     return JSONResponse({"error": "Vehicle not found"})
 
 # --- WEBSOCKET ---
+# Sensors (ESP32 / dummy_sensor.py) send:
+#   {"type": "sensor_update", "puv_id": 1, "passengers": 12, "temp": 33.5, "lat": 8.48, "lng": 124.64}
+# ("plate" may be sent instead of "puv_id"). Every browser page connected to /ws receives
+# the resulting update and refreshes its numbers without a page reload.
+def _find_puv_for_payload(payload: dict):
+    puv_id = payload.get("puv_id")
+    if puv_id is not None:
+        pid = _as_int(puv_id, None)
+        puv = next((p for p in puv_database if p.get('id') == pid), None)
+        if puv:
+            return puv
+    plate = str(payload.get("plate", "")).strip().upper()
+    if plate:
+        return next((p for p in puv_database if str(p.get('plate', '')).upper() == plate), None)
+    return None
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            data    = await websocket.receive_text()
-            payload = json.loads(data)
-            if payload.get("type") == "sensor_update":
-                puv_id = payload.get("puv_id")
-                puv    = next((p for p in puv_database if p['id'] == puv_id), None)
-                if puv:
-                    puv['passengers']  = payload.get("passengers", puv['passengers'])
-                    puv['temp']        = payload.get("temp", puv.get('temp', 0))
-                    puv['lat']         = payload.get("lat", puv['lat'])
-                    puv['lng']         = payload.get("lng", puv['lng'])
-                    puv['last_update'] = "Just now"
-                    is_violator    = puv['passengers'] > puv['capacity']
-                    is_overheating = puv['temp'] >= 37.5
-                    puv['is_violator'] = is_violator
-                    await manager.broadcast({
-                        "type": "violation" if is_violator or is_overheating else "update",
-                        "puv_id": puv['id'], "plate": puv['plate'], "company": puv['company'],
-                        "passengers": puv['passengers'], "capacity": puv['capacity'],
-                        "temp": puv['temp'], "is_violator": is_violator,
-                        "is_overheating": is_overheating,
-                        "lat": puv['lat'], "lng": puv['lng'], "loc_name": puv.get('loc_name', ''),
-                    })
+            data = await websocket.receive_text()
+            try:
+                payload = json.loads(data)
+            except (json.JSONDecodeError, TypeError):
+                continue                      # ignore malformed frames instead of dropping the connection
+            if not isinstance(payload, dict) or payload.get("type") != "sensor_update":
+                continue
+            puv = _find_puv_for_payload(payload)
+            if not puv:
+                continue
+            # Coerce values so a sensor sending "12" or null can't break page rendering later
+            if "passengers" in payload:
+                puv['passengers'] = max(0, _as_int(payload["passengers"], puv.get('passengers', 0)))
+            if "temp" in payload:
+                puv['temp'] = _as_float(payload["temp"], puv.get('temp', 0))
+            if "lat" in payload:
+                puv['lat'] = _as_coord(payload["lat"], puv.get('lat', 8.4822))
+            if "lng" in payload:
+                puv['lng'] = _as_coord(payload["lng"], puv.get('lng', 124.6472))
+            if payload.get("loc_name"):
+                puv['loc_name'] = str(payload["loc_name"])
+            if payload.get("speed") is not None:
+                puv['speed'] = str(payload["speed"])
+            puv['last_update']    = _stamp_now()
+            puv['is_violator']    = puv['passengers'] > puv['capacity']
+            puv['is_overheating'] = puv.get('temp', 0) >= 37.5
+            await manager.broadcast(puv_live_payload(puv))
     except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        print(f"[WS] connection closed after error: {e}")
+    finally:
         manager.disconnect(websocket)
 
 if __name__ == "__main__":

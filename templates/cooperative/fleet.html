@@ -76,7 +76,7 @@
     <div class="puv-card">
 
       <!-- Header -->
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div data-live="fleet-head-{{ puv.id }}" style="display:flex;justify-content:space-between;align-items:flex-start;">
         <div>
           <div class="puv-plate">{{ puv.plate }}</div>
           <div class="puv-company">{{ puv.company }}</div>
@@ -116,7 +116,7 @@
         </div>
         <div class="puv-meta-item">
           <div class="puv-meta-label">Location</div>
-          <div class="puv-meta-value" style="font-size:12px;">{{ puv.loc_name }}</div>
+          <div class="puv-meta-value" data-live="fleet-loc-{{ puv.id }}" style="font-size:12px;">{{ puv.loc_name }}</div>
         </div>
         <div class="puv-meta-item">
           <div class="puv-meta-label">Seated capacity</div>
@@ -138,7 +138,7 @@
       </div>
 
       <!-- Load bar -->
-      <div style="margin-top:12px;">
+      <div data-live="fleet-load-{{ puv.id }}" style="margin-top:12px;">
         <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
           <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);">Current load</span>
           <span style="font-size:12px;font-weight:700;color:{{ '#ef4444' if overload else 'var(--text-muted)' }};">{{ puv.passengers }}/{{ total_max }} ({{ pct }}%)</span>

@@ -6,7 +6,7 @@
     <h1 class="page-title">Violation records</h1>
     <p class="page-subtitle">Historical log of all detected passenger overload and thermal incidents.</p>
   </div>
-  <div style="display:flex;gap:10px;">
+  <div data-live="records-badges" style="display:flex;gap:10px;">
     {% set active_v = puvs | selectattr('is_violator') | list | length %}
     {% set thermal_v = puvs | selectattr('is_overheating') | list | length %}
     {% if active_v > 0 %}
@@ -34,7 +34,7 @@
         <th>Action</th>
       </tr>
     </thead>
-    <tbody>
+    <tbody data-live="records-rows">
       {% for p in puvs %}
       {% set overloaded   = p.passengers > p.capacity %}
       {% set overheating  = p.get('temp', 0) >= 37.5 %}
