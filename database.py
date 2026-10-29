@@ -16,7 +16,20 @@ from sqlalchemy.pool import NullPool
 ON_VERCEL = bool(os.environ.get("VERCEL"))
 
 # ── Connection setup ────────────────────────────────────────────────────────
-DATABASE_URL = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL") or ""
+def _find_database_url() -> str:
+    """DATABASE_URL, POSTGRES_URL, or a prefixed version Vercel's Storage tab may create
+    (e.g. STORAGE_DATABASE_URL / NEON_POSTGRES_URL). Pooled URLs are preferred."""
+    for name in ("DATABASE_URL", "POSTGRES_URL"):
+        if os.environ.get(name, "").strip():
+            return os.environ[name].strip()
+    for name in sorted(os.environ):
+        if name.endswith(("_DATABASE_URL", "_POSTGRES_URL")) and "UNPOOLED" not in name and "NON_POOLING" not in name:
+            value = os.environ[name].strip()
+            if value.startswith(("postgres://", "postgresql://")):
+                return value
+    return ""
+
+DATABASE_URL = _find_database_url()
 
 # Some hosts give postgres:// — SQLAlchemy 1.4+ needs postgresql+psycopg2://
 if DATABASE_URL.startswith("postgres://"):
@@ -29,10 +42,19 @@ elif DATABASE_URL.startswith("postgresql://"):
 # wiped often and is NOT shared between servers. Always set DATABASE_URL on Vercel.
 if not DATABASE_URL:
     if ON_VERCEL:
-        print("[DB] WARNING: DATABASE_URL is not set — using a temporary SQLite file. Data will be lost.")
+        print("[DB] WARNING: no DATABASE_URL — using a TEMPORARY SQLite file. "
+              "Accounts and data will be lost on every deploy/restart. Connect a Neon database.")
         DATABASE_URL = "sqlite:////tmp/maxseat.db"
     else:
         DATABASE_URL = "sqlite:///./maxseat.db"
+
+# What kind of storage is in use (shown by /api/health and to admins)
+if ON_VERCEL and DATABASE_URL.startswith("sqlite"):
+    DB_KIND = "temporary"        # Vercel without a database: data disappears
+elif DATABASE_URL.startswith("sqlite"):
+    DB_KIND = "sqlite"           # local development file
+else:
+    DB_KIND = "postgres"
 
 # Serverless functions are frozen between requests, so pooled connections go stale.
 # NullPool opens a fresh connection per use (use Neon's *pooled* connection string).
@@ -111,6 +133,7 @@ def db_save_user(username: str, data: dict):
             session.commit()
     except Exception as e:
         print(f"[DB] db_save_user error: {e}")
+        raise   # never pretend data was saved
 
 
 def db_delete_user(username: str):
@@ -122,15 +145,18 @@ def db_delete_user(username: str):
                 session.commit()
     except Exception as e:
         print(f"[DB] db_delete_user error: {e}")
+        raise   # never pretend data was saved
 
 
-def db_load_users() -> dict:
+def db_load_users(strict: bool = False) -> dict:
     try:
         with SessionLocal() as session:
             rows = session.query(DBUser).all()
             return {row.username: json.loads(row.data) for row in rows}
     except Exception as e:
         print(f"[DB] db_load_users error: {e}")
+        if strict:
+            raise
         return {}
 
 
@@ -146,6 +172,7 @@ def db_save_puv(puv_id: int, data: dict):
             session.commit()
     except Exception as e:
         print(f"[DB] db_save_puv error: {e}")
+        raise   # never pretend data was saved
 
 
 def db_delete_puv(puv_id: int):
@@ -157,15 +184,18 @@ def db_delete_puv(puv_id: int):
                 session.commit()
     except Exception as e:
         print(f"[DB] db_delete_puv error: {e}")
+        raise   # never pretend data was saved
 
 
-def db_load_puvs() -> list:
+def db_load_puvs(strict: bool = False) -> list:
     try:
         with SessionLocal() as session:
             rows = session.query(DBPuv).all()
             return [json.loads(row.data) for row in rows]
     except Exception as e:
         print(f"[DB] db_load_puvs error: {e}")
+        if strict:
+            raise
         return []
 
 
@@ -177,6 +207,7 @@ def db_append_audit(data: dict):
             session.commit()
     except Exception as e:
         print(f"[DB] db_append_audit error: {e}")
+        raise   # never pretend data was saved
 
 
 def db_load_audit_logs(limit: int = 1000) -> list:
@@ -198,15 +229,18 @@ def db_append_citation(data: dict):
             session.commit()
     except Exception as e:
         print(f"[DB] db_append_citation error: {e}")
+        raise   # never pretend data was saved
 
 
-def db_load_citations() -> list:
+def db_load_citations(strict: bool = False) -> list:
     try:
         with SessionLocal() as session:
             rows = session.query(DBCitation).all()
             return [json.loads(row.data) for row in rows]
     except Exception as e:
         print(f"[DB] db_load_citations error: {e}")
+        if strict:
+            raise
         return []
 
 
@@ -218,15 +252,18 @@ def db_append_complaint(data: dict):
             session.commit()
     except Exception as e:
         print(f"[DB] db_append_complaint error: {e}")
+        raise   # never pretend data was saved
 
 
-def db_load_complaints() -> list:
+def db_load_complaints(strict: bool = False) -> list:
     try:
         with SessionLocal() as session:
             rows = session.query(DBComplaint).all()
             return [json.loads(row.data) for row in rows]
     except Exception as e:
         print(f"[DB] db_load_complaints error: {e}")
+        if strict:
+            raise
         return []
 
 
@@ -267,6 +304,7 @@ class TokenStore:
                 session.commit()
         except Exception as e:
             print(f"[DB] token save error: {e}")
+            raise   # a login token that wasn't saved would fail on the next request
 
     def __delitem__(self, token):
         self.pop(token, None)
@@ -307,6 +345,7 @@ def db_save_avatar(username: str, content_type: str, image: bytes):
             session.commit()
     except Exception as e:
         print(f"[DB] db_save_avatar error: {e}")
+        raise   # never pretend data was saved
 
 
 def db_load_avatar(username: str):
@@ -329,3 +368,4 @@ def db_delete_avatar(username: str):
                 session.commit()
     except Exception as e:
         print(f"[DB] db_delete_avatar error: {e}")
+        raise   # never pretend data was saved

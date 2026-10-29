@@ -286,6 +286,13 @@
         </header>
         {% endif %}
 
+        {% if DB_KIND == 'temporary' and role == 'admin' %}
+        <div style="background:#fef2f2;color:#b91c1c;border-bottom:1px solid #fecaca;padding:10px 20px;font-size:13px;font-weight:700;">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            No database is connected. Accounts, vehicles and records are being saved to temporary storage and will be lost on the next deploy.
+            Connect a Neon database in Vercel (Storage) so DATABASE_URL is set.
+        </div>
+        {% endif %}
         <main class="main-content" {% if role == 'driver' %}style="padding:0;overflow:hidden;"{% endif %}>
             {% block content %}{% endblock %}
         </main>

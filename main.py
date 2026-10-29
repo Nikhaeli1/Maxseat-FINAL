@@ -15,7 +15,7 @@ from database import (
     db_append_citation, db_load_citations,
     db_append_complaint, db_load_complaints,
     db_save_avatar, db_load_avatar, db_delete_avatar,
-    TokenStore,
+    TokenStore, DB_KIND,
 )
 
 BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
@@ -73,6 +73,7 @@ if ON_VERCEL:
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 templates.env.globals["LIVE_MODE"] = LIVE_MODE
+templates.env.globals["DB_KIND"]   = DB_KIND   # "temporary" = no database connected on Vercel
 # CARTO map background key (https://carto.com/basemaps/apikey). Optional: without it the
 # maps use free OpenStreetMap tiles. It is sent to browsers, like any map tile key.
 templates.env.globals["CARTO_KEY"] = os.environ.get("CARTO_API_KEY", "").strip()
@@ -128,25 +129,38 @@ def _ensure_ready():
     if _ready:
         return
     init_db()
-    if not db_load_users():
+    # strict=True: if the database can't be read we must NOT treat it as empty —
+    # that used to re-create the admin account (resetting its password).
+    if not db_load_users(strict=True):
         # First run — seed the default admin account
         db_save_user("admin", _DEFAULT_ADMIN.copy())
     _ready = True
 
 def reload_puvs():
-    puv_database[:] = db_load_puvs()
+    try:
+        puv_database[:] = db_load_puvs(strict=True)
+    except Exception as e:
+        print(f"[DB] vehicle reload skipped, keeping current data: {e}")
 
 def reload_from_db():
-    """Refresh the in-memory copies in place (other modules hold references to these objects)."""
-    fresh_users = db_load_users()
+    """Refresh the in-memory copies in place (other modules hold references to these objects).
+    If the database can't be read right now, keep what we have instead of wiping it."""
+    try:
+        fresh_users      = db_load_users(strict=True)
+        fresh_puvs       = db_load_puvs(strict=True)
+        fresh_citations  = db_load_citations(strict=True)
+        fresh_complaints = db_load_complaints(strict=True)
+    except Exception as e:
+        print(f"[DB] reload skipped, keeping current data: {e}")
+        return
     users.clear()
     users.update(fresh_users)
-    reload_puvs()
-    citations_db[:]  = db_load_citations()
-    complaints_db[:] = db_load_complaints()
+    puv_database[:]  = fresh_puvs
+    citations_db[:]  = fresh_citations
+    complaints_db[:] = fresh_complaints
 
 # Endpoints that are called often and only need vehicle data
-_LIGHT_PATHS = ("/api/live", "/api/sensor", "/api/driver/status")
+_LIGHT_PATHS = ("/api/live", "/api/sensor", "/api/driver/status", "/api/health")
 
 @app.middleware("http")
 async def sync_with_database(request: Request, call_next):
@@ -1102,6 +1116,9 @@ async def passenger_login(request: Request):
     data     = await request.json()
     username = data.get("username", "").strip()
     password = data.get("password", "")
+    # Registration saves usernames in lowercase, so "Bradley" must find "bradley"
+    if username not in users and username.lower() in users:
+        username = username.lower()
     user     = users.get(username)
     if not user or user["password"] != password or user["role"] != "passenger":
         return JSONResponse({"error": "Invalid credentials."}, status_code=401)
@@ -1625,6 +1642,23 @@ async def live_feed(request: Request):
         {"version": _live_version(), "puvs": [puv_live_payload(p) for p in puv_database]},
         headers={"Cache-Control": "no-store"},
     )
+
+@app.get("/api/health")
+async def health():
+    """Quick check that the server and database are working.
+    "database": "postgres" is what you want on Vercel. "temporary" means no database is
+    connected, so accounts and data are lost on every deploy."""
+    ok = True
+    try:
+        db_load_users(strict=True)
+    except Exception:
+        ok = False
+    return JSONResponse({
+        "ok":        ok,
+        "database":  DB_KIND,
+        "persistent": DB_KIND != "temporary",
+        "vehicles":  len(puv_database),
+    }, headers={"Cache-Control": "no-store"})
 
 # --- WEBSOCKET (not available on Vercel; used when running locally or on a regular server) ---
 @app.websocket("/ws")
