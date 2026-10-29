@@ -101,6 +101,23 @@
     @keyframes flashUpdate { 0%{transform:scale(1.06);} 100%{transform:scale(1);} }
 
     @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+    /* PHONES / PORTRAIT: stack the panels and let the page scroll */
+    @media (max-width: 820px) {
+        .driver-wrap { height: 100vh; height: 100dvh; overflow-y: auto; }
+        .driver-topbar { flex-wrap: wrap; gap: 10px; padding: 12px 16px; }
+        .driver-topbar-left { gap: 10px; min-width: 0; }
+        .driver-logo { height: 28px; }
+        .driver-vehicle { font-size: 16px; }
+        .driver-clock { font-size: 18px; }
+        .driver-body { flex-direction: column; padding: 14px 16px 24px; flex: none; }
+        .passenger-panel { flex: none; padding: 52px 18px 22px; }
+        .passenger-count { font-size: 84px; }
+        .passenger-denom { font-size: 32px; }
+        .driver-right { flex: none; }
+        .map-card { flex: none; height: 300px; }
+        .sensor-controls { position: static; margin-top: 16px; }
+    }
 </style>
 
 {% if not puv %}
@@ -255,8 +272,9 @@
     </div>
 </div>
 
-<script id="driver-puv-data" type="application/json">{{ {"id": puv.id, "lat": puv.lat, "lng": puv.lng, "driver": puv.driver} | tojson }}</script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script id="driver-puv-data" type="application/json">{{ {"id": puv.id, "lat": puv.lat, "lng": puv.lng, "has_gps": puv.has_gps, "driver": puv.driver} | tojson }}</script>
+<script src="{{ url_for('static', path='vendor/leaflet/leaflet.js') }}"></script>
+<script src="{{ url_for('static', path='js/maxseat-map.js') }}"></script>
 <script>
     // Clock
     (function tick() {
@@ -266,9 +284,13 @@
 
     // Map
     const pd = JSON.parse(document.getElementById('driver-puv-data').textContent);
-    const map = L.map('driver-map', {zoomControl: false, attributionControl: false}).setView([pd.lat, pd.lng], 16);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
-    const marker = L.circleMarker([pd.lat, pd.lng], {radius: 14, fillColor: '#2563eb', color: '#fff', weight: 4, fillOpacity: 1}).addTo(map);
+    const driverColor = () => '#2563eb';
+    const map = MaxSeatMap.create('driver-map', {
+        zoomControl: false,
+        center: MaxSeatMap.position(pd),
+        zoom: MaxSeatMap.hasGps(pd) ? 16 : 13,
+    });
+    const marker = map ? L.circleMarker(MaxSeatMap.position(pd), MaxSeatMap.style(pd, driverColor, 14)).addTo(map) : null;
 
     // ── Live rendering (used by the WebSocket, the +/- override and the fallback poll) ──
     function renderPassengers(passengers, capacity) {
@@ -303,9 +325,10 @@
     function applyReading(d) {
         if (typeof d.passengers === 'number') renderPassengers(d.passengers, d.capacity);
         if (d.temp !== undefined && d.temp !== null) renderTemp(d.temp);
-        if (typeof d.lat === 'number' && typeof d.lng === 'number') {
-            marker.setLatLng([d.lat, d.lng]);
-            map.panTo([d.lat, d.lng], {animate: true});
+        if (map && marker && d.lat !== undefined && d.lng !== undefined) {
+            marker.setLatLng(MaxSeatMap.position(d));
+            marker.setStyle(MaxSeatMap.style(d, driverColor, 14));
+            if (MaxSeatMap.hasGps(d)) map.panTo(MaxSeatMap.position(d), {animate: true});
         }
         if (d.loc_name)    document.getElementById('loc-name').textContent = d.loc_name;
         if (d.last_update) document.getElementById('last-update').textContent = 'Updated ' + d.last_update;

@@ -193,12 +193,39 @@ def get_coop_puvs(username: str):
             result.append(p)
     return result
 
+CDO_CENTER = (8.4822, 124.6472)   # where a vehicle is shown until its GPS reports a position
+
+def _valid_coords(lat, lng):
+    """(lat, lng) as floats, or None for missing/garbage values and 0,0 (a GPS with no fix)."""
+    try:
+        lat, lng = float(lat), float(lng)
+    except (TypeError, ValueError):
+        return None
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+        return None
+    if abs(lat) < 0.001 and abs(lng) < 0.001:
+        return None
+    return lat, lng
+
+def _has_gps(p: dict) -> bool:
+    """True once the vehicle has a real GPS position (not just the CDO placeholder)."""
+    coords = _valid_coords(p.get('lat'), p.get('lng'))
+    if not coords:
+        return False
+    if p.get('gps_at'):
+        return True
+    # Older records have no gps_at: count them as tracked unless they still sit on the placeholder
+    return not (abs(coords[0] - CDO_CENTER[0]) < 1e-6 and abs(coords[1] - CDO_CENTER[1]) < 1e-6)
+
 def _normalize_puv(p: dict):
     """Guard against missing/null sensor values so templates never compare None with numbers."""
     p['passengers'] = p.get('passengers') or 0
     p['capacity']   = p.get('capacity') or 0
     p['temp']       = p.get('temp') or 0
     p.setdefault('status', 'Active')
+    coords = _valid_coords(p.get('lat'), p.get('lng'))
+    p['lat'], p['lng'] = coords if coords else CDO_CENTER   # maps never get null/text coordinates
+    p['has_gps'] = _has_gps(p)
 
 def compute_puv_stats():
     for p in puv_database:
@@ -250,8 +277,9 @@ def puv_live_payload(puv: dict) -> dict:
         "temp":           temp,
         "is_violator":    is_violator,
         "is_overheating": is_overheating,
-        "lat":            puv.get('lat', 8.4822),
-        "lng":            puv.get('lng', 124.6472),
+        "lat":            (_valid_coords(puv.get('lat'), puv.get('lng')) or CDO_CENTER)[0],
+        "lng":            (_valid_coords(puv.get('lat'), puv.get('lng')) or CDO_CENTER)[1],
+        "has_gps":        _has_gps(puv),
         "loc_name":       puv.get('loc_name', ''),
         "speed":          puv.get('speed', ''),
         "last_update":    puv.get('last_update', ''),
@@ -266,12 +294,6 @@ def _as_int(value, fallback):
 def _as_float(value, fallback):
     try:
         return round(float(value), 1)
-    except (TypeError, ValueError):
-        return fallback
-
-def _as_coord(value, fallback):
-    try:
-        return float(value)
     except (TypeError, ValueError):
         return fallback
 
@@ -516,6 +538,8 @@ async def dashboard(request: Request):
         # my_puv is None when the cooperative hasn't assigned this driver a vehicle yet;
         # the template shows a "no vehicle assigned" screen instead of crashing.
         my_puv = find_driver_puv(request.session.get('username'))
+        if my_puv:
+            _normalize_puv(my_puv)
         return TR(request, "driver/dashboard.html", {"puv": my_puv, "role": role})
     elif role == 'cooperative':
         username   = request.session.get('username')
@@ -1476,10 +1500,12 @@ def apply_sensor_update(payload: dict):
         puv['passengers'] = max(0, _as_int(payload["passengers"], puv.get('passengers', 0)))
     if "temp" in payload:
         puv['temp'] = _as_float(payload["temp"], puv.get('temp', 0))
-    if "lat" in payload:
-        puv['lat'] = _as_coord(payload["lat"], puv.get('lat', 8.4822))
-    if "lng" in payload:
-        puv['lng'] = _as_coord(payload["lng"], puv.get('lng', 124.6472))
+    # Only move the vehicle on a real fix. 0,0 or missing values (GPS still searching,
+    # e.g. indoors) keep the last good position instead of jumping into the ocean.
+    coords = _valid_coords(payload.get("lat"), payload.get("lng"))
+    if coords:
+        puv['lat'], puv['lng'] = coords
+        puv['gps_at'] = _stamp_now()
     if payload.get("loc_name"):
         puv['loc_name'] = str(payload["loc_name"])
     if payload.get("speed") is not None:

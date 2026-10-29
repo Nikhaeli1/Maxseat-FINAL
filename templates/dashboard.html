@@ -77,7 +77,8 @@
 </div>
 
 <script id="admin-puv-data" type="application/json">{{ puvs | tojson | safe if puvs else '[]' }}</script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', path='vendor/leaflet/leaflet.js') }}"></script>
+<script src="{{ url_for('static', path='js/maxseat-map.js') }}"></script>
 <script>
     const map = L.map('map', {zoomControl:false}).setView([8.486, 124.65], 13);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);

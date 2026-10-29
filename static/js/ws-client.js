@@ -208,22 +208,34 @@ const MaxSeatLive = (() => {
   let deferred    = false;   // a region was skipped (user typing / dialog open)
 
   // ── Map markers ──────────────────────────────────────────────────────────
-  function trackMarker(puv, marker, popupFn, colorFn) {
+  function trackMarker(puv, marker, popupFn, colorFn, onMove) {
     if (!puv || puv.id === undefined || !marker) return;
-    markers[puv.id] = { marker, data: Object.assign({}, puv), popupFn, colorFn };
+    markers[puv.id] = { marker, data: Object.assign({}, puv), popupFn, colorFn, onMove };
+  }
+
+  // Current data for every tracked vehicle (used by the maps' "show all" button)
+  function trackedPuvs() {
+    return Object.keys(markers).map((id) => markers[id].data);
   }
 
   function updateMarker(msg) {
     const entry = markers[msg.puv_id];
     if (!entry) return;
     const d = entry.data;
-    ['passengers', 'capacity', 'temp', 'lat', 'lng', 'loc_name', 'last_update',
+    ['passengers', 'capacity', 'temp', 'lat', 'lng', 'loc_name', 'last_update', 'has_gps',
      'is_violator', 'is_overheating', 'company', 'plate', 'driver'].forEach((k) => {
       if (msg[k] !== undefined && msg[k] !== null && msg[k] !== '') d[k] = msg[k];
     });
-    if (typeof d.lat === 'number' && typeof d.lng === 'number') entry.marker.setLatLng([d.lat, d.lng]);
-    if (entry.colorFn && entry.marker.setStyle) entry.marker.setStyle({ fillColor: entry.colorFn(d) });
+    if (window.MaxSeatMap) {
+      // Shared map helpers: ignore bad/no-fix coordinates, grey marker until GPS works
+      entry.marker.setLatLng(MaxSeatMap.position(d));
+      if (entry.marker.setStyle) entry.marker.setStyle(MaxSeatMap.style(d, entry.colorFn, entry.marker.options.radius));
+    } else {
+      if (typeof d.lat === 'number' && typeof d.lng === 'number') entry.marker.setLatLng([d.lat, d.lng]);
+      if (entry.colorFn && entry.marker.setStyle) entry.marker.setStyle({ fillColor: entry.colorFn(d) });
+    }
     if (entry.popupFn && entry.marker.setPopupContent) entry.marker.setPopupContent(entry.popupFn(d));
+    if (entry.onMove) { try { entry.onMove(d); } catch (e) { /* page hook */ } }
   }
 
   // Add markers for vehicles that are new, drop markers for vehicles that were removed
@@ -322,5 +334,5 @@ const MaxSeatLive = (() => {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
   else setTimeout(start, 0);
 
-  return { trackMarker, syncMarkers, refresh: scheduleRefresh };
+  return { trackMarker, syncMarkers, trackedPuvs, refresh: scheduleRefresh };
 })();
