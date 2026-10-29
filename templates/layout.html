@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MaxSeat Alert — {{ role|capitalize if role else 'System' }}</title>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script>window.MAXSEAT_LIVE_MODE = "{{ LIVE_MODE|default('ws') }}";</script>
+    <script>window.MAXSEAT_LIVE_MODE = "{{ LIVE_MODE|default('ws') }}"; window.MAXSEAT_CARTO_KEY = {{ (CARTO_KEY or '')|tojson }};</script>
     <script src="{{ url_for('static', path='js/ws-client.js') }}"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="{{ url_for('static', path='vendor/leaflet/leaflet.css') }}" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -131,6 +131,34 @@
         .empty-state h3 { font-size: 17px; color: var(--text-main); margin-bottom: 5px; }
         .flash-ok { display: flex; align-items: center; gap: 9px; padding: 13px 16px; border-radius: var(--radius-sm); margin-bottom: 18px; font-size: 14px; font-weight: 600; background: rgba(16,185,129,0.08); color: #059669; border: 1px solid rgba(16,185,129,0.18); }
         .divider { height: 1px; background: var(--border-color); margin: 18px 0; }
+
+        /* PHONES & SMALL TABLETS: sidebar becomes a slide-out menu, content uses the full width */
+        .nav-toggle { display: none; width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main); font-size: 17px; cursor: pointer; flex-shrink: 0; }
+        .nav-backdrop { display: none; }
+        @media (max-width: 900px) {
+            .nav-toggle { display: inline-flex; align-items: center; justify-content: center; margin-right: 6px; }
+            .sidebar { position: fixed; top: 0; left: 0; bottom: 0; z-index: 2000; transform: translateX(-100%); transition: transform 0.22s ease; box-shadow: 0 0 40px rgba(0,0,0,0.35); }
+            body.nav-open .sidebar { transform: none; }
+            body.nav-open .nav-backdrop { display: block; position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 1999; }
+            .top-nav { padding: 0 14px; }
+            .top-nav-clock { display: none !important; }
+            .main-content { padding: 20px 16px 28px; }
+            .page-title { font-size: 22px; }
+            .card { padding: 18px; }
+            /* Any grid on the page drops to as many columns as fit (one on a phone) */
+            .main-content [style*="grid-template-columns"],
+            .main-content .db-grid-main, .main-content .db-grid-2, .main-content .coop-main,
+            .main-content .fleet-grid, .main-content .violations-grid, .main-content .settings-grid,
+            .main-content .um-board, .main-content .av-grid-2, .main-content .av-grid-3, .main-content .av-grid-4 {
+                grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)) !important;
+            }
+            /* Small number tiles: two per row */
+            .main-content .db-grid-3, .main-content .coop-stat-grid, .main-content .um-stat-row,
+            .main-content .report-summary-grid, .main-content .cap-summary {
+                grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+            }
+            .main-content table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        }
     </style>
 </head>
 <body>
@@ -140,6 +168,7 @@
     </div>
 
     {% if role != 'driver' %}
+    <div class="nav-backdrop" onclick="document.body.classList.remove('nav-open')"></div>
     <aside class="sidebar">
         <img src="{{ url_for('static', path='logo.png') }}" class="sidebar-logo" alt="MaxSeat Alert">
 
@@ -231,10 +260,13 @@
         {% if role != 'driver' %}
         <header class="top-nav">
             <div class="top-nav-left">
+                <button type="button" class="nav-toggle" aria-label="Open menu" onclick="document.body.classList.toggle('nav-open')"><i class="fa-solid fa-bars"></i></button>
                 <span id="ws-status" data-state="connected"><span class="status-dot"></span><span class="ws-status-text">Live tracking on</span></span>
-                <span style="margin:0 10px;color:var(--border-color)">|</span>
-                <i class="fa-regular fa-clock" style="margin-right:4px;"></i>
-                <span id="live-clock"></span>
+                <span class="top-nav-clock" style="display:inline-flex;align-items:center;">
+                    <span style="margin:0 10px;color:var(--border-color)">|</span>
+                    <i class="fa-regular fa-clock" style="margin-right:4px;"></i>
+                    <span id="live-clock"></span>
+                </span>
             </div>
             <div style="font-size:13px;color:var(--text-muted);font-weight:600;display:flex;align-items:center;gap:8px;">
                 {% set _udata = users_data.get(request.session.get('username'), {}) %}

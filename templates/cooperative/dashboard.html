@@ -186,29 +186,30 @@
 </div>
 
 <script id="coop-puv-data" type="application/json" data-live="coop-puv-json">{{ puvs | tojson | safe if puvs else '[]' }}</script>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', path='vendor/leaflet/leaflet.js') }}"></script>
+<script src="{{ url_for('static', path='js/maxseat-map.js') }}"></script>
 <script>
 var puvData = JSON.parse(document.getElementById('coop-puv-data').textContent);
-if (puvData.length > 0) {
-  var avgLat = puvData.reduce(function(s,p){ return s+p.lat; }, 0) / puvData.length;
-  var avgLng = puvData.reduce(function(s,p){ return s+p.lng; }, 0) / puvData.length;
-  var map = L.map('coop-map', {zoomControl:true, attributionControl:false}).setView([avgLat, avgLng], 14);
-} else {
-  var map = L.map('coop-map', {zoomControl:true, attributionControl:false}).setView([8.4822, 124.6472], 13);
-}
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+var map = MaxSeatMap.create('coop-map', { fitAll: function () { return MaxSeatLive.trackedPuvs(); } });
 function coopColor(p) { return p.passengers > p.capacity ? '#ef4444' : (p.temp >= 37.5 ? '#f59e0b' : '#10b981'); }
-function coopPopup(p) { return '<strong>'+p.plate+'</strong><br>'+p.driver+'<br>'+p.passengers+'/'+p.capacity+' pax<br>'+p.temp+'°C'; }
+function coopPopup(p) { return '<strong>'+p.plate+'</strong><br>'+p.driver+'<br>'+p.passengers+'/'+p.capacity+' pax<br>'+p.temp+'°C'+MaxSeatMap.noGpsNote(p); }
 function addCoopMarker(p) {
-  var m = L.circleMarker([p.lat, p.lng], {radius:12, fillColor:coopColor(p), color:'#fff', weight:3, fillOpacity:1})
+  if (!map) return;
+  var m = L.circleMarker(MaxSeatMap.position(p), MaxSeatMap.style(p, coopColor, 12))
     .addTo(map)
     .bindPopup(coopPopup(p));
   MaxSeatLive.trackMarker(p, m, coopPopup, coopColor);
 }
 puvData.forEach(addCoopMarker);
+MaxSeatMap.fit(map, puvData);
+var coopIds = puvData.map(function (p) { return p.id; }).join(',');
 document.addEventListener('maxseat:live-updated', function () {
-  try { MaxSeatLive.syncMarkers(JSON.parse(document.getElementById('coop-puv-data').textContent), addCoopMarker); } catch (e) {}
+  try {
+    var fresh = JSON.parse(document.getElementById('coop-puv-data').textContent);
+    MaxSeatLive.syncMarkers(fresh, addCoopMarker);
+    var ids = fresh.map(function (p) { return p.id; }).join(',');
+    if (ids !== coopIds) { coopIds = ids; MaxSeatMap.fit(map, fresh); }
+  } catch (e) {}
 });
 </script>
 {% endblock %}

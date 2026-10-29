@@ -371,30 +371,37 @@
 </div>
 
 <script id="admin-puv-data" type="application/json" data-live="admin-puv-json">{{ puvs | tojson | safe if puvs else '[]' }}</script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', path='vendor/leaflet/leaflet.js') }}"></script>
+<script src="{{ url_for('static', path='js/maxseat-map.js') }}"></script>
 <script>
-  var map = L.map('map', {zoomControl:false}).setView([8.486, 124.65], 13);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
   var puvData = JSON.parse(document.getElementById('admin-puv-data').textContent);
+  var map = MaxSeatMap.create('map', { fitAll: function () { return MaxSeatLive.trackedPuvs(); } });
   function adminColor(p) { return (p.is_violator || p.is_overheating) ? '#ef4444' : '#10b981'; }
-  function adminPopup(p) { return '<div style="text-align:center;font-family:inherit;"><b>'+p.company+'</b><br>'+p.plate+'<br>'+p.passengers+'/'+p.capacity+' PAX · '+p.temp+'°C</div>'; }
+  function adminPopup(p) { return '<div style="text-align:center;font-family:inherit;"><b>'+p.company+'</b><br>'+p.plate+'<br>'+p.passengers+'/'+p.capacity+' PAX · '+p.temp+'°C'+MaxSeatMap.noGpsNote(p)+'</div>'; }
   function addAdminMarker(p) {
-    var m = L.circleMarker([p.lat, p.lng], {radius:10,fillColor:adminColor(p),color:'#fff',weight:3,fillOpacity:1})
+    if (!map) return;
+    var m = L.circleMarker(MaxSeatMap.position(p), MaxSeatMap.style(p, adminColor, 10))
       .addTo(map)
       .bindPopup(adminPopup(p));
     MaxSeatLive.trackMarker(p, m, adminPopup, adminColor);   // moves/recolors live
   }
   puvData.forEach(addAdminMarker);
+  MaxSeatMap.fit(map, puvData);                             // open where the vehicles are
   // After a live refresh: add markers for new vehicles, remove deleted ones, update the rest
+  var adminIds = puvData.map(function (p) { return p.id; }).join(',');
   document.addEventListener('maxseat:live-updated', function () {
     try {
-      MaxSeatLive.syncMarkers(JSON.parse(document.getElementById('admin-puv-data').textContent), addAdminMarker);
+      var fresh = JSON.parse(document.getElementById('admin-puv-data').textContent);
+      MaxSeatLive.syncMarkers(fresh, addAdminMarker);
+      var ids = fresh.map(function (p) { return p.id; }).join(',');
+      if (ids !== adminIds) { adminIds = ids; MaxSeatMap.fit(map, fresh); }   // vehicle added/removed
     } catch (e) { /* keep current markers */ }
   });
   // Delegated click so it keeps working after the feed refreshes itself
   document.addEventListener('click', function(e) {
     var item = e.target.closest('.feed-item');
-    if (item) map.flyTo([item.dataset.lat, item.dataset.lng], 16, {animate:true, duration:1});
+    var ll = item && MaxSeatMap.toLatLng(item.dataset.lat, item.dataset.lng);
+    if (ll && map) map.flyTo(ll, 16, {animate:true, duration:1});
   });
 </script>
 {% endblock %}
