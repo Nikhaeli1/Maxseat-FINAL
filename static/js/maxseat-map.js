@@ -3,7 +3,7 @@
  *
  * Every map page (admin, enforcer, cooperative, driver) uses these so they all behave the same:
  *   • Leaflet is served from /static/vendor (no CDN that can be blocked or slow).
- *   • Tiles come from OpenStreetMap (no API key); if they fail to load, it tries backup servers.
+ *   • Tiles come from CARTO when CARTO_API_KEY is set, else OpenStreetMap; if they fail, backups are tried.
  *   • The map re-measures itself when its box changes size (phones, rotating, sidebar),
  *     which is what caused grey/blank maps before.
  *   • Bad coordinates (null, text, 0,0 from a GPS with no fix) never break the map.
@@ -18,10 +18,16 @@ const MaxSeatMap = (() => {
   const CDO = [8.4822, 124.6472];          // Cagayan de Oro city center
   const DEFAULT_ZOOM = 13;
 
-  // Free map backgrounds that need no API key. (CARTO's free tiles now show an
-  // "API KEY REQUIRED" watermark, so they are no longer used.)
-  // If one server fails to load, the map switches to the next one.
-  const TILE_SOURCES = [
+  // Map backgrounds, tried in order; if one fails to load, the map switches to the next.
+  //   1. CARTO Voyager, only when the server has CARTO_API_KEY set (CARTO now requires a key;
+  //      without one it draws an "API KEY REQUIRED" watermark)
+  //   2-4. Free servers that need no key
+  const CARTO_KEY = (window.MAXSEAT_CARTO_KEY || '').trim();
+  const TILE_SOURCES = (CARTO_KEY ? [{
+      url: 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=' + encodeURIComponent(CARTO_KEY),
+      opts: { maxZoom: 20,
+              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>' },
+  }] : []).concat([
     {
       url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       opts: { maxZoom: 19,
@@ -36,7 +42,7 @@ const MaxSeatMap = (() => {
       url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
       opts: { maxZoom: 19, attribution: 'Tiles &copy; Esri' },
     },
-  ];
+  ]);
 
   // ── Coordinates ─────────────────────────────────────────────────────────
   function toLatLng(lat, lng) {

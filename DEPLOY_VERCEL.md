@@ -40,6 +40,7 @@ Running locally with `uvicorn main:app` still uses the old WebSocket mode. Nothi
 | `SESSION_SECRET` | any long random text (e.g. run `python -c "import secrets;print(secrets.token_hex(32))"`) | Yes |
 | `SENSOR_API_KEY` | another random text. The Pi must send the same value | Yes |
 | `RESEND_API_KEY` | your Resend key, for emailing new accounts | Optional |
+| `CARTO_API_KEY` | your CARTO Basemaps key (carto.com/basemaps/apikey), for the CARTO map style | Optional. Without it, maps use OpenStreetMap |
 
 Redeploy after adding or changing variables.
 

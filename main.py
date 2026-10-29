@@ -73,6 +73,9 @@ if ON_VERCEL:
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 templates.env.globals["LIVE_MODE"] = LIVE_MODE
+# CARTO map background key (https://carto.com/basemaps/apikey). Optional: without it the
+# maps use free OpenStreetMap tiles. It is sent to browsers, like any map tile key.
+templates.env.globals["CARTO_KEY"] = os.environ.get("CARTO_API_KEY", "").strip()
 
 # --- WEBSOCKET MANAGER ---
 class ConnectionManager:
