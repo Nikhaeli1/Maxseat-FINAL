@@ -992,6 +992,7 @@ async def mobile_dispatch(request: Request):
                 "loc_name":    p["loc_name"],
                 "lat":         p["lat"],
                 "lng":         p["lng"],
+                "has_gps":     p.get("has_gps", False),
                 "passengers":  p["passengers"],
                 "capacity":    p["capacity"],
                 "temp":        p.get("temp", 0),
@@ -1129,6 +1130,7 @@ async def passenger_list_puvs(request: Request):
     pax_user = get_passenger_user(request)
     if not pax_user:
         return JSONResponse({"error": "Unauthorized."}, status_code=401)
+    compute_puv_stats()            # fills in missing numbers and clean coordinates
     result = []
     for puv in puv_database:
         if puv.get("status", "Active") != "Active":
@@ -1149,6 +1151,9 @@ async def passenger_list_puvs(request: Request):
             "hot":         puv["temp"] >= 37.5,
             "loc_name":    puv.get("loc_name", "—"),
             "last_update": puv.get("last_update", "—"),
+            "lat":         puv["lat"],
+            "lng":         puv["lng"],
+            "has_gps":     puv["has_gps"],
         })
     return JSONResponse({"puvs": result})
 
@@ -1161,6 +1166,7 @@ async def passenger_puv_detail(plate: str, request: Request):
     puv = next((p for p in puv_database if p["plate"].upper() == plate_up), None)
     if not puv:
         return JSONResponse({"error": f"Vehicle '{plate_up}' not found."}, status_code=404)
+    _normalize_puv(puv)
     load_pct   = round((puv["passengers"] / puv["capacity"]) * 100) if puv["capacity"] else 0
     overloaded = puv["passengers"] > puv["capacity"]
     hot        = puv["temp"] >= 37.5
@@ -1178,8 +1184,9 @@ async def passenger_puv_detail(plate: str, request: Request):
         "temp":        puv["temp"],
         "hot":         hot,
         "speed":       puv.get("speed", "—"),
-        "lat":         puv.get("lat", 8.4822),
-        "lng":         puv.get("lng", 124.6472),
+        "lat":         puv["lat"],
+        "lng":         puv["lng"],
+        "has_gps":     puv["has_gps"],
         "loc_name":    puv.get("loc_name", "—"),
         "status":      puv.get("status", "Active"),
         "last_update": puv.get("last_update", "—"),
