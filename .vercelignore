@@ -1,0 +1,13 @@
+# Not needed on the server
+__pycache__/
+*.pyc
+*.db
+.env
+venv/
+env/
+.venv/
+tools/
+settings.json
+login.py
+Procfile
+static/IoT_WebSocket_Design_Sale_Complete.pdf
