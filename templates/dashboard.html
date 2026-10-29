@@ -81,7 +81,7 @@
 <script src="{{ url_for('static', path='js/maxseat-map.js') }}"></script>
 <script>
     const map = L.map('map', {zoomControl:false}).setView([8.486, 124.65], 13);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'}).addTo(map);
     const puvData = JSON.parse(document.getElementById('admin-puv-data').textContent);
     puvData.forEach(p => {
         const color = p.is_violator ? '#ef4444' : '#10b981';

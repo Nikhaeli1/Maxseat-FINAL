@@ -3,7 +3,7 @@
  *
  * Every map page (admin, enforcer, cooperative, driver) uses these so they all behave the same:
  *   • Leaflet is served from /static/vendor (no CDN that can be blocked or slow).
- *   • Tiles come from CARTO; if they fail to load, the map switches to OpenStreetMap tiles.
+ *   • Tiles come from OpenStreetMap (no API key); if they fail to load, it tries backup servers.
  *   • The map re-measures itself when its box changes size (phones, rotating, sidebar),
  *     which is what caused grey/blank maps before.
  *   • Bad coordinates (null, text, 0,0 from a GPS with no fix) never break the map.
@@ -18,16 +18,23 @@ const MaxSeatMap = (() => {
   const CDO = [8.4822, 124.6472];          // Cagayan de Oro city center
   const DEFAULT_ZOOM = 13;
 
+  // Free map backgrounds that need no API key. (CARTO's free tiles now show an
+  // "API KEY REQUIRED" watermark, so they are no longer used.)
+  // If one server fails to load, the map switches to the next one.
   const TILE_SOURCES = [
-    {
-      url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-      opts: { subdomains: 'abcd', maxZoom: 20,
-              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>' },
-    },
     {
       url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       opts: { maxZoom: 19,
               attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' },
+    },
+    {
+      url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+      opts: { subdomains: 'abc', maxZoom: 19,
+              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, tiles by HOT' },
+    },
+    {
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+      opts: { maxZoom: 19, attribution: 'Tiles &copy; Esri' },
     },
   ];
 
