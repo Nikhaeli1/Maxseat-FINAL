@@ -1196,6 +1196,68 @@ async def passenger_complaint(request: Request):
     })
 
 
+
+# --- PASSENGER: own reports, profile, password (used by the mobile app) ---
+@app.get("/api/passenger/my-complaints")
+async def passenger_my_complaints(request: Request):
+    pax_user = get_passenger_user(request)
+    if not pax_user:
+        return JSONResponse({"error": "Unauthorized."}, status_code=401)
+    mine = [c for c in complaints_db if c.get("reporter") == pax_user["username"]]
+    mine.sort(key=lambda c: c.get("timestamp", ""), reverse=True)   # newest first
+    return JSONResponse({"complaints": mine})
+
+@app.put("/api/passenger/profile")
+async def passenger_update_profile(request: Request):
+    auth     = request.headers.get("Authorization", "")
+    token    = auth[7:] if auth.startswith("Bearer ") else ""
+    pax_user = get_passenger_user(request)
+    if not pax_user:
+        return JSONResponse({"error": "Unauthorized."}, status_code=401)
+    username = pax_user["username"]
+    if username not in users:
+        return JSONResponse({"error": "Account not found."}, status_code=404)
+    data = await request.json()
+    for key in ("mobile", "full_name", "email"):
+        if key in data and isinstance(data[key], str):
+            value = data[key].strip()
+            if key == "full_name" and not value:
+                return JSONResponse({"error": "Full name can't be empty."}, status_code=400)
+            users[username][key] = value
+            if key in ("mobile", "full_name"):
+                pax_user[key] = value
+    db_save_user(username, users[username])
+    passenger_tokens[token] = pax_user        # keep the saved login in step with the new details
+    return JSONResponse({
+        "success":   True,
+        "username":  username,
+        "full_name": users[username].get("full_name", ""),
+        "mobile":    users[username].get("mobile", ""),
+        "email":     users[username].get("email", ""),
+    })
+
+@app.put("/api/passenger/change-password")
+async def passenger_change_password(request: Request):
+    pax_user = get_passenger_user(request)
+    if not pax_user:
+        return JSONResponse({"error": "Unauthorized."}, status_code=401)
+    username = pax_user["username"]
+    user     = users.get(username)
+    if not user:
+        return JSONResponse({"error": "Account not found."}, status_code=404)
+    data = await request.json()
+    current_pw = data.get("current_password", "")
+    new_pw     = data.get("new_password", "")
+    if user.get("password") != current_pw:
+        return JSONResponse({"error": "Current password is incorrect."}, status_code=400)
+    if len(new_pw) < 6:
+        return JSONResponse({"error": "Password must be at least 6 characters."}, status_code=400)
+    user["password"]             = new_pw
+    user["must_change_password"] = False
+    db_save_user(username, user)
+    log_audit(username, "PASSWORD_CHANGED (mobile)", request.client.host if request.client else "unknown", "green")
+    return JSONResponse({"success": True})
+
 # --- ID GENERATOR ---
 @app.get("/api/next_id")
 async def next_id(role: str, request: Request):
