@@ -3,9 +3,14 @@
  *
  * Loaded on every page by layout.html. Two parts:
  *
- * 1. MaxSeatWS  — one WebSocket to /ws with automatic reconnection.
+ * 1. MaxSeatWS  — the live feed. Two modes, picked by the server (window.MAXSEAT_LIVE_MODE):
+ *      "ws"   one WebSocket to /ws with automatic reconnection (local / regular servers)
+ *      "poll" asks /api/live every few seconds (Vercel, which has no WebSockets). Each
+ *             vehicle whose reading changed is passed to listeners in the same shape the
+ *             WebSocket sends, and {type: "data_changed"} is sent when vehicles are added/
+ *             removed or other fleet data changes, so pages work the same in both modes.
  *      MaxSeatWS.init(fn)       listen for messages (can be called by several scripts)
- *      MaxSeatWS.isConnected()  true while the socket is open
+ *      MaxSeatWS.isConnected()  true while the feed is working
  *
  * 2. MaxSeatLive — keeps pages current without a manual refresh.
  *      • Any element with  data-live="some-unique-key"  is re-rendered by the server
@@ -19,10 +24,13 @@
  *        reassigned, a capacity changes or a citation is issued; pages refresh on that too.
  *      • Regions containing a focused input/select/textarea are left alone until the
  *        user is done, so typing is never interrupted.
- *      • If the WebSocket is down, regions are refreshed by polling every 15 s instead.
+ *      • If the live feed is down, regions are refreshed by polling every 15 s instead.
  */
 
 const MaxSeatWS = (() => {
+  const MODE              = window.MAXSEAT_LIVE_MODE === 'poll' ? 'poll' : 'ws';
+  const POLL_URL          = '/api/live';
+  const POLL_MS           = 4000;   // how often open pages ask for new readings (poll mode)
   const WS_PROTOCOL       = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
   const WS_URL            = WS_PROTOCOL + window.location.host + '/ws';
   const RECONNECT_BASE_MS = 1000;   // first retry after 1 s
@@ -46,7 +54,66 @@ const MaxSeatWS = (() => {
     });
   }
 
+  function emit(data) {
+    listeners.forEach((fn) => {
+      try { fn(data); } catch (e) { console.warn('[MaxSeatWS] listener error:', e); }
+    });
+  }
+
+  // ── Poll mode ────────────────────────────────────────────────────────────
+  let pollTimer   = null;
+  let pollOk      = false;
+  let pollBusy    = false;
+  let lastVersion = null;
+  let lastPuvs    = {};      // puv_id -> JSON string of its last payload
+
+  async function pollOnce() {
+    if (pollBusy || manualClose) return;
+    pollBusy = true;
+    try {
+      const res = await fetch(POLL_URL, { cache: 'no-store', credentials: 'same-origin' });
+      if (res.status === 401) { pollOk = false; setStatus('disconnected'); return; }  // logged out
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (!pollOk) { pollOk = true; setStatus('connected'); }
+
+      const fresh = {};
+      (data.puvs || []).forEach((p) => { fresh[p.puv_id] = JSON.stringify(p); });
+
+      if (lastVersion !== null && data.version !== lastVersion) {
+        let anyPuvChanged = false;
+        (data.puvs || []).forEach((p) => {
+          if (lastPuvs[p.puv_id] !== fresh[p.puv_id]) { anyPuvChanged = true; emit(p); }
+        });
+        const before = Object.keys(lastPuvs).sort().join(',');
+        const after  = Object.keys(fresh).sort().join(',');
+        // Vehicles added/removed, or something not in the readings changed (e.g. a citation)
+        if (before !== after || !anyPuvChanged) emit({ type: 'data_changed', scope: 'poll' });
+      }
+      lastVersion = data.version;
+      lastPuvs    = fresh;
+    } catch (e) {
+      if (pollOk) { pollOk = false; setStatus('disconnected'); }
+    } finally {
+      pollBusy = false;
+    }
+  }
+
+  function startPolling() {
+    if (pollTimer) return;
+    setStatus('connecting');
+    pollOnce();
+    pollTimer = setInterval(() => { if (!document.hidden) pollOnce(); }, POLL_MS);
+  }
+
+  function stopPolling() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    pollOk = false;
+  }
+
+  // ── WebSocket mode ───────────────────────────────────────────────────────
   function connect() {
+    if (MODE === 'poll') { startPolling(); return; }
     if (socket && (socket.readyState === WebSocket.OPEN ||
                    socket.readyState === WebSocket.CONNECTING)) return;
 
@@ -67,9 +134,7 @@ const MaxSeatWS = (() => {
     socket.onmessage = (event) => {
       let data;
       try { data = JSON.parse(event.data); } catch (e) { return; }
-      listeners.forEach((fn) => {
-        try { fn(data); } catch (e) { console.warn('[MaxSeatWS] listener error:', e); }
-      });
+      emit(data);
     };
 
     socket.onclose = () => {
@@ -98,28 +163,35 @@ const MaxSeatWS = (() => {
 
   function disconnect() {
     manualClose = true;
+    stopPolling();
     if (retryTimeout) { clearTimeout(retryTimeout); retryTimeout = null; }
     if (socket)       { socket.close(); socket = null; }
     setStatus('disconnected');
   }
 
   function send(data) {
+    if (MODE === 'poll') return;   // nothing to send to in poll mode
     if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(data));
   }
 
   function isConnected() {
+    if (MODE === 'poll') return pollOk;
     return !!socket && socket.readyState === WebSocket.OPEN;
   }
 
   // Reconnect when the tab regains focus (mobile sleep / network switch)
   document.addEventListener('visibilitychange', () => {
+    if (MODE === 'poll') {
+      if (started && !document.hidden && !manualClose) pollOnce();   // catch up right away
+      return;
+    }
     if (started && !document.hidden && !manualClose && !isConnected()) {
       if (retryTimeout) { clearTimeout(retryTimeout); retryTimeout = null; }
       connect();
     }
   });
 
-  return { init, disconnect, send, isConnected };
+  return { init, disconnect, send, isConnected, mode: MODE };
 })();
 
 

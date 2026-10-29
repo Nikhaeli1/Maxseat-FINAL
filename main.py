@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Request, Form, WebSocket, WebSocketDisconnect, UploadFile, File
-from fastapi.staticfiles import StaticFiles
-import httpx, os, shutil, base64
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+import httpx, os, shutil, base64, time, hashlib
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -15,11 +14,25 @@ from database import (
     db_append_audit,    db_load_audit_logs,
     db_append_citation, db_load_citations,
     db_append_complaint, db_load_complaints,
+    db_save_avatar, db_load_avatar, db_delete_avatar,
+    TokenStore,
 )
 
-# In-memory mobile token stores
-mobile_tokens:    dict = {}   # enforcer Bearer tokens
-passenger_tokens: dict = {}   # passenger Bearer tokens
+BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
+ON_VERCEL = bool(os.environ.get("VERCEL"))
+
+# How browsers get live updates:
+#   "poll" — pages ask /api/live every few seconds (Vercel: no WebSockets there)
+#   "ws"   — pages keep a WebSocket open to /ws (local runs / servers that support it)
+LIVE_MODE = os.environ.get("LIVE_MODE") or ("poll" if ON_VERCEL else "ws")
+
+# Shared key the Pi sends in the X-Device-Key header when posting sensor readings.
+# If it isn't set, /api/sensor accepts readings from anyone (fine for local testing only).
+SENSOR_API_KEY = os.environ.get("SENSOR_API_KEY", "")
+
+# Mobile app login tokens — stored in the database so every server accepts them
+mobile_tokens    = TokenStore("enforcer")    # enforcer Bearer tokens
+passenger_tokens = TokenStore("passenger")   # passenger Bearer tokens
 
 # In-memory complaint store
 complaints_db: list = []
@@ -33,9 +46,9 @@ SEMAPHORE_SENDER   = "MaxSeat"                   # your registered sender name (
 GMAIL_ADDRESS      = "asok.marielle04@gmail.com"
 GMAIL_SENDER_NAME  = "MaxSeat Alert System"
 
-# ── Resend (HTTP email API — works on Railway) ──────────────────────────────
+# ── Resend (HTTP email API — works on Vercel) ──────────────────────────────
 # Sign up free at https://resend.com → API Keys → Create Key
-# Then set this as an environment variable on Railway: RESEND_API_KEY=re_xxxx
+# Then set this as an environment variable in Vercel: RESEND_API_KEY=re_xxxx
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 
 # ══════════════════════════════════════════════
@@ -43,11 +56,23 @@ RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 app = FastAPI(title="MaxSeat Alert System")
 
 # --- MIDDLEWARE ---
-app.add_middleware(SessionMiddleware, secret_key="maxseat_enterprise_premium_secure_key", max_age=604800)
+# Set SESSION_SECRET in the Vercel project settings. The fallback only keeps local runs working.
+SESSION_SECRET = os.environ.get("SESSION_SECRET", "maxseat_enterprise_premium_secure_key")
+if ON_VERCEL and "SESSION_SECRET" not in os.environ:
+    print("[CONFIG] WARNING: SESSION_SECRET is not set — using the built-in default key.")
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, max_age=604800,
+                   https_only=ON_VERCEL)
+
+# Vercel sits in front of the app as a proxy; trust its X-Forwarded-Proto so links
+# built with url_for() use https:// (avoids "mixed content" blocks in the browser).
+if ON_VERCEL:
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 # --- STATIC & TEMPLATES ---
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+templates.env.globals["LIVE_MODE"] = LIVE_MODE
 
 # --- WEBSOCKET MANAGER ---
 class ConnectionManager:
@@ -87,23 +112,49 @@ puv_database: list = []
 audit_logs: list   = []
 citations_db: list = []
 
-# --- STARTUP: init DB and load persisted data into memory ---
-@app.on_event("startup")
-async def startup_event():
+# --- DATABASE SYNC ---
+# On Vercel each request may run on a different, short-lived server, and servers don't share
+# memory. So the database is the source of truth: the lists above are refreshed from it at the
+# start of every request, and every change is written straight back with db_save_*/db_append_*.
+_ready = False
+
+def _ensure_ready():
+    """Create tables and seed the default admin once per server (replaces the old startup event,
+    which serverless platforms don't reliably run)."""
+    global _ready
+    if _ready:
+        return
     init_db()
-
-    loaded_users = db_load_users()
-    if loaded_users:
-        users.update(loaded_users)
-    else:
+    if not db_load_users():
         # First run — seed the default admin account
-        users["admin"] = _DEFAULT_ADMIN.copy()
-        db_save_user("admin", users["admin"])
+        db_save_user("admin", _DEFAULT_ADMIN.copy())
+    _ready = True
 
-    puv_database.extend(db_load_puvs())
-    audit_logs.extend(db_load_audit_logs())
-    citations_db.extend(db_load_citations())
-    complaints_db.extend(db_load_complaints())
+def reload_puvs():
+    puv_database[:] = db_load_puvs()
+
+def reload_from_db():
+    """Refresh the in-memory copies in place (other modules hold references to these objects)."""
+    fresh_users = db_load_users()
+    users.clear()
+    users.update(fresh_users)
+    reload_puvs()
+    citations_db[:]  = db_load_citations()
+    complaints_db[:] = db_load_complaints()
+
+# Endpoints that are called often and only need vehicle data
+_LIGHT_PATHS = ("/api/live", "/api/sensor", "/api/driver/status")
+
+@app.middleware("http")
+async def sync_with_database(request: Request, call_next):
+    path = request.url.path
+    if not path.startswith("/static") and path not in ("/favicon.ico", "/robots.txt"):
+        _ensure_ready()
+        if path in _LIGHT_PATHS:
+            reload_puvs()
+        else:
+            reload_from_db()
+    return await call_next(request)
 
 # --- HELPERS ---
 def is_logged_in(request: Request):
@@ -292,11 +343,11 @@ async def send_sms(mobile: str, message: str) -> dict:
         return {"success": False, "reason": str(e)}
 
 async def send_email(to_email: str, full_name: str, message: str) -> dict:
-    """Send email via Resend HTTP API (works on Railway — no SMTP ports needed)."""
+    """Send email via Resend HTTP API (works on Vercel — no SMTP ports needed)."""
     if not to_email:
         return {"success": False, "reason": "No email address provided."}
     if not RESEND_API_KEY:
-        return {"success": False, "reason": "RESEND_API_KEY not set. Add it in Railway environment variables."}
+        return {"success": False, "reason": "RESEND_API_KEY not set. Add it in the Vercel project environment variables."}
 
     html_body = message.replace("\n\n", "</p><p>").replace("\n", "<br>")
     html = f"""
@@ -668,6 +719,7 @@ async def update_capacity(request: Request):
 @app.get("/audit_logs", response_class=HTMLResponse)
 async def audit_logs_page(request: Request):
     if get_role(request) != 'admin': return RedirectResponse(url="/dashboard", status_code=302)
+    audit_logs[:] = db_load_audit_logs()
     return TR(request, "admin/audit_logs.html", {"role": "admin", "logs": audit_logs})
 
 @app.get("/records", response_class=HTMLResponse)
@@ -1205,14 +1257,14 @@ async def change_password_api(request: Request):
 
 
 # --- AVATAR UPLOAD ---
-AVATAR_DIR = "static/avatars"
-os.makedirs(AVATAR_DIR, exist_ok=True)
-
+# Pictures are stored in the database (Vercel's disk is read-only) and served by /avatar/<username>.
 @app.post("/api/upload_avatar")
 async def upload_avatar(request: Request, file: UploadFile = File(...)):
     if not is_logged_in(request):
         return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
     username = request.session.get('username')
+    if username not in users:
+        return JSONResponse({"success": False, "error": "User not found."}, status_code=404)
 
     # Validate file type
     allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
@@ -1224,35 +1276,32 @@ async def upload_avatar(request: Request, file: UploadFile = File(...)):
     if len(contents) > 2 * 1024 * 1024:
         return JSONResponse({"success": False, "error": "Image must be under 2MB."})
 
-    # Save with username as filename
-    ext      = file.filename.rsplit(".", 1)[-1].lower()
-    filename = f"{username}.{ext}"
-    filepath = os.path.join(AVATAR_DIR, filename)
+    db_save_avatar(username, file.content_type, contents)
 
-    # Remove old avatar if different extension
-    for old_ext in ["jpg", "jpeg", "png", "webp", "gif"]:
-        old_path = os.path.join(AVATAR_DIR, f"{username}.{old_ext}")
-        if os.path.exists(old_path) and old_path != filepath:
-            os.remove(old_path)
-
-    with open(filepath, "wb") as f_out:
-        f_out.write(contents)
-
-    avatar_url = f"/static/avatars/{filename}"
+    # ?v= changes on every upload so browsers don't keep showing the old picture
+    avatar_url = f"/avatar/{username}?v={int(time.time())}"
     users[username]['avatar'] = avatar_url
     db_save_user(username, users[username])
     log_audit(username, "AVATAR_UPDATED", request.client.host if request.client else "unknown", "blue")
     return JSONResponse({"success": True, "avatar_url": avatar_url})
+
+@app.get("/avatar/{username}")
+async def get_avatar(username: str):
+    found = db_load_avatar(username)
+    if not found:
+        return Response(status_code=404)
+    content_type, image = found
+    return Response(content=image, media_type=content_type,
+                    headers={"Cache-Control": "public, max-age=86400"})
 
 @app.post("/api/remove_avatar")
 async def remove_avatar(request: Request):
     if not is_logged_in(request):
         return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
     username = request.session.get('username')
-    for ext in ["jpg", "jpeg", "png", "webp", "gif"]:
-        path = os.path.join(AVATAR_DIR, f"{username}.{ext}")
-        if os.path.exists(path):
-            os.remove(path)
+    if username not in users:
+        return JSONResponse({"success": False, "error": "User not found."}, status_code=404)
+    db_delete_avatar(username)
     users[username].pop('avatar', None)
     db_save_user(username, users[username])
     return JSONResponse({"success": True})
@@ -1353,7 +1402,7 @@ async def coop_request_capacity(request: Request):
     return JSONResponse({"success": True, "plate": puv['plate'], "pending_capacity": puv['pending_capacity']})
 
 # --- SENSOR APIs ---
-PH_TZ = datetime.timezone(datetime.timedelta(hours=8))   # Philippine time (Railway runs in UTC)
+PH_TZ = datetime.timezone(datetime.timedelta(hours=8))   # Philippine time (Vercel runs in UTC)
 
 def _stamp_now() -> str:
     return datetime.datetime.now(PH_TZ).strftime("%I:%M:%S %p").lstrip("0")
@@ -1370,6 +1419,7 @@ async def update_sensor(request: Request):
         elif action == 'sub' and puv['passengers'] > 0:
             puv['passengers'] -= 1
         puv['last_update'] = _stamp_now()
+        db_save_puv(puv['id'], puv)
         payload = puv_live_payload(puv)
         await manager.broadcast(payload)
         return JSONResponse({"success": True, **payload})
@@ -1391,14 +1441,18 @@ async def toggle_name(request: Request):
     puv = find_driver_puv(request.session.get('username'))
     if puv:
         puv['show_name'] = not puv.get('show_name', True)
+        db_save_puv(puv['id'], puv)
         return JSONResponse({"success": True, "show_name": puv['show_name']})
     return JSONResponse({"error": "Vehicle not found"})
 
-# --- WEBSOCKET ---
-# Sensors (ESP32 / dummy_sensor.py) send:
-#   {"type": "sensor_update", "puv_id": 1, "passengers": 12, "temp": 33.5, "lat": 8.48, "lng": 124.64}
-# ("plate" may be sent instead of "puv_id"). Every browser page connected to /ws receives
-# the resulting update and refreshes its numbers without a page reload.
+# --- SENSOR READINGS ---
+# The Pi (or dummy_sensor.py) sends readings like:
+#   {"puv_id": 1, "passengers": 12, "temp": 33.5, "lat": 8.48, "lng": 124.64, "speed": "18 km/h"}
+# ("plate" may be sent instead of "puv_id").
+#   • On Vercel:  POST it to /api/sensor with header  X-Device-Key: <SENSOR_API_KEY>
+#   • Elsewhere:  POST to /api/sensor works too, or send it over the /ws WebSocket
+#                 with "type": "sensor_update".
+# Every reading is saved to the database, so pages on any server see it.
 def _find_puv_for_payload(payload: dict):
     puv_id = payload.get("puv_id")
     if puv_id is not None:
@@ -1411,6 +1465,70 @@ def _find_puv_for_payload(payload: dict):
         return next((p for p in puv_database if str(p.get('plate', '')).upper() == plate), None)
     return None
 
+def apply_sensor_update(payload: dict):
+    """Apply one reading to its vehicle and save it. Returns the vehicle, or None if unknown."""
+    puv = _find_puv_for_payload(payload)
+    if not puv:
+        return None
+    _normalize_puv(puv)
+    # Coerce values so a sensor sending "12" or null can't break page rendering later
+    if "passengers" in payload:
+        puv['passengers'] = max(0, _as_int(payload["passengers"], puv.get('passengers', 0)))
+    if "temp" in payload:
+        puv['temp'] = _as_float(payload["temp"], puv.get('temp', 0))
+    if "lat" in payload:
+        puv['lat'] = _as_coord(payload["lat"], puv.get('lat', 8.4822))
+    if "lng" in payload:
+        puv['lng'] = _as_coord(payload["lng"], puv.get('lng', 124.6472))
+    if payload.get("loc_name"):
+        puv['loc_name'] = str(payload["loc_name"])
+    if payload.get("speed") is not None:
+        puv['speed'] = str(payload["speed"])
+    puv['last_update']    = _stamp_now()
+    puv['is_violator']    = puv['passengers'] > puv['capacity']
+    puv['is_overheating'] = puv.get('temp', 0) >= 37.5
+    db_save_puv(puv['id'], puv)
+    return puv
+
+@app.post("/api/sensor")
+async def sensor_post(request: Request):
+    """HTTP endpoint for the Pi. Works on Vercel (which has no WebSockets)."""
+    if SENSOR_API_KEY and not secrets.compare_digest(request.headers.get("X-Device-Key", ""), SENSOR_API_KEY):
+        return JSONResponse({"success": False, "error": "Invalid device key"}, status_code=401)
+    try:
+        payload = await request.json()
+    except Exception:
+        return JSONResponse({"success": False, "error": "Body must be JSON"}, status_code=400)
+    if not isinstance(payload, dict):
+        return JSONResponse({"success": False, "error": "Body must be a JSON object"}, status_code=400)
+    puv = apply_sensor_update(payload)
+    if not puv:
+        return JSONResponse({"success": False, "error": "Unknown vehicle (check puv_id or plate)"}, status_code=404)
+    live = puv_live_payload(puv)
+    await manager.broadcast(live)            # reaches WebSocket pages when running outside Vercel
+    return JSONResponse({"success": True, **live})
+
+def _live_version() -> str:
+    """Changes whenever anything on the fleet changes (readings, vehicles added/removed,
+    capacity, driver, citations). Pages refresh their server-rendered parts when it changes."""
+    parts = [str(len(citations_db)), str(len(complaints_db))]
+    for p in sorted(puv_database, key=lambda x: x.get('id', 0)):
+        parts.append(json.dumps(p, sort_keys=True, default=str))
+    return hashlib.sha1("|".join(parts).encode()).hexdigest()[:16]
+
+@app.get("/api/live")
+async def live_feed(request: Request):
+    """Polled every few seconds by open pages when LIVE_MODE is "poll"."""
+    if not is_logged_in(request):
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    citations_db[:]  = db_load_citations()
+    complaints_db[:] = db_load_complaints()
+    return JSONResponse(
+        {"version": _live_version(), "puvs": [puv_live_payload(p) for p in puv_database]},
+        headers={"Cache-Control": "no-store"},
+    )
+
+# --- WEBSOCKET (not available on Vercel; used when running locally or on a regular server) ---
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
@@ -1423,26 +1541,11 @@ async def websocket_endpoint(websocket: WebSocket):
                 continue                      # ignore malformed frames instead of dropping the connection
             if not isinstance(payload, dict) or payload.get("type") != "sensor_update":
                 continue
-            puv = _find_puv_for_payload(payload)
-            if not puv:
-                continue
-            # Coerce values so a sensor sending "12" or null can't break page rendering later
-            if "passengers" in payload:
-                puv['passengers'] = max(0, _as_int(payload["passengers"], puv.get('passengers', 0)))
-            if "temp" in payload:
-                puv['temp'] = _as_float(payload["temp"], puv.get('temp', 0))
-            if "lat" in payload:
-                puv['lat'] = _as_coord(payload["lat"], puv.get('lat', 8.4822))
-            if "lng" in payload:
-                puv['lng'] = _as_coord(payload["lng"], puv.get('lng', 124.6472))
-            if payload.get("loc_name"):
-                puv['loc_name'] = str(payload["loc_name"])
-            if payload.get("speed") is not None:
-                puv['speed'] = str(payload["speed"])
-            puv['last_update']    = _stamp_now()
-            puv['is_violator']    = puv['passengers'] > puv['capacity']
-            puv['is_overheating'] = puv.get('temp', 0) >= 37.5
-            await manager.broadcast(puv_live_payload(puv))
+            _ensure_ready()
+            reload_puvs()
+            puv = apply_sensor_update(payload)
+            if puv:
+                await manager.broadcast(puv_live_payload(puv))
     except WebSocketDisconnect:
         pass
     except Exception as e:
@@ -1452,4 +1555,4 @@ async def websocket_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
