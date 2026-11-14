@@ -13,11 +13,11 @@
   /* ── Kanban board ── */
   .um-board { display:grid; grid-template-columns:repeat(4,1fr) 1.1fr; gap:14px; align-items:start; }
   .um-col { background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--radius-lg); overflow:hidden; }
-  .um-col[data-role="admin"]       { border-top:3px solid #2563eb; }
-  .um-col[data-role="enforcer"]    { border-top:3px solid #ef4444; }
-  .um-col[data-role="driver"]      { border-top:3px solid #f59e0b; }
-  .um-col[data-role="cooperative"] { border-top:3px solid #10b981; }
-  .um-col[data-role="passenger"]   { border-top:3px solid #8b5cf6; }
+  .um-col[data-role="admin"]       { border-top:3px solid var(--text-main); }
+  .um-col[data-role="enforcer"]    { border-top:3px solid var(--mango); }
+  .um-col[data-role="driver"]      { border-top:3px solid var(--mango-soft); }
+  .um-col[data-role="cooperative"] { border-top:3px solid var(--ok); }
+  .um-col[data-role="passenger"]   { border-top:3px solid var(--text-muted); }
   .um-col-head { padding:13px 14px; border-bottom:1px solid var(--border-color); display:flex; align-items:center; justify-content:space-between; background:var(--hover-bg); }
   .um-col-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; display:flex; align-items:center; gap:7px; }
   .um-col-count { background:var(--bg); border:1px solid var(--border-color); border-radius:20px; padding:2px 8px; font-size:11px; font-weight:700; color:var(--text-muted); }
@@ -26,7 +26,7 @@
   .um-col-body::-webkit-scrollbar-thumb { background:var(--border-color); border-radius:3px; }
 
   /* passenger column — read-only */
-  .um-col-readonly-notice { display:flex; align-items:center; gap:7px; font-size:11px; color:#8b5cf6; background:rgba(139,92,246,.07); border:1px solid rgba(139,92,246,.18); border-radius:var(--radius-sm); padding:8px 11px; margin-bottom:4px; font-weight:600; }
+  .um-col-readonly-notice { display:flex; align-items:center; gap:7px; font-size:11px; color:var(--text-main); background:color-mix(in srgb, var(--text-main) 7%, transparent); border:1px solid color-mix(in srgb, var(--text-main) 18%, transparent); border-radius:var(--radius-sm); padding:8px 11px; margin-bottom:4px; font-weight:600; }
 
   /* ── User card ── */
   .um-card { background:var(--bg); border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:11px 12px; transition:background .15s,border-color .15s,transform .15s; }
@@ -34,23 +34,23 @@
   .um-card-top { display:flex; align-items:center; gap:9px; margin-bottom:8px; }
   .um-avatar { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; flex-shrink:0; }
   .um-card-name { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .um-card-username { font-size:11px; color:var(--text-muted); font-family:monospace; }
+  .um-card-username { font-size:11px; color:var(--text-muted); font-family:inherit;font-variant-numeric:tabular-nums; }
   .um-card-meta { display:flex; flex-direction:column; gap:3px; }
   .um-card-meta span { font-size:11px; color:var(--text-muted); display:flex; align-items:center; gap:5px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
   .um-card-meta i { width:11px; flex-shrink:0; font-size:10px; }
   .um-card-foot { display:flex; align-items:center; justify-content:space-between; margin-top:8px; padding-top:8px; border-top:1px solid var(--border-color); }
-  .um-pw-ok     { font-size:10px; font-weight:700; display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:6px; color:#10b981; background:rgba(16,185,129,.1); border:1px solid rgba(16,185,129,.2); }
-  .um-pw-pending{ font-size:10px; font-weight:700; display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:6px; color:#f59e0b; background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.2); }
-  .um-self-reg  { font-size:10px; font-weight:700; display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:6px; color:#8b5cf6; background:rgba(139,92,246,.1); border:1px solid rgba(139,92,246,.2); }
-  .um-del-btn   { width:26px; height:26px; border-radius:7px; border:1px solid rgba(239,68,68,.2); background:rgba(239,68,68,.06); color:#ef4444; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; transition:background .15s; flex-shrink:0; }
-  .um-del-btn:hover { background:rgba(239,68,68,.2); }
+  .um-pw-ok     { font-size:10px; font-weight:700; display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:6px; color:var(--ok); background:color-mix(in srgb, var(--text-main) 10%, transparent); border:1px solid color-mix(in srgb, var(--text-main) 20%, transparent); }
+  .um-pw-pending{ font-size:10px; font-weight:700; display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:6px; color:var(--warn-ink); background:rgba(198,242,78,.1); border:1px solid rgba(198,242,78,.2); }
+  .um-self-reg  { font-size:10px; font-weight:700; display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:6px; color:var(--text-main); background:color-mix(in srgb, var(--text-main) 10%, transparent); border:1px solid color-mix(in srgb, var(--text-main) 20%, transparent); }
+  .um-del-btn   { width:26px; height:26px; border-radius:7px; border:1px solid rgba(198,242,78,.2); background:rgba(198,242,78,.06); color:var(--danger-ink); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; transition:background .15s; flex-shrink:0; }
+  .um-del-btn:hover { background:rgba(198,242,78,.2); }
   .um-card-actions { display:flex; gap:6px; }
-  .um-view-btn  { height:26px; padding:0 9px; border-radius:7px; border:1px solid rgba(37,99,235,.25); background:rgba(37,99,235,.06); color:#2563eb; display:flex; align-items:center; gap:5px; cursor:pointer; font-size:11px; font-weight:700; font-family:inherit; transition:background .15s; flex-shrink:0; }
-  .um-view-btn:hover { background:rgba(37,99,235,.16); }
+  .um-view-btn  { height:26px; padding:0 9px; border-radius:7px; border:1px solid color-mix(in srgb, var(--text-main) 25%, transparent); background:color-mix(in srgb, var(--text-main) 6%, transparent); color:var(--accent-ink); display:flex; align-items:center; gap:5px; cursor:pointer; font-size:11px; font-weight:700; font-family:inherit; transition:background .15s; flex-shrink:0; }
+  .um-view-btn:hover { background:color-mix(in srgb, var(--text-main) 16%, transparent); }
   /* account details dialog */
   .umd { text-align:left; font-size:13.5px; }
   .umd-head { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
-  .umd-avatar { width:44px; height:44px; border-radius:50%; background:var(--primary-glow); color:var(--primary); display:flex; align-items:center; justify-content:center; font-weight:800; flex-shrink:0; }
+  .umd-avatar { width:44px; height:44px; border-radius:50%; background:var(--primary-glow); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; font-weight:800; flex-shrink:0; }
   .umd-name { font-size:17px; font-weight:800; }
   .umd-role { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; color:var(--text-muted); }
   .umd-box { background:var(--hover-bg); border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:4px 14px; margin-bottom:12px; }
@@ -58,65 +58,65 @@
   .umd-row:last-child { border-bottom:none; }
   .umd-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); flex-shrink:0; }
   .umd-value { font-weight:600; text-align:right; word-break:break-word; display:inline-flex; align-items:center; justify-content:flex-end; gap:2px; }
-  .umd-code { font-family:monospace; font-size:14px; background:var(--card-bg); border:1px solid var(--border-color); padding:3px 8px; border-radius:6px; }
+  .umd-code { font-family:inherit;font-variant-numeric:tabular-nums; font-size:14px; background:var(--card-bg); border:1px solid var(--border-color); padding:3px 8px; border-radius:6px; }
   .umd-icon-btn { border:1px solid var(--border-color); background:var(--card-bg); color:var(--text-muted); width:28px; height:28px; border-radius:7px; cursor:pointer; margin-left:4px; }
-  .umd-icon-btn:hover { color:var(--primary); border-color:var(--primary); }
+  .umd-icon-btn:hover { color:var(--accent-ink); border-color:var(--primary); }
   .um-empty { text-align:center; padding:20px 8px; color:var(--text-muted); font-size:12px; }
   .um-empty i { display:block; font-size:22px; margin-bottom:6px; opacity:.25; }
   .um-add-btn { width:100%; padding:8px; border-radius:var(--radius-sm); border:1.5px dashed var(--border-color); background:transparent; color:var(--text-muted); font-size:12px; font-weight:700; font-family:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px; transition:border-color .15s,color .15s,background .15s; margin-top:2px; }
-  .um-add-btn:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-glow); }
+  .um-add-btn:hover { border-color:var(--primary); color:var(--accent-ink); background:var(--primary-glow); }
 
   /* ── Create page ── */
   .cu-page { display:none; }
   .cu-page.show { display:block; }
   .board-view.hide { display:none; }
   .cu-back { display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:700; color:var(--text-muted); cursor:pointer; background:none; border:none; font-family:inherit; padding:0; margin-bottom:20px; transition:color .15s; }
-  .cu-back:hover { color:var(--primary); }
+  .cu-back:hover { color:var(--accent-ink); }
 
   /* role cards */
   .cu-role-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:28px; }
   .cu-role-card { border:1.5px solid var(--border-color); border-radius:var(--radius); padding:20px 14px; cursor:pointer; text-align:center; transition:all .18s; background:var(--card-bg); }
   .cu-role-card:hover { border-color:var(--primary); background:var(--primary-glow); transform:translateY(-2px); box-shadow:var(--shadow-sm); }
   .cu-role-card.sel { transform:translateY(-2px); box-shadow:var(--shadow-md); }
-  .cu-role-card[data-r="admin"].sel       { border-color:#2563eb; background:rgba(37,99,235,.07);  box-shadow:0 4px 14px rgba(37,99,235,.15); }
-  .cu-role-card[data-r="enforcer"].sel    { border-color:#ef4444; background:rgba(239,68,68,.07);  box-shadow:0 4px 14px rgba(239,68,68,.15); }
-  .cu-role-card[data-r="driver"].sel      { border-color:#f59e0b; background:rgba(245,158,11,.07); box-shadow:0 4px 14px rgba(245,158,11,.15); }
-  .cu-role-card[data-r="cooperative"].sel { border-color:#10b981; background:rgba(16,185,129,.07); box-shadow:0 4px 14px rgba(16,185,129,.15); }
+  .cu-role-card[data-r="admin"].sel       { border-color:var(--text-main); background:color-mix(in srgb, var(--text-main) 7%, transparent);  box-shadow:0 4px 14px color-mix(in srgb, var(--text-main) 15%, transparent); }
+  .cu-role-card[data-r="enforcer"].sel    { border-color:var(--mango); background:rgba(198,242,78,.07);  box-shadow:0 4px 14px rgba(198,242,78,.15); }
+  .cu-role-card[data-r="driver"].sel      { border-color:var(--mango-soft); background:rgba(198,242,78,.07); box-shadow:0 4px 14px rgba(198,242,78,.15); }
+  .cu-role-card[data-r="cooperative"].sel { border-color:var(--ok); background:color-mix(in srgb, var(--text-main) 7%, transparent); box-shadow:0 4px 14px color-mix(in srgb, var(--text-main) 15%, transparent); }
   .cu-role-icon { font-size:28px; margin-bottom:10px; color:var(--text-muted); }
   .cu-role-card.sel .cu-role-icon { color:inherit; }
-  .cu-role-card[data-r="admin"].sel       .cu-role-icon { color:#2563eb; }
-  .cu-role-card[data-r="enforcer"].sel    .cu-role-icon { color:#ef4444; }
-  .cu-role-card[data-r="driver"].sel      .cu-role-icon { color:#f59e0b; }
-  .cu-role-card[data-r="cooperative"].sel .cu-role-icon { color:#10b981; }
+  .cu-role-card[data-r="admin"].sel       .cu-role-icon { color:var(--accent-ink); }
+  .cu-role-card[data-r="enforcer"].sel    .cu-role-icon { color:var(--danger-ink); }
+  .cu-role-card[data-r="driver"].sel      .cu-role-icon { color:var(--warn-ink); }
+  .cu-role-card[data-r="cooperative"].sel .cu-role-icon { color:var(--ok); }
   .cu-role-name { font-size:13px; font-weight:700; margin-bottom:3px; }
   .cu-role-desc { font-size:11px; color:var(--text-muted); }
 
   .cu-hint { display:none; align-items:flex-start; gap:11px; padding:13px 16px; border-radius:var(--radius-sm); margin-bottom:24px; font-size:13.5px; line-height:1.55; border:1px solid; }
   .cu-hint.show { display:flex; }
   .cu-hint i { flex-shrink:0; margin-top:2px; font-size:15px; }
-  .cu-hint-admin       { background:rgba(37,99,235,.06);  border-color:rgba(37,99,235,.2);  color:#1d4ed8; }
-  .cu-hint-enforcer    { background:rgba(239,68,68,.06);  border-color:rgba(239,68,68,.2);  color:#b91c1c; }
-  .cu-hint-driver      { background:rgba(245,158,11,.06); border-color:rgba(245,158,11,.2); color:#b45309; }
-  .cu-hint-cooperative { background:rgba(16,185,129,.06); border-color:rgba(16,185,129,.2); color:#047857; }
+  .cu-hint-admin       { background:color-mix(in srgb, var(--text-main) 6%, transparent);  border-color:color-mix(in srgb, var(--text-main) 20%, transparent);  color:var(--accent-ink); }
+  .cu-hint-enforcer    { background:rgba(198,242,78,.06);  border-color:rgba(198,242,78,.2);  color:var(--danger-ink); }
+  .cu-hint-driver      { background:rgba(198,242,78,.06); border-color:rgba(198,242,78,.2); color:var(--warn-ink); }
+  .cu-hint-cooperative { background:color-mix(in srgb, var(--text-main) 6%, transparent); border-color:color-mix(in srgb, var(--text-main) 20%, transparent); color:var(--ok); }
 
   .cu-form-card { background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:28px 32px; margin-bottom:22px; display:none; }
   .cu-form-card.show { display:block; }
   .cu-section-title { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); margin-bottom:16px; display:flex; align-items:center; gap:8px; }
   .cu-section-title::after { content:''; flex:1; height:1px; background:var(--border-color); }
-  .cu-step-num { font-size:11px; width:18px; height:18px; background:var(--primary); color:#fff; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .cu-step-num { font-size:11px; width:18px; height:18px; background:var(--primary); color:var(--on-primary); border-radius:50%; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
   .cu-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
   .cu-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
   .cu-full   { grid-column:1/-1; }
   .cu-role-fields { display:none; }
   .cu-role-fields.show { display:contents; }
-  .cu-error { display:none; align-items:center; gap:9px; padding:13px 16px; border-radius:var(--radius-sm); margin-bottom:18px; font-size:14px; font-weight:600; background:rgba(239,68,68,.08); color:#dc2626; border:1px solid rgba(239,68,68,.2); }
+  .cu-error { display:none; align-items:center; gap:9px; padding:13px 16px; border-radius:var(--radius-sm); margin-bottom:18px; font-size:14px; font-weight:600; background:rgba(198,242,78,.08); color:var(--danger-ink); border:1px solid rgba(198,242,78,.2); }
   .cu-error.show { display:flex; }
   .cu-actions { display:flex; gap:12px; align-items:center; }
 
   /* auto-generated field styling */
   .cu-auto-field { position:relative; }
-  .cu-auto-field .form-control { background:var(--hover-bg); font-family:monospace; font-weight:700; color:var(--primary); padding-right:90px; }
-  .cu-auto-tag { position:absolute; right:10px; top:50%; transform:translateY(-50%); font-size:10px; font-weight:700; color:var(--primary); background:var(--primary-glow); border:1px solid rgba(37,99,235,.2); border-radius:6px; padding:2px 8px; pointer-events:none; }
+  .cu-auto-field .form-control { background:var(--hover-bg); font-family:inherit;font-variant-numeric:tabular-nums; font-weight:700; color:var(--accent-ink); padding-right:90px; }
+  .cu-auto-tag { position:absolute; right:10px; top:50%; transform:translateY(-50%); font-size:10px; font-weight:700; color:var(--accent-ink); background:var(--primary-glow); border:1px solid color-mix(in srgb, var(--text-main) 20%, transparent); border-radius:6px; padding:2px 8px; pointer-events:none; }
 
   /* search */
   .um-search { padding:10px 15px; border-radius:var(--radius-sm); border:1.5px solid var(--border-color); background:var(--card-bg); color:var(--text-main); font-family:inherit; font-size:13px; width:230px; transition:border-color .2s,box-shadow .2s; }
@@ -151,28 +151,28 @@
 
   <div class="um-stat-row">
     <div class="um-stat">
-      <div class="um-stat-icon" style="background:rgba(37,99,235,.1);color:#2563eb;"><i class="fa-solid fa-users"></i></div>
+      <div class="um-stat-icon" style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--accent-ink);"><i class="fa-solid fa-users"></i></div>
       <div><div class="um-stat-label">Total users</div><div class="um-stat-value">{{ total }}</div></div>
     </div>
     <div class="um-stat">
-      <div class="um-stat-icon" style="background:rgba(16,185,129,.1);color:#10b981;"><i class="fa-solid fa-circle-check"></i></div>
-      <div><div class="um-stat-label">Active</div><div class="um-stat-value" style="color:#10b981;">{{ active }}</div></div>
+      <div class="um-stat-icon" style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--ok);"><i class="fa-solid fa-circle-check"></i></div>
+      <div><div class="um-stat-label">Active</div><div class="um-stat-value" style="color:var(--ok);">{{ active }}</div></div>
     </div>
     <div class="um-stat">
-      <div class="um-stat-icon" style="background:rgba(245,158,11,.1);color:#f59e0b;"><i class="fa-solid fa-key"></i></div>
-      <div><div class="um-stat-label">Password reset pending</div><div class="um-stat-value" style="color:#f59e0b;">{{ pending }}</div></div>
+      <div class="um-stat-icon" style="background:rgba(198,242,78,.1);color:var(--warn-ink);"><i class="fa-solid fa-key"></i></div>
+      <div><div class="um-stat-label">Password reset pending</div><div class="um-stat-value" style="color:var(--warn-ink);">{{ pending }}</div></div>
     </div>
     <div class="um-stat">
-      <div class="um-stat-icon" style="background:rgba(139,92,246,.1);color:#8b5cf6;"><i class="fa-solid fa-mobile-screen"></i></div>
-      <div><div class="um-stat-label">Registered passengers</div><div class="um-stat-value" style="color:#8b5cf6;">{{ pax_count }}</div></div>
+      <div class="um-stat-icon" style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--text-main);"><i class="fa-solid fa-mobile-screen"></i></div>
+      <div><div class="um-stat-label">Registered passengers</div><div class="um-stat-value" style="color:var(--text-main);">{{ pax_count }}</div></div>
     </div>
   </div>
 
   {% set managed_cols = [
-    ('admin',       'fa-shield',         '#2563eb', 'System admins',   'Full access'),
-    ('enforcer',    'fa-shield-halved',  '#ef4444', 'Field enforcers', 'Intercepts &amp; citations'),
-    ('driver',      'fa-steering-wheel', '#f59e0b', 'Drivers',         'Vehicle &amp; sensor'),
-    ('cooperative', 'fa-building',       '#10b981', 'Cooperatives',    'Fleet management'),
+    ('admin',       'fa-shield',         'var(--text-main)', 'System admins',   'Full access'),
+    ('enforcer',    'fa-shield-halved',  'var(--text-main)', 'Field enforcers', 'Intercepts &amp; citations'),
+    ('driver',      'fa-steering-wheel', 'var(--text-main)', 'Drivers',         'Vehicle &amp; sensor'),
+    ('cooperative', 'fa-building',       'var(--text-main)', 'Cooperatives',    'Fleet management'),
   ] %}
 
   <div class="um-board" id="um-board">
@@ -190,7 +190,7 @@
         <div class="um-card" data-username="{{ uname }}" data-role="{{ rkey }}"
              data-search="{{ (udata.get('full_name','') ~ ' ' ~ uname) | lower }}">
           <div class="um-card-top">
-            <div class="um-avatar" style="background:{{ color }}22;color:{{ color }};">{{ initials }}</div>
+            <div class="um-avatar" style="background:var(--hover-bg);color:var(--text-main);border:1px solid var(--border-color);">{{ initials }}</div>
             <div style="min-width:0;flex:1;">
               <div class="um-card-name">{{ udata.get('full_name','—') }}</div>
               <div class="um-card-username">{{ uname }}</div>
@@ -234,7 +234,7 @@
     {% set pax_users = users_db.items() | selectattr('1.role','equalto','passenger') | list %}
     <div class="um-col" data-role="passenger" id="col-passenger">
       <div class="um-col-head">
-        <div class="um-col-title" style="color:#8b5cf6;"><i class="fa-solid fa-users" style="font-size:12px;"></i> Passengers</div>
+        <div class="um-col-title" style="color:var(--text-main);"><i class="fa-solid fa-users" style="font-size:12px;"></i> Passengers</div>
         <span class="um-col-count" id="cnt-passenger">{{ pax_users | length }}</span>
       </div>
       <div class="um-col-body" id="body-passenger">
@@ -247,7 +247,7 @@
         <div class="um-card" data-username="{{ uname }}" data-role="passenger"
              data-search="{{ (udata.get('full_name','') ~ ' ' ~ uname) | lower }}">
           <div class="um-card-top">
-            <div class="um-avatar" style="background:rgba(139,92,246,.15);color:#8b5cf6;">{{ initials }}</div>
+            <div class="um-avatar" style="background:color-mix(in srgb, var(--text-main) 15%, transparent);color:var(--text-main);">{{ initials }}</div>
             <div style="min-width:0;flex:1;">
               <div class="um-card-name">{{ udata.get('full_name','—') }}</div>
               <div class="um-card-username">{{ uname }}</div>
@@ -335,7 +335,7 @@
     <!-- Auto-generated ID + Full name -->
     <div class="cu-grid-2" style="margin-bottom:16px;">
       <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label">ID number <span style="color:var(--primary);font-size:10px;font-weight:700;margin-left:4px;">AUTO-GENERATED</span></label>
+        <label class="form-label">ID number <span style="color:var(--accent-ink);font-size:10px;font-weight:700;margin-left:4px;">AUTO-GENERATED</span></label>
         <div class="cu-auto-field">
           <input id="f-username" type="text" class="form-control" readonly tabindex="-1">
           <span class="cu-auto-tag"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:3px;"></i>Auto</span>
@@ -442,7 +442,7 @@
     <div class="cu-section-title"><span class="cu-step-num">3</span> Initial password</div>
     <div class="cu-grid-2" style="margin-bottom:10px;">
       <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label">Password <span style="color:var(--primary);font-size:10px;font-weight:700;margin-left:4px;">AUTO-GENERATED</span></label>
+        <label class="form-label">Password <span style="color:var(--accent-ink);font-size:10px;font-weight:700;margin-left:4px;">AUTO-GENERATED</span></label>
         <div class="cu-auto-field">
           <input id="f-password-preview" type="text" class="form-control" readonly tabindex="-1" placeholder="Choose a role first…">
           <span class="cu-auto-tag"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:3px;"></i>Auto</span>
@@ -450,7 +450,7 @@
       </div>
       <div style="display:flex;align-items:flex-end;padding-bottom:2px;">
         <div style="font-size:12.5px;color:var(--text-muted);line-height:1.6;">
-          <i class="fa-solid fa-circle-info" style="color:var(--primary);margin-right:5px;"></i>
+          <i class="fa-solid fa-circle-info" style="color:var(--accent-ink);margin-right:5px;"></i>
           Format: <code style="background:var(--hover-bg);padding:1px 6px;border-radius:5px;font-size:12px;">username@idnumber</code><br>
           The user will be asked to change this on first login.
         </div>
@@ -603,29 +603,29 @@ async function cuSubmit() {
     var smsErr   = notifs.sms   && notifs.sms.reason   ? notifs.sms.reason   : null;
     var sentLine = '';
     if (smsOk && emailOk) {
-      sentLine = '<br><span style="color:#10b981;font-size:12px;"><i class="fa-solid fa-check-circle"></i> Credentials sent via SMS &amp; email.</span>';
+      sentLine = '<br><span style="color:var(--ok);font-size:12px;"><i class="fa-solid fa-check-circle"></i> Credentials sent via SMS &amp; email.</span>';
     } else if (smsOk) {
-      sentLine = '<br><span style="color:#10b981;font-size:12px;"><i class="fa-solid fa-check-circle"></i> Credentials sent via SMS.</span>';
-      if (emailErr) sentLine += '<br><span style="color:#ef4444;font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> Email failed: ' + emailErr + '</span>';
+      sentLine = '<br><span style="color:var(--ok);font-size:12px;"><i class="fa-solid fa-check-circle"></i> Credentials sent via SMS.</span>';
+      if (emailErr) sentLine += '<br><span style="color:var(--danger-ink);font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> Email failed: ' + emailErr + '</span>';
     } else if (emailOk) {
-      sentLine = '<br><span style="color:#10b981;font-size:12px;"><i class="fa-solid fa-check-circle"></i> Credentials sent via email.</span>';
-      if (smsErr) sentLine += '<br><span style="color:#ef4444;font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> SMS failed: ' + smsErr + '</span>';
+      sentLine = '<br><span style="color:var(--ok);font-size:12px;"><i class="fa-solid fa-check-circle"></i> Credentials sent via email.</span>';
+      if (smsErr) sentLine += '<br><span style="color:var(--danger-ink);font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> SMS failed: ' + smsErr + '</span>';
     } else {
       sentLine = '<br>';
-      if (emailErr) sentLine += '<span style="color:#ef4444;font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> Email failed: ' + emailErr + '</span><br>';
-      if (smsErr)   sentLine += '<span style="color:#ef4444;font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> SMS failed: ' + smsErr + '</span><br>';
-      if (!emailErr && !smsErr) sentLine += '<span style="color:#f59e0b;font-size:12px;"><i class="fa-solid fa-exclamation-circle"></i> No email or mobile provided — share credentials manually.</span>';
+      if (emailErr) sentLine += '<span style="color:var(--danger-ink);font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> Email failed: ' + emailErr + '</span><br>';
+      if (smsErr)   sentLine += '<span style="color:var(--danger-ink);font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> SMS failed: ' + smsErr + '</span><br>';
+      if (!emailErr && !smsErr) sentLine += '<span style="color:var(--warn-ink);font-size:12px;"><i class="fa-solid fa-exclamation-circle"></i> No email or mobile provided — share credentials manually.</span>';
     }
 
     await Swal.fire({
       title: 'Account created',
       html:  '<div style="text-align:left;font-size:14px;line-height:1.9;">'
-           + '<b>ID / Username:</b> <code style="background:#f1f5f9;padding:2px 7px;border-radius:5px;">' + _cuId + '</code><br>'
-           + '<b>Initial password:</b> <code style="background:#f1f5f9;padding:2px 7px;border-radius:5px;">' + password + '</code>'
+           + '<b>ID / Username:</b> <code style="background:#EEF5F1;padding:2px 7px;border-radius:5px;">' + _cuId + '</code><br>'
+           + '<b>Initial password:</b> <code style="background:#EEF5F1;padding:2px 7px;border-radius:5px;">' + password + '</code>'
            + sentLine + '<br><br>'
-           + '<span style="color:#64748b;font-size:12px;">The user will be asked to change their password on first login.</span>'
+           + '<span style="color:#5E6F67;font-size:12px;">The user will be asked to change their password on first login.</span>'
            + '</div>',
-      icon: 'success', confirmButtonColor:'#2563eb',
+      icon:'success', confirmButtonColor:'#2F6F5A',
       background:'var(--card-bg)', color:'var(--text-main)'
     });
     location.reload();
@@ -639,7 +639,7 @@ async function umDelete(username) {
   var result = await Swal.fire({
     title:'Remove '+username+'?', text:'This action cannot be undone.',
     icon:'warning', showCancelButton:true,
-    confirmButtonColor:'#ef4444', cancelButtonColor:'#64748b',
+    confirmButtonColor:'#2F6F5A', cancelButtonColor:'#5E6F67',
     confirmButtonText:'<i class="fa-solid fa-trash"></i> Yes, remove',
     cancelButtonText:'Cancel',
     background:'var(--card-bg)', color:'var(--text-main)'
@@ -734,9 +734,9 @@ async function umView(username) {
 
   var canReset = d.username !== UM_ME;
   var r = await Swal.fire({
-    title: 'Account details', html: html, width: 520,
-    showConfirmButton: true, confirmButtonText: 'Close', confirmButtonColor: '#64748b',
-    showDenyButton: canReset, denyButtonText: '<i class="fa-solid fa-rotate"></i> Reset password', denyButtonColor: '#ef4444',
+    title:'Account details', html: html, width: 520,
+    showConfirmButton: true, confirmButtonText: 'Close', confirmButtonColor: '#2F6F5A',
+    showDenyButton: canReset, denyButtonText: '<i class="fa-solid fa-rotate"></i> Reset password', denyButtonColor:'#2F6F5A',
     background: 'var(--card-bg)', color: 'var(--text-main)'
   });
   if (r.isDenied) umResetPassword(d.username);
@@ -744,10 +744,10 @@ async function umView(username) {
 
 async function umResetPassword(username) {
   var ok = await Swal.fire({
-    title: 'Reset password for ' + username + '?',
+    title:'Reset password for ' + username + '?',
     text: 'Their current password will stop working. They will get a temporary password and must change it on next login.',
-    icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, reset', confirmButtonColor: '#ef4444',
-    cancelButtonColor: '#64748b', background: 'var(--card-bg)', color: 'var(--text-main)'
+    icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, reset', confirmButtonColor: '#2F6F5A',
+    cancelButtonColor: '#5E6F67', background: 'var(--card-bg)', color: 'var(--text-main)'
   });
   if (!ok.isConfirmed) return;
   var res  = await fetch('/api/admin/reset_password', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: username})});
@@ -755,12 +755,12 @@ async function umResetPassword(username) {
   if (!data.success) { popAlert('Error', data.error || 'Could not reset password.', 'error'); return; }
   umSetCardPending(username);
   Swal.fire({
-    title: 'Password reset', icon: 'success', confirmButtonColor: '#2563eb',
+    title:'Password reset', icon: 'success', confirmButtonColor: '#2F6F5A',
     background: 'var(--card-bg)', color: 'var(--text-main)',
     html: '<div style="text-align:left;font-size:14px;line-height:1.9;">'
-        + '<b>Username:</b> <code style="background:#f1f5f9;padding:2px 7px;border-radius:5px;">' + umEsc(data.username) + '</code><br>'
-        + '<b>Temporary password:</b> <code style="background:#f1f5f9;padding:2px 7px;border-radius:5px;">' + umEsc(data.password) + '</code><br><br>'
-        + '<span style="color:#64748b;font-size:12px;">Give this to the user. They will be asked to set a new password when they log in.</span></div>'
+        + '<b>Username:</b> <code style="background:#EEF5F1;padding:2px 7px;border-radius:5px;">' + umEsc(data.username) + '</code><br>'
+        + '<b>Temporary password:</b> <code style="background:#EEF5F1;padding:2px 7px;border-radius:5px;">' + umEsc(data.password) + '</code><br><br>'
+        + '<span style="color:#5E6F67;font-size:12px;">Give this to the user. They will be asked to set a new password when they log in.</span></div>'
   });
 }
 

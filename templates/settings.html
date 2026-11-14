@@ -13,19 +13,19 @@
   .settings-row-sub { font-size:12px; color:var(--text-muted); margin-top:2px; }
 
   /* avatar */
-  .avatar-circle { width:64px; height:64px; border-radius:50%; background:var(--primary); color:#fff; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:800; flex-shrink:0; margin-bottom:14px; }
+  .avatar-circle { width:64px; height:64px; border-radius:50%; background:var(--primary); color:var(--on-primary); display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:800; flex-shrink:0; margin-bottom:14px; }
 
   /* session info */
   .session-item { display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--hover-bg); border-radius:var(--radius-sm); border:1px solid var(--border-color); margin-bottom:8px; font-size:13px; }
-  .session-item i { color:var(--primary); width:16px; text-align:center; }
+  .session-item i { color:var(--accent-ink); width:16px; text-align:center; }
 
   /* password strength */
   .pw-strength { height:5px; border-radius:3px; margin-top:6px; transition:all .3s; background:var(--border-color); overflow:hidden; }
   .pw-strength-fill { height:100%; border-radius:3px; transition:all .3s; width:0%; }
 
   /* success/error banners */
-  .banner-ok  { display:none; align-items:center; gap:9px; padding:12px 16px; border-radius:var(--radius-sm); margin-bottom:16px; font-size:13px; font-weight:600; background:rgba(16,185,129,.08); color:#059669; border:1px solid rgba(16,185,129,.18); }
-  .banner-err { display:none; align-items:center; gap:9px; padding:12px 16px; border-radius:var(--radius-sm); margin-bottom:16px; font-size:13px; font-weight:600; background:rgba(239,68,68,.08); color:#dc2626; border:1px solid rgba(239,68,68,.2); }
+  .banner-ok  { display:none; align-items:center; gap:9px; padding:12px 16px; border-radius:var(--radius-sm); margin-bottom:16px; font-size:13px; font-weight:600; background:color-mix(in srgb, var(--text-main) 8%, transparent); color:var(--ok); border:1px solid color-mix(in srgb, var(--text-main) 18%, transparent); }
+  .banner-err { display:none; align-items:center; gap:9px; padding:12px 16px; border-radius:var(--radius-sm); margin-bottom:16px; font-size:13px; font-weight:600; background:rgba(198,242,78,.08); color:var(--danger-ink); border:1px solid rgba(198,242,78,.2); }
   .banner-ok.show, .banner-err.show { display:flex; }
 
   /* role badge */
@@ -50,7 +50,7 @@
   <!-- ── Profile information ── -->
   <div class="settings-card">
     <div class="settings-card-title">
-      <i class="fa-solid fa-user" style="background:rgba(37,99,235,.1);color:#2563eb;"></i>
+      <i class="fa-solid fa-user" style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--accent-ink);"></i>
       Profile information
     </div>
     <div class="settings-card-sub">Update your name and contact details.</div>
@@ -69,7 +69,7 @@
         <img id="avatar-preview" src="" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--primary);display:none;">
         {% endif %}
         <label for="avatar-input" title="Change photo"
-          style="position:absolute;bottom:0;right:0;width:24px;height:24px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;border:2px solid var(--card-bg);">
+          style="position:absolute;bottom:0;right:0;width:24px;height:24px;border-radius:50%;background:var(--primary);color:var(--on-primary);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;border:2px solid var(--card-bg);">
           <i class="fa-solid fa-camera"></i>
         </label>
         <input type="file" id="avatar-input" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="uploadAvatar(this)">
@@ -82,7 +82,7 @@
         </span>
         {% if udata.get('avatar') %}
         <div style="margin-top:8px;">
-          <button onclick="removeAvatar()" style="background:none;border:none;color:#ef4444;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;padding:0;">
+          <button onclick="removeAvatar()" style="background:none;border:none;color:var(--danger-ink);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;padding:0;">
             <i class="fa-solid fa-trash" style="margin-right:4px;"></i> Remove photo
           </button>
         </div>
@@ -149,7 +149,7 @@
   <!-- ── Change password ── -->
   <div class="settings-card">
     <div class="settings-card-title">
-      <i class="fa-solid fa-lock" style="background:rgba(239,68,68,.1);color:#ef4444;"></i>
+      <i class="fa-solid fa-lock" style="background:rgba(198,242,78,.1);color:var(--danger-ink);"></i>
       Change password
     </div>
     <div class="settings-card-sub">Choose a strong password you haven't used before.</div>
@@ -179,7 +179,7 @@
   <!-- ── Appearance ── -->
   <div class="settings-card">
     <div class="settings-card-title">
-      <i class="fa-solid fa-moon" style="background:rgba(139,92,246,.1);color:#8b5cf6;"></i>
+      <i class="fa-solid fa-moon" style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--text-main);"></i>
       Appearance
     </div>
     <div class="settings-card-sub">Customize how the interface looks.</div>
@@ -199,7 +199,7 @@
   <!-- ── Current session ── -->
   <div class="settings-card">
     <div class="settings-card-title">
-      <i class="fa-solid fa-shield-halved" style="background:rgba(16,185,129,.1);color:#10b981;"></i>
+      <i class="fa-solid fa-shield-halved" style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--ok);"></i>
       Current session
     </div>
     <div class="settings-card-sub">Details about your active login.</div>
@@ -301,10 +301,10 @@ function checkStrength(val) {
   if (/[A-Z]/.test(val)) score++;
   if (/[0-9]/.test(val)) score++;
   if (/[^A-Za-z0-9]/.test(val)) score++;
-  var colors = ['#ef4444','#f59e0b','#f59e0b','#10b981','#10b981'];
+  var colors = ['var(--mango)','var(--mango-soft)','var(--mango-soft)','var(--ok)','var(--ok)'];
   var labels = ['Too short','Weak','Fair','Good','Strong'];
   fill.style.width  = (score * 20) + '%';
-  fill.style.background = colors[Math.max(0,score-1)] || '#e2e8f0';
+  fill.style.background = colors[Math.max(0,score-1)] || 'var(--border-color)';
   label.textContent = val.length ? labels[Math.max(0,score-1)] : '';
   label.style.color = colors[Math.max(0,score-1)] || 'var(--text-muted)';
 }
@@ -371,9 +371,9 @@ async function uploadAvatar(input) {
 
 async function removeAvatar() {
   var result = await Swal.fire({
-    title: 'Remove photo?', text: 'Your profile photo will be deleted.',
+    title:'Remove photo?', text: 'Your profile photo will be deleted.',
     icon: 'warning', showCancelButton: true,
-    confirmButtonColor: '#ef4444', cancelButtonColor: '#64748b',
+    confirmButtonColor: '#2F6F5A', cancelButtonColor: '#5E6F67',
     confirmButtonText: 'Yes, remove', cancelButtonText: 'Cancel',
     background: 'var(--card-bg)', color: 'var(--text-main)'
   });

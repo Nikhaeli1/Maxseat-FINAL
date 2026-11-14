@@ -13,9 +13,9 @@
     .driver-topbar-left { display: flex; align-items: center; gap: 16px; }
     .driver-logo { height: 36px; }
     .driver-divider { width: 1px; height: 32px; background: var(--border-color); }
-    .driver-vehicle { font-size: 20px; font-weight: 800; color: var(--primary); }
+    .driver-vehicle { font-size: 20px; font-weight: 800; color:var(--accent-ink); }
     .driver-route { font-size: 13px; color: var(--text-muted); font-weight: 600; margin-top: 2px; }
-    .driver-clock { font-size: 26px; font-weight: 800; font-family: monospace; color: var(--text-main); }
+    .driver-clock { font-size: 26px; font-weight: 800; font-family:inherit;font-variant-numeric:tabular-nums; color: var(--text-main); }
     .driver-schedule { font-size: 12px; color: var(--text-muted); text-align: right; margin-top: 2px; }
 
     /* MAIN BODY */
@@ -30,15 +30,15 @@
     }
     .panel-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); margin-bottom: 8px; }
     .passenger-count { font-size: 110px; font-weight: 800; line-height: 1; }
-    .passenger-count.safe    { color: var(--primary); }
-    .passenger-count.danger  { color: #ef4444; animation: blink 1s ease-in-out infinite; }
+    .passenger-count.safe    { color:var(--accent-ink); }
+    .passenger-count.danger  { color:var(--danger-ink); animation: blink 1s ease-in-out infinite; }
     .passenger-denom { font-size: 42px; color: var(--text-muted); font-weight: 700; }
     .status-pill {
         display: inline-flex; align-items: center; gap: 8px;
         padding: 10px 20px; border-radius: 40px; font-weight: 800; font-size: 15px; margin-top: 14px;
     }
-    .status-pill.safe   { background: rgba(16,185,129,0.1); color: #10b981; border: 1.5px solid rgba(16,185,129,0.25); }
-    .status-pill.danger { background: rgba(239,68,68,0.1);  color: #ef4444;  border: 1.5px solid rgba(239,68,68,0.25); }
+    .status-pill.safe   { background: color-mix(in srgb, var(--text-main) 10%, transparent); color:var(--ok); border: 1.5px solid color-mix(in srgb, var(--text-main) 25%, transparent); }
+    .status-pill.danger { background: rgba(198,242,78,0.1);  color:var(--danger-ink);  border: 1.5px solid rgba(198,242,78,0.25); }
     .sensor-controls {
         position: absolute; bottom: 20px; right: 20px;
         display: flex; align-items: center; gap: 10px;
@@ -51,7 +51,7 @@
         cursor: pointer; display: flex; align-items: center; justify-content: center;
         transition: all 0.2s; font-family: inherit;
     }
-    .sensor-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 4px 12px rgba(37,99,235,0.25); }
+    .sensor-btn:hover { background: var(--primary); color:var(--on-primary); border-color: var(--primary); box-shadow: 0 4px 12px color-mix(in srgb, var(--text-main) 25%, transparent); }
     .sensor-hint { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); text-align: center; line-height: 1.4; }
 
     /* RIGHT COLUMN */
@@ -64,13 +64,13 @@
         box-shadow: var(--shadow-sm); flex-shrink: 0;
     }
     .temp-icon { width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
-    .temp-icon.safe     { background: rgba(16,185,129,0.1); color: #10b981; }
-    .temp-icon.warning  { background: rgba(245,158,11,0.1);  color: #f59e0b; }
-    .temp-icon.danger   { background: rgba(239,68,68,0.1);   color: #ef4444; }
+    .temp-icon.safe     { background: color-mix(in srgb, var(--text-main) 10%, transparent); color:var(--ok); }
+    .temp-icon.warning  { background: rgba(198,242,78,0.1);  color:var(--warn-ink); }
+    .temp-icon.danger   { background: rgba(198,242,78,0.1);   color:var(--danger-ink); }
     .temp-value { font-size: 36px; font-weight: 800; line-height: 1; }
-    .temp-value.safe    { color: #10b981; }
-    .temp-value.warning { color: #f59e0b; }
-    .temp-value.danger  { color: #ef4444; }
+    .temp-value.safe    { color:var(--ok); }
+    .temp-value.warning { color:var(--warn-ink); }
+    .temp-value.danger  { color:var(--danger-ink); }
     .temp-status { font-size: 12px; color: var(--text-muted); font-weight: 600; margin-top: 3px; }
 
     /* MAP */
@@ -84,19 +84,19 @@
         box-shadow: var(--shadow-sm); flex-shrink: 0;
     }
     .driver-info-left { display: flex; align-items: center; gap: 14px; }
-    .driver-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--primary-glow); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .driver-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--primary-glow); color:var(--accent-ink); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
     .driver-name-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); }
     .driver-name-value { font-size: 17px; font-weight: 800; color: var(--text-main); }
     .toggle-btn { background: none; border: 1.5px solid var(--border-color); color: var(--text-muted); padding: 8px 16px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 12px; font-family: inherit; transition: all 0.2s; }
-    .toggle-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .toggle-btn:hover { border-color: var(--primary); color:var(--accent-ink); }
 
-    .driver-logout-btn { display:flex; align-items:center; gap:8px; padding:10px 18px; border-radius:12px; border:1.5px solid rgba(239,68,68,0.35); background:rgba(239,68,68,0.08); color:#ef4444; font-weight:700; font-size:13px; cursor:pointer; font-family:inherit; transition:all 0.2s; }
-    .driver-logout-btn:hover { background:rgba(239,68,68,0.16); }
+    .driver-logout-btn { display:flex; align-items:center; gap:8px; padding:10px 18px; border-radius:12px; border:1.5px solid rgba(198,242,78,0.35); background:rgba(198,242,78,0.08); color:var(--danger-ink); font-weight:700; font-size:13px; cursor:pointer; font-family:inherit; transition:all 0.2s; }
+    .driver-logout-btn:hover { background:rgba(198,242,78,0.16); }
     .live-badge { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:var(--text-muted); }
-    .live-badge .dot { width:8px; height:8px; border-radius:50%; background:#94a3b8; }
-    .live-badge[data-state="connected"] .dot { background:#10b981; box-shadow:0 0 6px #10b981; }
-    .live-badge[data-state="connecting"] .dot { background:#f59e0b; }
-    .live-badge[data-state="disconnected"] .dot { background:#ef4444; }
+    .live-badge .dot { width:8px; height:8px; border-radius:50%; background:#9BA8A1; }
+    .live-badge[data-state="connected"] .dot { background:var(--ok); box-shadow:0 0 6px var(--ok); }
+    .live-badge[data-state="connecting"] .dot { background:var(--mango-soft); }
+    .live-badge[data-state="disconnected"] .dot { background:var(--mango); }
     .flash-update { animation: flashUpdate 0.6s ease-out; }
     @keyframes flashUpdate { 0%{transform:scale(1.06);} 100%{transform:scale(1);} }
 
@@ -177,7 +177,7 @@
             <div class="driver-divider"></div>
             <div>
                 <div class="driver-vehicle">{{ puv.plate }} — {{ puv.company }}</div>
-                <div class="driver-route"><i class="fa-solid fa-location-dot" style="margin-right:5px;color:var(--primary);"></i><span id="loc-name">{{ puv.loc_name }}</span></div>
+                <div class="driver-route"><i class="fa-solid fa-location-dot" style="margin-right:5px;color:var(--accent-ink);"></i><span id="loc-name">{{ puv.loc_name }}</span></div>
             </div>
         </div>
         <div style="display:flex;align-items:center;gap:18px;">
@@ -233,7 +233,7 @@
                 {% set temp_label = 'Normal — Cabin Temperature OK' %}
             {% endif %}
 
-            <div id="temp-card" class="temp-card" style="border-left: 4px solid {{ '#ef4444' if temp_class == 'danger' else ('#f59e0b' if temp_class == 'warning' else '#10b981') }};">
+            <div id="temp-card" class="temp-card" style="border-left: 4px solid {{ 'var(--mango)' if temp_class == 'danger' else ('var(--mango-soft)' if temp_class == 'warning' else 'var(--ok)') }};">
                 <div id="temp-icon" class="temp-icon {{ temp_class }}">
                     <i class="fa-solid fa-thermometer-half"></i>
                 </div>
@@ -284,7 +284,7 @@
 
     // Map
     const pd = JSON.parse(document.getElementById('driver-puv-data').textContent);
-    const driverColor = () => '#2563eb';
+    const driverColor = () => '#2F6F5A';
     const map = MaxSeatMap.create('driver-map', {
         zoomControl: false,
         center: MaxSeatMap.position(pd),
@@ -311,9 +311,9 @@
 
     function renderTemp(temp) {
         const t = Number(temp) || 0;
-        let cls = 'safe', label = 'Normal — Cabin Temperature OK', border = '#10b981';
-        if (t >= 37.5)      { cls = 'danger';  label = 'Thermal Alert — Cabin Overheating'; border = '#ef4444'; }
-        else if (t >= 35.0) { cls = 'warning'; label = 'Elevated — Monitor Cabin Heat';     border = '#f59e0b'; }
+        let cls = 'safe', label = 'Normal — Cabin Temperature OK', border = 'var(--ok)';
+        if (t >= 37.5)      { cls = 'danger';  label = 'Thermal Alert — Cabin Overheating'; border = 'var(--mango)'; }
+        else if (t >= 35.0) { cls = 'warning'; label = 'Elevated — Monitor Cabin Heat';     border = 'var(--mango-soft)'; }
         document.getElementById('temp-card').style.borderLeft = '4px solid ' + border;
         document.getElementById('temp-icon').className  = 'temp-icon '  + cls;
         const v = document.getElementById('temp-value');

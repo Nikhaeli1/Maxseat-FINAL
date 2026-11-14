@@ -2,31 +2,31 @@
 {% block content %}
 <div class="page-row">
     <div>
-        <h1 class="page-title" style="color:#ef4444;">Priority Intercept Targets</h1>
+        <h1 class="page-title" style="color:var(--danger-ink);">Priority Intercept Targets</h1>
         <p class="page-subtitle">Units violating maximum load capacity via live GNSS sensor data.</p>
     </div>
-    <div data-live="enf-targets" style="display:flex;align-items:center;gap:12px;padding:12px 20px;background:rgba(239,68,68,0.06);border:1.5px solid rgba(239,68,68,0.2);border-radius:var(--radius);">
-        <i class="fa-solid fa-tower-broadcast" style="color:#ef4444;font-size:18px;animation:pulse 1.5s infinite;"></i>
-        <span style="font-weight:800;font-size:16px;color:#ef4444;">{{ stats.active_violations }} TARGET{{ 's' if stats.active_violations != 1 else '' }} DETECTED</span>
+    <div data-live="enf-targets" style="display:flex;align-items:center;gap:12px;padding:12px 20px;background:rgba(198,242,78,0.06);border:1.5px solid rgba(198,242,78,0.2);border-radius:var(--radius);">
+        <i class="fa-solid fa-tower-broadcast" style="color:var(--danger-ink);font-size:18px;animation:pulse 1.5s infinite;"></i>
+        <span style="font-weight:800;font-size:16px;color:var(--danger-ink);">{{ stats.active_violations }} TARGET{{ 's' if stats.active_violations != 1 else '' }} DETECTED</span>
     </div>
 </div>
 
 <!-- MAP -->
 <div class="card" style="padding:12px;margin-bottom:22px;display:flex;flex-direction:column;">
     <div style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <span style="font-weight:700;font-size:15px;"><i class="fa-solid fa-map" style="margin-right:8px;color:var(--primary);"></i>GNSS Tactical Map</span>
+        <span style="font-weight:700;font-size:15px;"><i class="fa-solid fa-map" style="margin-right:8px;color:var(--accent-ink);"></i>GNSS Tactical Map</span>
     </div>
     <div id="map" style="height:300px;border-radius:14px;border:2px solid var(--border-color);z-index:1;"></div>
 </div>
 
 <!-- VEHICLE CARDS -->
 <h3 style="font-size:17px;font-weight:700;margin-bottom:16px;">
-    <i class="fa-solid fa-list-check" style="margin-right:9px;color:var(--primary);"></i>Deployment Queue
+    <i class="fa-solid fa-list-check" style="margin-right:9px;color:var(--accent-ink);"></i>Deployment Queue
 </h3>
 <div data-live="enf-queue" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px;">
     {% for puv in puvs %}
     {% set is_danger = puv.passengers > puv.capacity or puv.temp >= 37.5 %}
-    <div class="card" style="padding:22px;margin-bottom:0;border-left:4px solid {{ '#ef4444' if is_danger else '#10b981' }};">
+    <div class="card" style="padding:22px;margin-bottom:0;border-left:4px solid {{ 'var(--mango)' if is_danger else 'var(--ok)' }};">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
             <div>
                 <div style="font-size:20px;font-weight:800;">{{ puv.plate }}</div>
@@ -40,13 +40,13 @@
             <div>
                 <strong>Load:</strong> {{ puv.passengers }}/{{ puv.capacity }} PAX
                 {% if puv.passengers > puv.capacity %}
-                <span style="color:#ef4444;font-weight:700;"> — Overloaded</span>
+                <span style="color:var(--danger-ink);font-weight:700;"> — Overloaded</span>
                 {% endif %}
             </div>
             <div>
                 <strong>Cabin Temp:</strong> {{ puv.temp }}°C
                 {% if puv.temp >= 37.5 %}
-                <span style="color:#f59e0b;font-weight:700;"> — Overheating</span>
+                <span style="color:var(--warn-ink);font-weight:700;"> — Overheating</span>
                 {% endif %}
             </div>
             <div><strong>Location:</strong> {{ puv.loc_name }}</div>
@@ -57,7 +57,7 @@
         </a>
         {% else %}
         <div style="text-align:center;padding:10px;background:var(--hover-bg);border-radius:var(--radius-sm);font-size:13px;color:var(--text-muted);font-weight:600;">
-            <i class="fa-solid fa-circle-check" style="color:#10b981;margin-right:6px;"></i> Monitoring Normal
+            <i class="fa-solid fa-circle-check" style="color:var(--ok);margin-right:6px;"></i> Monitoring Normal
         </div>
         {% endif %}
     </div>
@@ -70,7 +70,7 @@
 <script>
     const pd  = JSON.parse(document.getElementById('enforcer-puv-data').textContent);
     const map = MaxSeatMap.create('map', { fitAll: () => MaxSeatLive.trackedPuvs() });
-    const enfColor = p => (p.is_violator || p.is_overheating) ? '#ef4444' : '#10b981';
+    const enfColor = p => (p.is_violator || p.is_overheating) ? '#C6F24E' : '#2F6F5A';
     const enfPopup = p => `<div style="text-align:center;"><b>${p.company}</b><br>${p.plate}<br>Load: <b>${p.passengers}/${p.capacity}</b><br>Temp: ${p.temp}°C${MaxSeatMap.noGpsNote(p)}</div>`;
     const addEnfMarker = p => {
         if (!map) return;

@@ -12,7 +12,7 @@
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
     <div class="card" style="margin-bottom:0;">
         <h3 style="font-size:16px;font-weight:700;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--border-color);">
-            <i class="fa-solid fa-clipboard-check" style="margin-right:8px;color:var(--primary);"></i> Field Report Form
+            <i class="fa-solid fa-clipboard-check" style="margin-right:8px;color:var(--accent-ink);"></i> Field Report Form
         </h3>
         <form method="POST" action="/submit_interception">
             <div class="form-group">
@@ -46,8 +46,8 @@
     </div>
 
     <div style="display:flex;flex-direction:column;gap:16px;">
-        <div class="card" style="margin-bottom:0;background:rgba(239,68,68,0.03);border-color:rgba(239,68,68,0.15);">
-            <h4 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#ef4444;">
+        <div class="card" style="margin-bottom:0;background:rgba(198,242,78,0.03);border-color:rgba(198,242,78,0.15);">
+            <h4 style="font-size:14px;font-weight:700;margin-bottom:12px;color:var(--danger-ink);">
                 <i class="fa-solid fa-triangle-exclamation" style="margin-right:7px;"></i>Currently Active Violations
             </h4>
             <div data-live="istatus-violations">
@@ -67,9 +67,9 @@
             </div>
         </div>
 
-        <div class="card" style="margin-bottom:0;background:rgba(37,99,235,0.03);border-color:rgba(37,99,235,0.12);">
+        <div class="card" style="margin-bottom:0;background:color-mix(in srgb, var(--text-main) 3%, transparent);border-color:color-mix(in srgb, var(--text-main) 12%, transparent);">
             <h4 style="font-size:14px;font-weight:700;margin-bottom:10px;">
-                <i class="fa-solid fa-circle-info" style="margin-right:7px;color:var(--primary);"></i>Reporting Guidelines
+                <i class="fa-solid fa-circle-info" style="margin-right:7px;color:var(--accent-ink);"></i>Reporting Guidelines
             </h4>
             <ul style="font-size:13px;color:var(--text-muted);line-height:1.9;padding-left:16px;">
                 <li>Confirm vehicle identity before submitting.</li>

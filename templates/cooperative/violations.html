@@ -4,14 +4,14 @@
     .violations-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 26px; }
     .tabs { display: flex; gap: 6px; margin-bottom: 20px; }
     .tab-btn { padding: 9px 20px; border-radius: var(--radius-sm); border: 1.5px solid var(--border-color); background: var(--card-bg); color: var(--text-muted); font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit; transition: all 0.2s; }
-    .tab-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 4px 12px rgba(37,99,235,0.25); }
+    .tab-btn.active { background: var(--primary); color:var(--on-primary); border-color: var(--primary); box-shadow: 0 4px 12px color-mix(in srgb, var(--text-main) 25%, transparent); }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
     .alert-card { background: var(--card-bg); border-radius: var(--radius-lg); border: 1px solid var(--border-color); padding: 20px 22px; margin-bottom: 12px; display: flex; align-items: center; gap: 16px; box-shadow: var(--shadow-sm); transition: transform 0.2s; }
     .alert-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
     .alert-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
-    .alert-icon.danger  { background: rgba(239,68,68,0.1);  color: #ef4444; }
-    .alert-icon.warning { background: rgba(245,158,11,0.1); color: #f59e0b; }
+    .alert-icon.danger  { background: rgba(198,242,78,0.1);  color:var(--danger-ink); }
+    .alert-icon.warning { background: rgba(198,242,78,0.1); color:var(--warn-ink); }
     .alert-plate { font-size: 18px; font-weight: 800; color: var(--text-main); }
     .alert-detail { font-size: 12px; color: var(--text-muted); font-weight: 600; margin-top: 3px; }
 </style>
@@ -29,21 +29,21 @@
 <!-- STAT CARDS -->
 <div class="violations-grid" data-live="coop-viol-stats">
     <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(239,68,68,0.1);color:#ef4444;"><i class="fa-solid fa-bus"></i></div>
+        <div class="stat-icon" style="background:rgba(198,242,78,0.1);color:var(--danger-ink);"><i class="fa-solid fa-bus"></i></div>
         <div>
             <div class="stat-label">Overloaded Units</div>
             <div class="stat-value">{{ stats.active_violations }}</div>
         </div>
     </div>
     <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(245,158,11,0.1);color:#f59e0b;"><i class="fa-solid fa-thermometer-half"></i></div>
+        <div class="stat-icon" style="background:rgba(198,242,78,0.1);color:var(--warn-ink);"><i class="fa-solid fa-thermometer-half"></i></div>
         <div>
             <div class="stat-label">Thermal Alerts</div>
             <div class="stat-value">{{ stats.thermal_warnings }}</div>
         </div>
     </div>
     <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(37,99,235,0.1);color:var(--primary);"><i class="fa-solid fa-ticket"></i></div>
+        <div class="stat-icon" style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--accent-ink);"><i class="fa-solid fa-ticket"></i></div>
         <div>
             <div class="stat-label">Total Citations</div>
             <div class="stat-value">{{ citations | length }}</div>
@@ -53,7 +53,7 @@
 
 <!-- TABS -->
 <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('live', this)"><i class="fa-solid fa-circle-dot" style="color:#ef4444;margin-right:6px;"></i>Live Violations</button>
+    <button class="tab-btn active" onclick="switchTab('live', this)"><i class="fa-solid fa-circle-dot" style="color:var(--danger-ink);margin-right:6px;"></i>Live Violations</button>
     <button class="tab-btn" onclick="switchTab('enforcement', this)"><i class="fa-solid fa-gavel" style="margin-right:6px;"></i>Enforcement Actions</button>
 </div>
 
@@ -73,11 +73,11 @@
         </div>
         <div style="text-align:right;">
             {% if puv.passengers > puv.capacity %}
-            <div style="font-size:13px;font-weight:800;color:#ef4444;">{{ puv.passengers }}/{{ puv.capacity }} pax</div>
+            <div style="font-size:13px;font-weight:800;color:var(--danger-ink);">{{ puv.passengers }}/{{ puv.capacity }} pax</div>
             <div style="font-size:11px;color:var(--text-muted);">OVERLOADED</div>
             {% endif %}
             {% if puv.temp >= 37.5 %}
-            <div style="font-size:13px;font-weight:800;color:#f59e0b;">{{ puv.temp }}°C</div>
+            <div style="font-size:13px;font-weight:800;color:var(--warn-ink);">{{ puv.temp }}°C</div>
             <div style="font-size:11px;color:var(--text-muted);">THERMAL ALERT</div>
             {% endif %}
         </div>
@@ -87,7 +87,7 @@
 
     {% if stats.active_violations == 0 and stats.thermal_warnings == 0 %}
     <div class="empty-state">
-        <i class="fa-solid fa-circle-check" style="color:#10b981;"></i>
+        <i class="fa-solid fa-circle-check" style="color:var(--ok);"></i>
         <h3>No Active Violations</h3>
         <p>All units are currently operating within legal parameters.</p>
     </div>
@@ -113,8 +113,8 @@
             <tbody>
                 {% for c in citations %}
                 <tr>
-                    <td><span style="font-family:monospace;font-weight:700;font-size:13px;">{{ c.serial }}</span></td>
-                    <td><span style="font-weight:800;color:var(--primary);">{{ c.plate }}</span></td>
+                    <td><span style="font-family:inherit;font-variant-numeric:tabular-nums;font-weight:700;font-size:13px;">{{ c.serial }}</span></td>
+                    <td><span style="font-weight:800;color:var(--accent-ink);">{{ c.plate }}</span></td>
                     <td>{{ c.company }}</td>
                     <td><span style="font-size:12px;color:var(--text-muted);">{{ c.officer }}</span></td>
                     <td><span style="font-weight:700;">{{ c.fine }}</span></td>

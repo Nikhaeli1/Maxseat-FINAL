@@ -90,8 +90,8 @@
 <!-- ── Row 1: Stat cards ── -->
 <div class="db-grid-3" data-live="admin-stats" style="grid-template-columns:repeat(3,1fr) repeat(2,1fr);grid-template-columns:1fr 1fr 1fr 1fr 1fr;">
 
-  <div class="db-stat" style="border-bottom:3px solid #2563eb;">
-    <div class="db-stat-icon" style="background:rgba(37,99,235,.1);color:#2563eb;"><i class="fa-solid fa-bus"></i></div>
+  <div class="db-stat" style="border-bottom:3px solid var(--text-main);">
+    <div class="db-stat-icon" style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--accent-ink);"><i class="fa-solid fa-bus"></i></div>
     <div>
       <div class="db-stat-label">Total vehicles</div>
       <div class="db-stat-value">{{ total }}</div>
@@ -99,38 +99,38 @@
     </div>
   </div>
 
-  <div class="db-stat" style="border-bottom:3px solid #10b981;">
-    <div class="db-stat-icon" style="background:rgba(16,185,129,.1);color:#10b981;"><i class="fa-solid fa-circle-check"></i></div>
+  <div class="db-stat" style="border-bottom:3px solid var(--ok);">
+    <div class="db-stat-icon" style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--ok);"><i class="fa-solid fa-circle-check"></i></div>
     <div>
       <div class="db-stat-label">Compliant now</div>
-      <div class="db-stat-value" style="color:#10b981;">{{ comp_count }}</div>
+      <div class="db-stat-value" style="color:var(--ok);">{{ comp_count }}</div>
       <div class="db-stat-sub">{{ comp_pct }}% of fleet</div>
     </div>
   </div>
 
-  <div class="db-stat" style="border-bottom:3px solid #ef4444;">
-    <div class="db-stat-icon" style="background:rgba(239,68,68,.12);color:#ef4444;"><i class="fa-solid fa-triangle-exclamation"></i></div>
+  <div class="db-stat" style="border-bottom:3px solid var(--mango);">
+    <div class="db-stat-icon" style="background:rgba(198,242,78,.12);color:var(--danger-ink);"><i class="fa-solid fa-triangle-exclamation"></i></div>
     <div>
       <div class="db-stat-label">Active violations</div>
-      <div class="db-stat-value" style="color:#ef4444;">{{ viol_count }}</div>
+      <div class="db-stat-value" style="color:var(--danger-ink);">{{ viol_count }}</div>
       <div class="db-stat-sub">{{ therm_count }} thermal alert{{ 's' if therm_count != 1 }}</div>
     </div>
   </div>
 
-  <div class="db-stat" style="border-bottom:3px solid #f59e0b;">
-    <div class="db-stat-icon" style="background:rgba(245,158,11,.1);color:#f59e0b;"><i class="fa-solid fa-ticket"></i></div>
+  <div class="db-stat" style="border-bottom:3px solid var(--mango-soft);">
+    <div class="db-stat-icon" style="background:rgba(198,242,78,.1);color:var(--warn-ink);"><i class="fa-solid fa-ticket"></i></div>
     <div>
       <div class="db-stat-label">Citations pending</div>
-      <div class="db-stat-value" style="color:#f59e0b;">{{ pending_cits | length }}</div>
+      <div class="db-stat-value" style="color:var(--warn-ink);">{{ pending_cits | length }}</div>
       <div class="db-stat-sub">{{ total_cits }} total issued</div>
     </div>
   </div>
 
-  <div class="db-stat" style="border-bottom:3px solid #10b981;">
-    <div class="db-stat-icon" style="background:rgba(16,185,129,.1);color:#10b981;"><i class="fa-solid fa-gavel"></i></div>
+  <div class="db-stat" style="border-bottom:3px solid var(--ok);">
+    <div class="db-stat-icon" style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--ok);"><i class="fa-solid fa-gavel"></i></div>
     <div>
       <div class="db-stat-label">Citations resolved</div>
-      <div class="db-stat-value" style="color:#10b981;">{{ resolved_cits | length }}</div>
+      <div class="db-stat-value" style="color:var(--ok);">{{ resolved_cits | length }}</div>
       <div class="db-stat-sub">
         {% if total_cits > 0 %}{{ ((resolved_cits|length / total_cits)*100)|int }}% resolution rate{% else %}No citations yet{% endif %}
       </div>
@@ -155,13 +155,13 @@
     <div style="display:flex;flex-direction:column;gap:8px;">
       {% for p in puvs %}
       <div class="feed-item" data-lat="{{ p.lat }}" data-lng="{{ p.lng }}">
-        <div class="feed-dot" style="background:{{ '#ef4444' if p.is_violator or p.is_overheating else '#10b981' }};box-shadow:0 0 6px {{ '#ef4444' if p.is_violator or p.is_overheating else '#10b981' }};"></div>
+        <div class="feed-dot" style="background:{{ 'var(--mango)' if p.is_violator or p.is_overheating else 'var(--ok)' }};box-shadow:0 0 6px {{ 'var(--mango)' if p.is_violator or p.is_overheating else 'transparent' }};"></div>
         <div style="flex:1;min-width:0;">
           <div style="font-weight:700;font-size:13px;">{{ p.plate }}</div>
           <div style="font-size:11px;color:var(--text-muted);">{{ p.loc_name }}</div>
         </div>
         <div style="text-align:right;flex-shrink:0;">
-          <div style="font-weight:800;font-size:13px;color:{{ '#ef4444' if p.is_violator else 'var(--text-main)' }};">{{ p.passengers }}/{{ p.capacity }}</div>
+          <div style="font-weight:800;font-size:13px;color:{{ 'var(--danger-ink)' if p.is_violator else 'var(--text-main)' }};">{{ p.passengers }}/{{ p.capacity }}</div>
           <div style="font-size:10px;color:var(--text-muted);">{{ p.last_update }}</div>
         </div>
       </div>
@@ -188,20 +188,20 @@
         <svg width="140" height="140" viewBox="0 0 140 140">
           <circle cx="70" cy="70" r="54" fill="none" stroke="var(--border-color)" stroke-width="14"/>
           <circle cx="70" cy="70" r="54" fill="none"
-            stroke="{{ '#10b981' if comp_pct >= 80 else ('#f59e0b' if comp_pct >= 50 else '#ef4444') }}"
+            style="stroke:{{ 'var(--ok)' if comp_pct >= 80 else ('var(--mango-soft)' if comp_pct >= 50 else 'var(--mango)') }}"
             stroke-width="14"
             stroke-dasharray="{{ (comp_pct / 100 * 339.3) | round(1) }} 339.3"
             stroke-linecap="round"/>
         </svg>
         <div class="gauge-label">
-          <div class="gauge-pct" style="color:{{ '#10b981' if comp_pct >= 80 else ('#f59e0b' if comp_pct >= 50 else '#ef4444') }};">{{ comp_pct }}%</div>
+          <div class="gauge-pct" style="color:{{ 'var(--ok)' if comp_pct >= 80 else ('var(--warn-ink)' if comp_pct >= 50 else 'var(--danger-ink)') }};">{{ comp_pct }}%</div>
           <div class="gauge-sub">compliant</div>
         </div>
       </div>
       <div style="display:flex;gap:16px;margin-top:14px;font-size:12px;font-weight:700;">
-        <span style="color:#10b981;"><i class="fa-solid fa-circle" style="font-size:8px;margin-right:4px;"></i>{{ comp_count }} OK</span>
-        <span style="color:#ef4444;"><i class="fa-solid fa-circle" style="font-size:8px;margin-right:4px;"></i>{{ viol_count }} Violation</span>
-        <span style="color:#f59e0b;"><i class="fa-solid fa-circle" style="font-size:8px;margin-right:4px;"></i>{{ therm_count }} Thermal</span>
+        <span style="color:var(--ok);"><i class="fa-solid fa-circle" style="font-size:8px;margin-right:4px;"></i>{{ comp_count }} OK</span>
+        <span style="color:var(--danger-ink);"><i class="fa-solid fa-circle" style="font-size:8px;margin-right:4px;"></i>{{ viol_count }} Violation</span>
+        <span style="color:var(--warn-ink);"><i class="fa-solid fa-circle" style="font-size:8px;margin-right:4px;"></i>{{ therm_count }} Thermal</span>
       </div>
     </div>
   </div>
@@ -229,19 +229,19 @@
         {% set ol_pct = (overload_only / any_v * circ) | round(1) %}
         {% set th_pct = (thermal_only  / any_v * circ) | round(1) %}
         {% set bo_pct = (both          / any_v * circ) | round(1) %}
-        <circle cx="{{ cx }}" cy="{{ cy }}" r="{{ r }}" fill="none" stroke="#ef4444" stroke-width="18"
+        <circle cx="{{ cx }}" cy="{{ cy }}" r="{{ r }}" fill="none" style="stroke:var(--mango)" stroke-width="18"
           stroke-dasharray="{{ ol_pct }} {{ circ }}" stroke-dashoffset="0" transform="rotate(-90 {{ cx }} {{ cy }})"/>
-        <circle cx="{{ cx }}" cy="{{ cy }}" r="{{ r }}" fill="none" stroke="#f59e0b" stroke-width="18"
+        <circle cx="{{ cx }}" cy="{{ cy }}" r="{{ r }}" fill="none" style="stroke:var(--mango-soft)" stroke-width="18"
           stroke-dasharray="{{ th_pct }} {{ circ }}" stroke-dashoffset="-{{ ol_pct }}" transform="rotate(-90 {{ cx }} {{ cy }})"/>
-        <circle cx="{{ cx }}" cy="{{ cy }}" r="{{ r }}" fill="none" stroke="#8b5cf6" stroke-width="18"
+        <circle cx="{{ cx }}" cy="{{ cy }}" r="{{ r }}" fill="none" style="stroke:var(--text-main)" stroke-width="18"
           stroke-dasharray="{{ bo_pct }} {{ circ }}" stroke-dashoffset="-{{ ol_pct + th_pct }}" transform="rotate(-90 {{ cx }} {{ cy }})"/>
         <text x="{{ cx }}" y="{{ cy }}" text-anchor="middle" dominant-baseline="middle"
           style="font-size:18px;font-weight:800;fill:var(--text-main);">{{ any_v }}</text>
       </svg>
       <div class="donut-legend">
-        <div class="donut-legend-item"><div class="donut-dot" style="background:#ef4444;"></div> Overload only <strong style="margin-left:auto;padding-left:8px;">{{ overload_only }}</strong></div>
-        <div class="donut-legend-item"><div class="donut-dot" style="background:#f59e0b;"></div> Thermal only <strong style="margin-left:auto;padding-left:8px;">{{ thermal_only }}</strong></div>
-        <div class="donut-legend-item"><div class="donut-dot" style="background:#8b5cf6;"></div> Both <strong style="margin-left:auto;padding-left:8px;">{{ both }}</strong></div>
+        <div class="donut-legend-item"><div class="donut-dot" style="background:var(--mango);"></div> Overload only <strong style="margin-left:auto;padding-left:8px;">{{ overload_only }}</strong></div>
+        <div class="donut-legend-item"><div class="donut-dot" style="background:var(--mango-soft);"></div> Thermal only <strong style="margin-left:auto;padding-left:8px;">{{ thermal_only }}</strong></div>
+        <div class="donut-legend-item"><div class="donut-dot" style="background:var(--text-main);"></div> Both <strong style="margin-left:auto;padding-left:8px;">{{ both }}</strong></div>
       </div>
     </div>
     {% endif %}
@@ -255,13 +255,13 @@
       <!-- pending vs resolved bars -->
       <div style="flex:1;">
         <div style="display:flex;gap:10px;margin-bottom:10px;">
-          <div style="flex:1;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.2);border-radius:var(--radius-sm);padding:12px;text-align:center;">
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#f59e0b;margin-bottom:4px;">Pending</div>
-            <div style="font-size:26px;font-weight:800;color:#f59e0b;">{{ pending_cits | length }}</div>
+          <div style="flex:1;background:rgba(198,242,78,.1);border:1px solid rgba(198,242,78,.2);border-radius:var(--radius-sm);padding:12px;text-align:center;">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--warn-ink);margin-bottom:4px;">Pending</div>
+            <div style="font-size:26px;font-weight:800;color:var(--warn-ink);">{{ pending_cits | length }}</div>
           </div>
-          <div style="flex:1;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.2);border-radius:var(--radius-sm);padding:12px;text-align:center;">
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#10b981;margin-bottom:4px;">Resolved</div>
-            <div style="font-size:26px;font-weight:800;color:#10b981;">{{ resolved_cits | length }}</div>
+          <div style="flex:1;background:color-mix(in srgb, var(--text-main) 10%, transparent);border:1px solid color-mix(in srgb, var(--text-main) 20%, transparent);border-radius:var(--radius-sm);padding:12px;text-align:center;">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ok);margin-bottom:4px;">Resolved</div>
+            <div style="font-size:26px;font-weight:800;color:var(--ok);">{{ resolved_cits | length }}</div>
           </div>
         </div>
         <!-- resolution bar -->
@@ -271,7 +271,7 @@
             <span>{% if total_cits > 0 %}{{ ((resolved_cits|length / total_cits)*100)|int }}%{% else %}—{% endif %}</span>
           </div>
           <div style="height:8px;background:var(--border-color);border-radius:4px;overflow:hidden;">
-            <div style="height:100%;background:#10b981;border-radius:4px;width:{% if total_cits > 0 %}{{ ((resolved_cits|length / total_cits)*100)|int }}{% else %}0{% endif %}%;transition:width .5s;"></div>
+            <div style="height:100%;background:var(--ok);border-radius:4px;width:{% if total_cits > 0 %}{{ ((resolved_cits|length / total_cits)*100)|int }}{% else %}0{% endif %}%;transition:width .5s;"></div>
           </div>
         </div>
       </div>
@@ -323,15 +323,15 @@
     {% set max_count  = sorted_cos | first %}
     {% for company, count in sorted_cos[:5] %}
     <div class="violator-row">
-      <div class="violator-rank" style="background:{{ '#ef4444' if loop.index == 1 else ('#f59e0b' if loop.index == 2 else 'var(--hover-bg)') }};color:{{ '#fff' if loop.index <= 2 else 'var(--text-muted)' }};">{{ loop.index }}</div>
+      <div class="violator-rank" style="background:{{ 'var(--mango)' if loop.index == 1 else ('var(--mango-soft)' if loop.index == 2 else 'var(--hover-bg)') }};color:{{ '#fff' if loop.index <= 2 else 'var(--text-muted)' }};">{{ loop.index }}</div>
       <div class="violator-bar-wrap">
         <div class="violator-name">{{ company }}</div>
         <div class="violator-sub">{{ count }} citation{{ 's' if count != 1 }}</div>
         <div class="violator-bar-track">
-          <div class="violator-bar-fill" style="width:{{ (count / max_count[1] * 100)|int }}%;background:{{ '#ef4444' if loop.index == 1 else ('#f59e0b' if loop.index == 2 else '#2563eb') }};"></div>
+          <div class="violator-bar-fill" style="width:{{ (count / max_count[1] * 100)|int }}%;background:{{ 'var(--mango)' if loop.index == 1 else ('var(--mango-soft)' if loop.index == 2 else 'var(--text-main)') }};"></div>
         </div>
       </div>
-      <div class="violator-count" style="color:{{ '#ef4444' if loop.index == 1 else 'var(--text-main)' }};">{{ count }}</div>
+      <div class="violator-count" style="color:{{ 'var(--danger-ink)' if loop.index == 1 else 'var(--text-main)' }};">{{ count }}</div>
     </div>
     {% endfor %}
     {% else %}
@@ -345,17 +345,17 @@
 
   <!-- Recent activity log -->
   <div class="db-card">
-    <div class="db-card-title">Recent activity <a href="/audit_logs" style="font-size:12px;font-weight:700;color:var(--primary);text-decoration:none;text-transform:none;letter-spacing:0;">View all →</a></div>
+    <div class="db-card-title">Recent activity <a href="/audit_logs" style="font-size:12px;font-weight:700;color:var(--accent-ink);text-decoration:none;text-transform:none;letter-spacing:0;">View all →</a></div>
     {% if audit_logs %}
     <div style="display:flex;flex-direction:column;gap:0;">
       {% for log in audit_logs[:6] %}
       <div style="display:flex;align-items:flex-start;gap:11px;padding:10px 0;border-bottom:1px solid var(--border-color);">
-        <div style="width:7px;height:7px;border-radius:50%;margin-top:5px;flex-shrink:0;background:{{ '#10b981' if log.category == 'green' else ('#ef4444' if log.category == 'red' else '#2563eb') }};"></div>
+        <div style="width:7px;height:7px;border-radius:50%;margin-top:5px;flex-shrink:0;background:{{ 'var(--ok)' if log.category == 'green' else ('var(--mango)' if log.category == 'red' else 'var(--text-main)') }};"></div>
         <div style="flex:1;min-width:0;">
           <div style="font-size:13px;font-weight:700;">{{ log.actor }}</div>
           <div style="font-size:11px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ log.event }}</div>
         </div>
-        <div style="font-size:11px;color:var(--text-muted);flex-shrink:0;font-family:monospace;">{{ log.timestamp[11:16] }}</div>
+        <div style="font-size:11px;color:var(--text-muted);flex-shrink:0;font-family:inherit;font-variant-numeric:tabular-nums;">{{ log.timestamp[11:16] }}</div>
       </div>
       {% endfor %}
     </div>
@@ -376,7 +376,7 @@
 <script>
   var puvData = JSON.parse(document.getElementById('admin-puv-data').textContent);
   var map = MaxSeatMap.create('map', { fitAll: function () { return MaxSeatLive.trackedPuvs(); } });
-  function adminColor(p) { return (p.is_violator || p.is_overheating) ? '#ef4444' : '#10b981'; }
+  function adminColor(p) { return (p.is_violator || p.is_overheating) ? '#C6F24E' : '#2F6F5A'; }
   function adminPopup(p) { return '<div style="text-align:center;font-family:inherit;"><b>'+p.company+'</b><br>'+p.plate+'<br>'+p.passengers+'/'+p.capacity+' PAX · '+p.temp+'°C'+MaxSeatMap.noGpsNote(p)+'</div>'; }
   function addAdminMarker(p) {
     if (!map) return;

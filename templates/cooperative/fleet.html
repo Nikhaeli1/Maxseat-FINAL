@@ -5,7 +5,7 @@
   .fleet-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(360px,1fr)); gap:18px; }
   .puv-card { background:var(--card-bg); border-radius:var(--radius-lg); border:1px solid var(--border-color); padding:22px; box-shadow:var(--shadow-sm); transition:box-shadow .2s,transform .2s; }
   .puv-card:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); }
-  .puv-plate { font-size:20px; font-weight:800; color:var(--primary); }
+  .puv-plate { font-size:20px; font-weight:800; color:var(--accent-ink); }
   .puv-company { font-size:12px; color:var(--text-muted); font-weight:600; margin-top:3px; }
   .puv-meta { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0; }
   .puv-meta-item { background:var(--hover-bg); border-radius:var(--radius-sm); padding:10px 12px; border:1px solid var(--border-color); }
@@ -17,10 +17,10 @@
   .cap-input { width:72px; padding:9px 10px; border-radius:var(--radius-sm); border:1.5px solid var(--border-color); background:var(--bg); color:var(--text-main); font-family:inherit; font-size:14px; font-weight:700; text-align:center; transition:border-color .2s; }
   .cap-input:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-glow); }
   .section-div { height:1px; background:var(--border-color); margin:14px 0; }
-  .badge-pending-ltfrb { background:rgba(139,92,246,.1); color:#8b5cf6; border:1px solid rgba(139,92,246,.2); font-size:10px; font-weight:700; padding:3px 9px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; }
+  .badge-pending-ltfrb { background:color-mix(in srgb, var(--text-main) 10%, transparent); color:var(--text-main); border:1px solid color-mix(in srgb, var(--text-main) 20%, transparent); font-size:10px; font-weight:700; padding:3px 9px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; }
   .total-load-box { background:var(--hover-bg); border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:10px 14px; display:flex; align-items:center; justify-content:space-between; margin-top:10px; }
   .total-load-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); }
-  .total-load-value { font-size:18px; font-weight:800; color:var(--primary); }
+  .total-load-value { font-size:18px; font-weight:800; color:var(--accent-ink); }
 
   /* infra badge */
   .infra-tag { display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:6px; font-size:11px; font-weight:700; background:var(--hover-bg); border:1px solid var(--border-color); color:var(--text-muted); margin-right:4px; margin-bottom:4px; }
@@ -30,20 +30,20 @@
   .add-page.show { display:block; }
   .fleet-view.hide { display:none; }
   .av-back { display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:700; color:var(--text-muted); cursor:pointer; background:none; border:none; font-family:inherit; padding:0; margin-bottom:20px; transition:color .15s; }
-  .av-back:hover { color:var(--primary); }
+  .av-back:hover { color:var(--accent-ink); }
   .av-step { background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:26px 30px; margin-bottom:20px; }
   .av-step-title { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); margin-bottom:16px; display:flex; align-items:center; gap:8px; }
   .av-step-title::after { content:''; flex:1; height:1px; background:var(--border-color); }
-  .av-step-num { font-size:11px; width:20px; height:20px; background:var(--primary); color:#fff; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .av-step-num { font-size:11px; width:20px; height:20px; background:var(--primary); color:var(--on-primary); border-radius:50%; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
   .av-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
   .av-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
   .av-grid-4 { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:14px; }
   .av-full { grid-column:1/-1; }
-  .av-error { display:none; align-items:center; gap:8px; padding:11px 14px; border-radius:var(--radius-sm); margin-bottom:14px; font-size:13px; font-weight:600; background:rgba(239,68,68,.08); color:#dc2626; border:1px solid rgba(239,68,68,.2); }
+  .av-error { display:none; align-items:center; gap:8px; padding:11px 14px; border-radius:var(--radius-sm); margin-bottom:14px; font-size:13px; font-weight:600; background:rgba(198,242,78,.08); color:var(--danger-ink); border:1px solid rgba(198,242,78,.2); }
   .av-error.show { display:flex; }
 
   /* capacity summary preview */
-  .cap-summary { background:rgba(37,99,235,.05); border:1px solid rgba(37,99,235,.15); border-radius:var(--radius-sm); padding:14px 16px; margin-top:14px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; text-align:center; }
+  .cap-summary { background:color-mix(in srgb, var(--text-main) 5%, transparent); border:1px solid color-mix(in srgb, var(--text-main) 15%, transparent); border-radius:var(--radius-sm); padding:14px 16px; margin-top:14px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; text-align:center; }
   .cap-summary-val { font-size:22px; font-weight:800; }
   .cap-summary-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); margin-top:2px; }
 </style>
@@ -96,15 +96,15 @@
         {% if puv.get('vehicle_type') %}<span class="infra-tag"><i class="fa-solid fa-bus" style="font-size:9px;"></i>{{ puv.vehicle_type }}</span>{% endif %}
         {% if puv.get('engine_type') %}<span class="infra-tag"><i class="fa-solid fa-gear" style="font-size:9px;"></i>{{ puv.engine_type }}</span>{% endif %}
         {% if puv.get('year_model') %}<span class="infra-tag"><i class="fa-solid fa-calendar" style="font-size:9px;"></i>{{ puv.year_model }}</span>{% endif %}
-        {% if puv.get('color_coding') %}<span class="infra-tag"><i class="fa-solid fa-circle" style="font-size:8px;color:{{ '#ef4444' if puv.color_coding == 'Red' else ('#f59e0b' if puv.color_coding == 'Yellow' else ('#10b981' if puv.color_coding == 'Green' else 'var(--text-muted)')) }};"></i>{{ puv.color_coding }}</span>{% endif %}
+        {% if puv.get('color_coding') %}<span class="infra-tag"><i class="fa-solid fa-circle" style="font-size:8px;color:{{ 'var(--danger-ink)' if puv.color_coding == 'Red' else ('var(--warn-ink)' if puv.color_coding == 'Yellow' else ('var(--ok)' if puv.color_coding == 'Green' else 'var(--text-muted)')) }};"></i>{{ puv.color_coding }}</span>{% endif %}
       </div>
       {% endif %}
 
       <!-- Infrastructure details -->
       {% if puv.get('franchise_no') or puv.get('chassis_no') %}
       <div style="margin-top:6px;margin-bottom:2px;">
-        {% if puv.get('franchise_no') %}<span style="font-size:11px;color:var(--text-muted);margin-right:12px;"><i class="fa-solid fa-file-contract" style="margin-right:4px;"></i>FR: {{ puv.franchise_no }}</span>{% endif %}
-        {% if puv.get('chassis_no') %}<span style="font-size:11px;color:var(--text-muted);"><i class="fa-solid fa-hashtag" style="margin-right:4px;"></i>CH: {{ puv.chassis_no }}</span>{% endif %}
+        {% if puv.get('franchise_no') %}<span style="font-size:11px;color:var(--text-muted);margin-right:12px;"><i class="fa-solid fa-file-contract" style="margin-right:4px;"></i>FR:{{ puv.franchise_no }}</span>{% endif %}
+        {% if puv.get('chassis_no') %}<span style="font-size:11px;color:var(--text-muted);"><i class="fa-solid fa-hashtag" style="margin-right:4px;"></i>CH:{{ puv.chassis_no }}</span>{% endif %}
       </div>
       {% endif %}
 
@@ -141,10 +141,10 @@
       <div data-live="fleet-load-{{ puv.id }}" style="margin-top:12px;">
         <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
           <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);">Current load</span>
-          <span style="font-size:12px;font-weight:700;color:{{ '#ef4444' if overload else 'var(--text-muted)' }};">{{ puv.passengers }}/{{ total_max }} ({{ pct }}%)</span>
+          <span style="font-size:12px;font-weight:700;color:{{ 'var(--danger-ink)' if overload else 'var(--text-muted)' }};">{{ puv.passengers }}/{{ total_max }} ({{ pct }}%)</span>
         </div>
         <div class="load-bar">
-          <div class="load-fill" style="width:{{ [pct,100]|min }}%;background:{{ '#ef4444' if overload else ('#f59e0b' if pct >= 80 else '#10b981') }};"></div>
+          <div class="load-fill" style="width:{{ [pct,100]|min }}%;background:{{ 'var(--mango)' if overload else ('var(--mango-soft)' if pct >= 80 else 'var(--ok)') }};"></div>
         </div>
       </div>
 
@@ -152,7 +152,7 @@
 
       <!-- Assign Driver to Shift -->
       <div>
-        <div class="puv-meta-label" style="margin-bottom:8px;"><i class="fa-solid fa-id-card" style="margin-right:5px;color:var(--primary);"></i>Assign driver to shift</div>
+        <div class="puv-meta-label" style="margin-bottom:8px;"><i class="fa-solid fa-id-card" style="margin-right:5px;color:var(--accent-ink);"></i>Assign driver to shift</div>
         <div style="display:flex;gap:8px;">
           <select id="shift-{{ puv.id }}" class="form-control" style="flex:1;padding:9px 12px;font-size:13px;">
             <option value="">— Select driver —</option>
@@ -170,7 +170,7 @@
 
       <!-- Seating configuration -->
       <div>
-        <div class="puv-meta-label" style="margin-bottom:8px;"><i class="fa-solid fa-sliders" style="margin-right:5px;color:var(--primary);"></i>Seating configuration</div>
+        <div class="puv-meta-label" style="margin-bottom:8px;"><i class="fa-solid fa-sliders" style="margin-right:5px;color:var(--accent-ink);"></i>Seating configuration</div>
         {% if pending_cap %}
         <div style="margin-bottom:8px;">
           <span class="badge-pending-ltfrb"><i class="fa-solid fa-clock"></i> Pending LTFRB Approval — {{ pending_cap.seated }} seated + {{ pending_cap.standing }} standing = {{ pending_cap.total }} total</span>
@@ -197,8 +197,8 @@
 
       <!-- Remove -->
       <button onclick="removePuv({{ puv.id }}, '{{ puv.plate }}')"
-        style="width:100%;padding:9px;background:rgba(239,68,68,.07);border:1.5px solid rgba(239,68,68,.2);color:#ef4444;border-radius:var(--radius-sm);font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;transition:all .2s;"
-        onmouseover="this.style.background='rgba(239,68,68,.15)'" onmouseout="this.style.background='rgba(239,68,68,.07)'">
+        style="width:100%;padding:9px;background:rgba(198,242,78,.07);border:1.5px solid rgba(198,242,78,.2);color:var(--danger-ink);border-radius:var(--radius-sm);font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;transition:all .2s;"
+        onmouseover="this.style.background='rgba(198,242,78,.15)'" onmouseout="this.style.background='rgba(198,242,78,.07)'">
         <i class="fa-solid fa-trash" style="margin-right:6px;"></i>Remove vehicle
       </button>
     </div>
@@ -214,9 +214,9 @@
   </div>
   {% endif %}
 
-  <div class="card" style="background:rgba(37,99,235,.04);border-color:rgba(37,99,235,.15);margin-top:22px;">
+  <div class="card" style="background:color-mix(in srgb, var(--text-main) 4%, transparent);border-color:color-mix(in srgb, var(--text-main) 15%, transparent);margin-top:22px;">
     <div style="display:flex;align-items:flex-start;gap:14px;">
-      <i class="fa-solid fa-circle-info" style="color:var(--primary);font-size:18px;margin-top:2px;"></i>
+      <i class="fa-solid fa-circle-info" style="color:var(--accent-ink);font-size:18px;margin-top:2px;"></i>
       <div>
         <div style="font-weight:700;margin-bottom:4px;">LTFRB standard capacity</div>
         <p style="font-size:13.5px;color:var(--text-muted);line-height:1.6;margin:0;">
@@ -252,11 +252,11 @@
     <div class="av-step-title"><span class="av-step-num">1</span> Vehicle information</div>
     <div class="av-grid-2">
       <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label">Plate number <span style="color:#ef4444;">*</span></label>
+        <label class="form-label">Plate number <span style="color:var(--danger-ink);">*</span></label>
         <input id="av-plate" type="text" class="form-control" placeholder="e.g. KVR-102">
       </div>
       <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label">Company / operator <span style="color:#ef4444;">*</span></label>
+        <label class="form-label">Company / operator <span style="color:var(--danger-ink);">*</span></label>
         <input id="av-company" type="text" class="form-control" placeholder="e.g. OROTSCO">
       </div>
       <div class="form-group" style="margin-bottom:0;">
@@ -331,7 +331,7 @@
     <div class="av-step-title"><span class="av-step-num">3</span> Seating configuration</div>
     <div class="av-grid-2">
       <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label">Seated capacity <span style="color:#ef4444;">*</span></label>
+        <label class="form-label">Seated capacity <span style="color:var(--danger-ink);">*</span></label>
         <input id="av-capacity" type="number" class="form-control" value="22" min="1" max="99" oninput="updateCapPreview()">
         <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">LTFRB standard: 22 seats</div>
       </div>
@@ -344,19 +344,19 @@
     <!-- Live preview -->
     <div class="cap-summary" id="cap-summary">
       <div>
-        <div class="cap-summary-val" id="prev-seated" style="color:#2563eb;">22</div>
+        <div class="cap-summary-val" id="prev-seated" style="color:var(--accent-ink);">22</div>
         <div class="cap-summary-lbl">Seated</div>
       </div>
       <div>
-        <div class="cap-summary-val" id="prev-standing" style="color:#8b5cf6;">0</div>
+        <div class="cap-summary-val" id="prev-standing" style="color:var(--text-main);">0</div>
         <div class="cap-summary-lbl">Standing</div>
       </div>
       <div>
-        <div class="cap-summary-val" id="prev-total" style="color:#10b981;">22</div>
+        <div class="cap-summary-val" id="prev-total" style="color:var(--ok);">22</div>
         <div class="cap-summary-lbl">Total max load</div>
       </div>
     </div>
-    <div style="font-size:12px;color:#8b5cf6;margin-top:10px;">
+    <div style="font-size:12px;color:var(--text-main);margin-top:10px;">
       <i class="fa-solid fa-clock" style="margin-right:5px;"></i>
       Capacity will be submitted for <strong>LTFRB approval</strong> before taking effect.
     </div>
@@ -377,7 +377,7 @@
       </div>
       <div style="display:flex;align-items:flex-end;padding-bottom:2px;">
         <div style="font-size:12px;color:var(--text-muted);line-height:1.6;">
-          <i class="fa-solid fa-circle-info" style="color:var(--primary);margin-right:4px;"></i>
+          <i class="fa-solid fa-circle-info" style="color:var(--accent-ink);margin-right:4px;"></i>
           You can assign or change the driver later from the vehicle card.
         </div>
       </div>
@@ -460,7 +460,7 @@ async function submitAddVehicle() {
   var data = await res.json();
   hideLoader();
   if (data.success) {
-    await Swal.fire({ title:'Vehicle added', text:plate+' has been added to your fleet.', icon:'success', confirmButtonColor:'#2563eb', background:'var(--card-bg)', color:'var(--text-main)' });
+    await Swal.fire({ title:'Vehicle added', text:plate+' has been added to your fleet.', icon:'success', confirmButtonColor:'#2F6F5A', background:'var(--card-bg)', color:'var(--text-main)' });
     location.reload();
   } else { avShowError(data.error || 'Could not add vehicle.'); }
 }
@@ -489,19 +489,19 @@ async function saveCap(puvId, plate) {
     await Swal.fire({
       title:'Submitted',
       html:'Capacity change for <b>'+plate+'</b> submitted.<br><br>'
-         + '<span style="background:rgba(139,92,246,.1);color:#8b5cf6;border:1px solid rgba(139,92,246,.2);padding:4px 12px;border-radius:6px;font-weight:700;font-size:12px;display:inline-flex;align-items:center;gap:5px;"><i class="fa-solid fa-clock"></i> Pending LTFRB Approval — '+seated+' seated + '+standing+' standing = '+(seated+standing)+' total</span>',
-      icon:'success', confirmButtonColor:'#2563eb', background:'var(--card-bg)', color:'var(--text-main)'
+         + '<span style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--text-main);border:1px solid color-mix(in srgb, var(--text-main) 20%, transparent);padding:4px 12px;border-radius:6px;font-weight:700;font-size:12px;display:inline-flex;align-items:center;gap:5px;"><i class="fa-solid fa-clock"></i> Pending LTFRB Approval — '+seated+' seated + '+standing+' standing = '+(seated+standing)+' total</span>',
+      icon:'success', confirmButtonColor:'#2F6F5A', background:'var(--card-bg)', color:'var(--text-main)'
     });
     location.reload();
   } else { popAlert('Error', data.error||'Could not submit request.', 'error'); }
 }
 
 async function removePuv(puvId, plate) {
-  var result = await Swal.fire({ title:'Remove '+plate+'?', text:'This will permanently remove the vehicle from your fleet.', icon:'warning', showCancelButton:true, confirmButtonColor:'#ef4444', cancelButtonColor:'#64748b', confirmButtonText:'<i class="fa-solid fa-trash"></i> Yes, remove', cancelButtonText:'Cancel', background:'var(--card-bg)', color:'var(--text-main)' });
+  var result = await Swal.fire({ title:'Remove '+plate+'?', text:'This will permanently remove the vehicle from your fleet.', icon:'warning', showCancelButton:true, confirmButtonColor:'#2F6F5A', cancelButtonColor:'#5E6F67', confirmButtonText:'<i class="fa-solid fa-trash"></i> Yes, remove', cancelButtonText:'Cancel', background:'var(--card-bg)', color:'var(--text-main)' });
   if (!result.isConfirmed) return;
   var res  = await fetch('/api/delete_puv', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ puv_id: puvId }) });
   var data = await res.json();
-  if (data.success) { await Swal.fire({ title:'Removed', text:data.plate+' removed.', icon:'success', confirmButtonColor:'#2563eb', background:'var(--card-bg)', color:'var(--text-main)' }); location.reload(); }
+  if (data.success) { await Swal.fire({ title:'Removed', text:data.plate+' removed.', icon:'success', confirmButtonColor:'#2F6F5A', background:'var(--card-bg)', color:'var(--text-main)' }); location.reload(); }
   else { Swal.fire({ title:'Error', text:data.error||'Could not remove.', icon:'error', background:'var(--card-bg)', color:'var(--text-main)' }); }
 }
 </script>

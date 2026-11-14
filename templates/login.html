@@ -4,34 +4,36 @@
     <meta charset="UTF-8">
     <title>MaxSeat System - Secure Portal</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; font-family: 'Plus Jakarta Sans'; display: flex; justify-content: center; align-items: center; height: 100vh; overflow:hidden; background: #0f172a; }
+        button, input, select, textarea { font-family: inherit; }
+        :root { --navy:#14211B; --mango:#C6F24E; --text-main:#14211B; --text-muted:#5E6F67; --accent-ink:#14211B; --ok:#14211B; --warn-ink:#4D6B00; --danger-ink:#4D6B00; }
+        body { margin: 0; font-family: 'Outfit', system-ui, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; overflow:hidden; background:#14211B; }
         .theme-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; transition: opacity 0.8s cubic-bezier(0.25, 1, 0.5, 1); opacity: 0; }
         .theme-layer.active { opacity: 1; }
-        #bg-admin       { background: linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%); }
-        #bg-enforcer    { background: linear-gradient(135deg, #fff1f2 0%, #fecaca 100%); }
-        #bg-driver      { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); }
-        #bg-cooperative { background: linear-gradient(135deg, #ecfdf5 0%, #a7f3d0 100%); }
+        #bg-admin       { background:linear-gradient(135deg, #EEF5F1 0%, #C3D6CC 100%); }
+        #bg-enforcer    { background:linear-gradient(135deg, #F3FBDC 0%, #DDF79A 100%); }
+        #bg-driver      { background:linear-gradient(135deg, #F3FBDC 0%, #E8F7B8 100%); }
+        #bg-cooperative { background:linear-gradient(135deg, #FFFFFF 0%, #DCE8E1 100%); }
         .glass-card { background: rgba(255,255,255,0.95); backdrop-filter: blur(25px); padding: 45px; border-radius: 32px; width: 420px; box-shadow: 0 30px 60px -15px rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.6); animation: cardEnter 0.6s cubic-bezier(0.16, 1, 0.3, 1); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes cardEnter { from { opacity: 0; transform: translateY(30px); filter: blur(5px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }
-        .alert { background: #fee2e2; color: #ef4444; padding: 15px; border-radius: 16px; margin-bottom: 20px; font-size: 14px; font-weight: 600; display:flex; gap:10px; align-items:center; }
+        .alert { background:#F3FBDC; color:var(--danger-ink); padding: 15px; border-radius: 16px; margin-bottom: 20px; font-size: 14px; font-weight: 600; display:flex; gap:10px; align-items:center; }
         .input-group { position: relative; margin-bottom: 20px; width: 100%; }
-        select, input { width: 100%; padding: 18px 20px; border: 2px solid #e2e8f0; border-radius: 16px; box-sizing: border-box; font-family: inherit; transition: 0.3s; font-size: 15px; background: #f8fafc; }
-        select:focus, input:focus { outline: none; border-color: #2563eb; background: #fff; box-shadow: 0 0 0 4px rgba(37,99,235,0.1); }
-        .select-divider { color: #94a3b8; font-size: 12px; font-weight: 700; background: #f1f5f9; }
-        .peek-btn { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); color: #94a3b8; cursor: pointer; border: none; background: none; font-size: 18px; padding: 0; }
-        button[type="submit"] { width: 100%; padding: 18px; background: #0f172a; color: white; border: none; border-radius: 16px; font-weight: 800; font-size: 16px; cursor: pointer; transition: 0.3s cubic-bezier(0.25, 1, 0.5, 1); margin-top: 10px; }
-        button[type="submit"]:hover { background: #2563eb; transform: translateY(-4px); box-shadow: 0 15px 25px rgba(37,99,235,0.25); }
-        #loader-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.95); backdrop-filter: blur(10px); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; opacity: 0; visibility: hidden; transition: 0.4s ease; }
+        select, input { width: 100%; padding: 18px 20px; border:2px solid #DCE8E1; border-radius: 16px; box-sizing: border-box; font-family: inherit; transition: 0.3s; font-size: 15px; background:#F5F9F7; }
+        select:focus, input:focus { outline: none; border-color:var(--text-main); background:#fff; box-shadow: 0 0 0 4px color-mix(in srgb, var(--text-main) 10%, transparent); }
+        .select-divider { color:#9BA8A1; font-size: 12px; font-weight: 700; background:#EEF5F1; }
+        .peek-btn { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); color:#9BA8A1; cursor: pointer; border: none; background: none; font-size: 18px; padding: 0; }
+        button[type="submit"] { width: 100%; padding: 18px; background:#2F6F5A; color: white; border: none; border-radius: 16px; font-weight: 800; font-size: 16px; cursor: pointer; transition: 0.3s cubic-bezier(0.25, 1, 0.5, 1); margin-top: 10px; }
+        button[type="submit"]:hover { background:var(--mango); color:#14211B; transform: translateY(-4px); box-shadow: 0 15px 25px color-mix(in srgb, var(--text-main) 25%, transparent); }
+        #loader-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(20,33,27,0.95); backdrop-filter: blur(10px); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; opacity: 0; visibility: hidden; transition: 0.4s ease; }
         #loader-overlay.active { opacity: 1; visibility: visible; }
-        .spinner { width: 60px; height: 60px; border: 4px solid rgba(255,255,255,0.1); border-top-color: #2563eb; border-radius: 50%; animation: spin 1s linear infinite; }
+        .spinner { width: 60px; height: 60px; border: 4px solid rgba(255,255,255,0.1); border-top-color:var(--mango); border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .role-badge { display: inline-flex; align-items: center; gap: 7px; padding: 5px 13px; border-radius: 30px; font-size: 12px; font-weight: 700; margin-bottom: 18px; }
-        .role-badge.admin       { background: rgba(37,99,235,0.1);   color: #2563eb; }
-        .role-badge.enforcer    { background: rgba(239,68,68,0.1);   color: #ef4444; }
-        .role-badge.driver      { background: rgba(245,158,11,0.1);  color: #d97706; }
-        .role-badge.cooperative { background: rgba(16,185,129,0.1);  color: #059669; }
+        .role-badge.admin       { background: color-mix(in srgb, var(--text-main) 10%, transparent);   color:var(--accent-ink); }
+        .role-badge.enforcer    { background: rgba(198,242,78,0.1);   color:var(--danger-ink); }
+        .role-badge.driver      { background: rgba(198,242,78,0.1);  color:var(--warn-ink); }
+        .role-badge.cooperative { background: color-mix(in srgb, var(--text-main) 10%, transparent);  color:var(--ok); }
     </style>
 </head>
 <body>
@@ -47,7 +49,7 @@
 
     <div class="glass-card" id="main-card">
         <div style="text-align:center; margin-bottom:25px;">
-            <img src="/static/logo.png" style="max-width:170px;">
+            <img src="/static/logo.png" alt="MaxSeat Alert" style="max-width:170px;filter:brightness(0);opacity:0.9;">
         </div>
 
         {% for m in messages %}
@@ -55,8 +57,8 @@
         {% endfor %}
 
         <span id="role-badge" class="role-badge admin"><i class="fa-solid fa-shield-halved"></i> System Administrator</span>
-        <h2 id="role-title" style="margin: 0 0 5px 0; font-weight: 800; font-size: 26px; color: #0f172a; transition:0.3s;">Admin Hub</h2>
-        <p style="color: #64748b; font-size: 14px; margin-bottom: 30px;">Provide secured credentials to proceed.</p>
+        <h2 id="role-title" style="margin: 0 0 5px 0; font-weight: 800; font-size: 26px; color:#14211B; transition:0.3s;">Admin Hub</h2>
+        <p style="color:#5E6F67; font-size: 14px; margin-bottom: 30px;">Provide secured credentials to proceed.</p>
 
         <form method="POST" onsubmit="showLoader()">
             <div class="input-group">
