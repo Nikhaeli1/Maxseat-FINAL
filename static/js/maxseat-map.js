@@ -67,22 +67,22 @@ const MaxSeatMap = (() => {
   function style(p, colorFn, radius) {
     const r = radius || 11;
     if (hasGps(p)) {
-      return { radius: r, fillColor: colorFn ? colorFn(p) : '#2563eb', color: '#fff',
+      return { radius: r, fillColor: colorFn ? colorFn(p) : '#2F6F5A', color: '#fff',
                weight: 3, fillOpacity: 1, opacity: 1, dashArray: null };
     }
-    return { radius: r - 2, fillColor: '#94a3b8', color: '#475569', weight: 2,
+    return { radius: r - 2, fillColor: '#9BA8A1', color: '#4A6258', weight: 2,
              fillOpacity: 0.55, opacity: 0.9, dashArray: '3 3' };
   }
 
   function noGpsNote(p) {
     return hasGps(p) ? '' :
-      '<div style="margin-top:4px;font-size:11px;color:#64748b;">No GPS fix yet, shown at CDO center</div>';
+      '<div style="margin-top:4px;font-size:11px;color:#5E6F67;">No GPS fix yet, shown at CDO center</div>';
   }
 
   // ── Map creation ────────────────────────────────────────────────────────
   function showError(el, text) {
     el.innerHTML = '<div style="height:100%;min-height:160px;display:flex;align-items:center;justify-content:center;' +
-      'text-align:center;padding:16px;color:#64748b;font-size:13px;background:#f8fafc;">' + text + '</div>';
+      'text-align:center;padding:16px;color:#5E6F67;font-size:13px;background:#F5F9F7;">' + text + '</div>';
   }
 
   function addTiles(map) {
@@ -122,7 +122,7 @@ const MaxSeatMap = (() => {
         b.setAttribute('role', 'button');
         b.innerHTML = '&#x2922;';
         b.style.cssText = 'display:block;width:34px;height:34px;line-height:32px;text-align:center;' +
-                          'background:#fff;color:#0f172a;font-size:18px;font-weight:700;text-decoration:none;';
+                          'background:#fff;color:#14211B;font-size:18px;font-weight:700;text-decoration:none;';
         L.DomEvent.disableClickPropagation(b);
         L.DomEvent.on(b, 'click', (e) => { L.DomEvent.preventDefault(e); fit(map, getPuvs()); });
         return b;

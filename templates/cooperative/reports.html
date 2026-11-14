@@ -6,7 +6,7 @@
     .report-section-header { padding: 18px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
     .report-section-title { font-size: 15px; font-weight: 800; }
     .report-section-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-    .print-btn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 16px; border-radius: var(--radius-sm); background: #0f172a; color: #fff; border: none; font-weight: 700; font-size: 12px; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+    .print-btn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 16px; border-radius: var(--radius-sm); background:#14211B; color:#fff; border: none; font-weight: 700; font-size: 12px; cursor: pointer; font-family: inherit; transition: all 0.2s; }
     .print-btn:hover { background: var(--primary); }
     .compliance-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; border-bottom: 1px solid var(--border-color); }
     .compliance-row:last-child { border-bottom: none; }
@@ -15,9 +15,9 @@
     .compliance-bar-wrap { flex: 1; margin: 0 20px; }
     .compliance-bar { height: 8px; background: var(--border-color); border-radius: 4px; overflow: hidden; }
     .compliance-fill { height: 100%; border-radius: 4px; }
-    .fine-total { background: linear-gradient(135deg, #0f172a, #1e293b); border-radius: var(--radius-lg); padding: 24px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; border: 1px solid rgba(255,255,255,0.06); }
-    .fine-label { font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; }
-    .fine-value { font-size: 34px; font-weight: 800; color: #f1f5f9; margin-top: 4px; }
+    .fine-total { background:linear-gradient(135deg, #14211B, #262B28); border-radius: var(--radius-lg); padding: 24px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; border: 1px solid rgba(255,255,255,0.06); }
+    .fine-label { font-size: 12px; font-weight: 700; color:#5E6F67; text-transform: uppercase; letter-spacing: 0.8px; }
+    .fine-value { font-size: 34px; font-weight: 800; color:#EEF5F1; margin-top: 4px; }
 </style>
 
 <div class="page-row">
@@ -33,28 +33,28 @@
 <!-- SUMMARY STATS -->
 <div class="report-summary-grid" data-live="coop-rep-stats">
     <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(37,99,235,0.1);color:var(--primary);"><i class="fa-solid fa-bus"></i></div>
+        <div class="stat-icon" style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--accent-ink);"><i class="fa-solid fa-bus"></i></div>
         <div>
             <div class="stat-label">Total Units</div>
             <div class="stat-value">{{ stats.total_units }}</div>
         </div>
     </div>
     <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(239,68,68,0.1);color:#ef4444;"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <div class="stat-icon" style="background:rgba(198,242,78,0.1);color:var(--danger-ink);"><i class="fa-solid fa-triangle-exclamation"></i></div>
         <div>
             <div class="stat-label">Active Violations</div>
             <div class="stat-value">{{ stats.active_violations }}</div>
         </div>
     </div>
     <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(245,158,11,0.1);color:#f59e0b;"><i class="fa-solid fa-ticket"></i></div>
+        <div class="stat-icon" style="background:rgba(198,242,78,0.1);color:var(--warn-ink);"><i class="fa-solid fa-ticket"></i></div>
         <div>
             <div class="stat-label">Total Citations</div>
             <div class="stat-value">{{ citations | length }}</div>
         </div>
     </div>
     <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(16,185,129,0.1);color:#10b981;"><i class="fa-solid fa-circle-check"></i></div>
+        <div class="stat-icon" style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--ok);"><i class="fa-solid fa-circle-check"></i></div>
         <div>
             <div class="stat-label">Resolved</div>
             <div class="stat-value">{{ citations | selectattr('status', 'equalto', 'RESOLVED') | list | length }}</div>
@@ -71,7 +71,7 @@
     </div>
     <div style="text-align:right;">
         <div class="fine-label">Pending Citations</div>
-        <div style="font-size:28px;font-weight:800;color:#fca5a5;">{{ pending_citations | length }}</div>
+        <div style="font-size:28px;font-weight:800;color:#DDF79A;">{{ pending_citations | length }}</div>
     </div>
 </div>
 
@@ -79,7 +79,7 @@
 <div class="report-section">
     <div class="report-section-header">
         <div>
-            <div class="report-section-title"><i class="fa-solid fa-gauge" style="color:var(--primary);margin-right:8px;"></i>Fleet Capacity Compliance</div>
+            <div class="report-section-title"><i class="fa-solid fa-gauge" style="color:var(--accent-ink);margin-right:8px;"></i>Fleet Capacity Compliance</div>
             <div class="report-section-sub">Current passenger load vs. authorized seating capacity</div>
         </div>
     </div>
@@ -94,10 +94,10 @@
         <div class="compliance-bar-wrap">
             <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
                 <span style="font-size:11px;color:var(--text-muted);font-weight:600;">{{ puv.passengers }}/{{ puv.capacity }} passengers</span>
-                <span style="font-size:11px;font-weight:700;color:{{ '#ef4444' if overload else '#10b981' }};">{{ pct }}%</span>
+                <span style="font-size:11px;font-weight:700;color:{{ 'var(--danger-ink)' if overload else 'var(--ok)' }};">{{ pct }}%</span>
             </div>
             <div class="compliance-bar">
-                <div class="compliance-fill" style="width:{{ [pct,100]|min }}%;background:{{ '#ef4444' if overload else ('#f59e0b' if pct >= 80 else '#10b981') }};"></div>
+                <div class="compliance-fill" style="width:{{ [pct,100]|min }}%;background:{{ 'var(--mango)' if overload else ('var(--mango-soft)' if pct >= 80 else 'var(--ok)') }};"></div>
             </div>
         </div>
         <div style="min-width:100px;text-align:right;">
@@ -117,7 +117,7 @@
 <div class="report-section">
     <div class="report-section-header">
         <div>
-            <div class="report-section-title"><i class="fa-solid fa-gavel" style="color:#ef4444;margin-right:8px;"></i>Citation Records</div>
+            <div class="report-section-title"><i class="fa-solid fa-gavel" style="color:var(--danger-ink);margin-right:8px;"></i>Citation Records</div>
             <div class="report-section-sub">All enforcement actions issued against your fleet</div>
         </div>
     </div>
@@ -136,8 +136,8 @@
         <tbody>
             {% for c in citations %}
             <tr>
-                <td><span style="font-family:monospace;font-weight:700;font-size:12px;">{{ c.serial }}</span></td>
-                <td><span style="font-weight:800;color:var(--primary);">{{ c.plate }}</span></td>
+                <td><span style="font-family:inherit;font-variant-numeric:tabular-nums;font-weight:700;font-size:12px;">{{ c.serial }}</span></td>
+                <td><span style="font-weight:800;color:var(--accent-ink);">{{ c.plate }}</span></td>
                 <td style="font-size:13px;">{{ c.company }}</td>
                 <td style="font-size:12px;color:var(--text-muted);">{{ c.officer }}</td>
                 <td><span style="font-weight:700;">{{ c.fine }}</span></td>

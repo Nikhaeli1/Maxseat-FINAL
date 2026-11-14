@@ -68,7 +68,7 @@ function generateReport(e) {
     citations.forEach(c => {
         const badge = c.status === 'RESOLVED' ? 'badge-green' : 'badge-red';
         html += `<tr>
-            <td><code style="font-family:monospace;font-weight:700;">#${c.serial}</code></td>
+            <td><code style="font-family:inherit;font-variant-numeric:tabular-nums;font-weight:700;">#${c.serial}</code></td>
             <td><strong>${c.plate}</strong><br><small style="color:var(--text-muted);">${c.company}</small></td>
             <td>${c.officer}</td>
             <td style="font-weight:700;">${c.fine}</td>

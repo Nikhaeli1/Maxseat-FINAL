@@ -12,11 +12,11 @@
   .activity-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:5px; }
   .load-bar { height:6px; flex:1; background:var(--border-color); border-radius:4px; overflow:hidden; }
   .load-fill { height:100%; border-radius:4px; transition:width .4s; }
-  .org-banner { background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%); border-radius:var(--radius-lg); padding:20px 26px; display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; border:1px solid rgba(255,255,255,0.06); }
-  .org-icon { width:46px; height:46px; border-radius:12px; background:var(--primary); display:flex; align-items:center; justify-content:center; font-size:20px; color:#fff; flex-shrink:0; }
-  .org-name { font-size:17px; font-weight:800; color:#f1f5f9; }
-  .org-sub { font-size:12px; color:#64748b; margin-top:2px; font-weight:600; }
-  .org-route-pill { display:inline-flex; align-items:center; gap:7px; background:rgba(37,99,235,0.18); color:#93c5fd; border:1px solid rgba(37,99,235,0.3); padding:8px 16px; border-radius:30px; font-size:12px; font-weight:700; }
+  .org-banner { background:linear-gradient(135deg,#14211B 0%,#262B28 100%); border-radius:var(--radius-lg); padding:20px 26px; display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; border:1px solid rgba(255,255,255,0.06); }
+  .org-icon { width:46px; height:46px; border-radius:12px; background:var(--primary); display:flex; align-items:center; justify-content:center; font-size:20px; color:var(--on-primary); flex-shrink:0; }
+  .org-name { font-size:17px; font-weight:800; color:#EEF5F1; }
+  .org-sub { font-size:12px; color:#5E6F67; margin-top:2px; font-weight:600; }
+  .org-route-pill { display:inline-flex; align-items:center; gap:7px; background:color-mix(in srgb, var(--text-main) 18%, transparent); color:#C6F24E; border:1px solid color-mix(in srgb, var(--text-main) 30%, transparent); padding:8px 16px; border-radius:30px; font-size:12px; font-weight:700; }
 </style>
 
 {% set udata = user_data %}
@@ -39,8 +39,8 @@
   </div>
   {% else %}
   <a href="/settings" onclick="showLoader('Loading settings...')"
-    style="display:inline-flex;align-items:center;gap:7px;background:rgba(239,68,68,.18);color:#fca5a5;border:1px solid rgba(239,68,68,.3);padding:8px 16px;border-radius:30px;font-size:12px;font-weight:700;text-decoration:none;transition:background .2s;"
-    onmouseover="this.style.background='rgba(239,68,68,.28)'" onmouseout="this.style.background='rgba(239,68,68,.18)'">
+    style="display:inline-flex;align-items:center;gap:7px;background:rgba(198,242,78,.18);color:#DDF79A;border:1px solid rgba(198,242,78,.3);padding:8px 16px;border-radius:30px;font-size:12px;font-weight:700;text-decoration:none;transition:background .2s;"
+    onmouseover="this.style.background='rgba(198,242,78,.28)'" onmouseout="this.style.background='rgba(198,242,78,.18)'">
     <i class="fa-solid fa-pencil"></i> Set route in Settings
   </a>
   {% endif %}
@@ -48,21 +48,21 @@
 
 <!-- STAT CARDS -->
 <div class="coop-stat-grid" data-live="coop-stats">
-  <div class="stat-card" style="border-bottom:3px solid #2563eb;">
-    <div class="stat-icon" style="background:rgba(37,99,235,.1);color:#2563eb;"><i class="fa-solid fa-bus"></i></div>
+  <div class="stat-card" style="border-bottom:3px solid var(--text-main);">
+    <div class="stat-icon" style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--accent-ink);"><i class="fa-solid fa-bus"></i></div>
     <div><div class="stat-label">Total vehicles</div><div class="stat-value">{{ stats.total_units }}</div></div>
   </div>
-  <div class="stat-card" style="border-bottom:3px solid #10b981;">
-    <div class="stat-icon" style="background:rgba(16,185,129,.1);color:#10b981;"><i class="fa-solid fa-circle-check"></i></div>
-    <div><div class="stat-label">On the road</div><div class="stat-value" style="color:#10b981;">{{ stats.moving_units }}</div></div>
+  <div class="stat-card" style="border-bottom:3px solid var(--ok);">
+    <div class="stat-icon" style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--ok);"><i class="fa-solid fa-circle-check"></i></div>
+    <div><div class="stat-label">On the road</div><div class="stat-value" style="color:var(--ok);">{{ stats.moving_units }}</div></div>
   </div>
-  <div class="stat-card" style="border-bottom:3px solid #ef4444;">
-    <div class="stat-icon" style="background:rgba(239,68,68,.1);color:#ef4444;"><i class="fa-solid fa-triangle-exclamation"></i></div>
-    <div><div class="stat-label">Active violations</div><div class="stat-value" style="color:#ef4444;">{{ stats.active_violations }}</div></div>
+  <div class="stat-card" style="border-bottom:3px solid var(--mango);">
+    <div class="stat-icon" style="background:rgba(198,242,78,.1);color:var(--danger-ink);"><i class="fa-solid fa-triangle-exclamation"></i></div>
+    <div><div class="stat-label">Active violations</div><div class="stat-value" style="color:var(--danger-ink);">{{ stats.active_violations }}</div></div>
   </div>
-  <div class="stat-card" style="border-bottom:3px solid #f59e0b;">
-    <div class="stat-icon" style="background:rgba(245,158,11,.1);color:#f59e0b;"><i class="fa-solid fa-thermometer-half"></i></div>
-    <div><div class="stat-label">Thermal warnings</div><div class="stat-value" style="color:#f59e0b;">{{ stats.thermal_warnings }}</div></div>
+  <div class="stat-card" style="border-bottom:3px solid var(--mango-soft);">
+    <div class="stat-icon" style="background:rgba(198,242,78,.1);color:var(--warn-ink);"><i class="fa-solid fa-thermometer-half"></i></div>
+    <div><div class="stat-label">Thermal warnings</div><div class="stat-value" style="color:var(--warn-ink);">{{ stats.thermal_warnings }}</div></div>
   </div>
 </div>
 
@@ -96,7 +96,7 @@
       {% set hot = puv.temp >= 37.5 %}
       <tr>
         <td>
-          <span style="font-weight:800;font-size:13px;color:var(--primary);">{{ puv.plate }}</span>
+          <span style="font-weight:800;font-size:13px;color:var(--accent-ink);">{{ puv.plate }}</span>
           <div style="font-size:11px;color:var(--text-muted);">{{ puv.company }}</div>
         </td>
         <td style="font-weight:600;font-size:13px;">{{ puv.driver }}</td>
@@ -106,13 +106,13 @@
         </td>
         <td>
           <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-weight:700;font-size:13px;color:{{ '#ef4444' if overload else 'var(--text-main)' }};">{{ puv.passengers }}/{{ puv.capacity }}</span>
+            <span style="font-weight:700;font-size:13px;color:{{ 'var(--danger-ink)' if overload else 'var(--text-main)' }};">{{ puv.passengers }}/{{ puv.capacity }}</span>
             <div class="load-bar">
-              <div class="load-fill" style="width:{{ [pct,100]|min }}%;background:{{ '#ef4444' if overload else ('#f59e0b' if pct >= 80 else '#10b981') }};"></div>
+              <div class="load-fill" style="width:{{ [pct,100]|min }}%;background:{{ 'var(--mango)' if overload else ('var(--mango-soft)' if pct >= 80 else 'var(--ok)') }};"></div>
             </div>
           </div>
         </td>
-        <td style="font-weight:700;color:{{ '#ef4444' if hot else ('#f59e0b' if puv.temp >= 35 else '#10b981') }};">{{ puv.temp }}°C</td>
+        <td style="font-weight:700;color:{{ 'var(--danger-ink)' if hot else ('var(--warn-ink)' if puv.temp >= 35 else 'var(--ok)') }};">{{ puv.temp }}°C</td>
         <td>
           {% if overload %}
           <span class="badge badge-red"><i class="fa-solid fa-triangle-exclamation"></i> Overloaded</span>
@@ -142,21 +142,21 @@
 <div class="coop-main">
   <div>
     <div style="font-size:14px;font-weight:800;margin-bottom:10px;">
-      <i class="fa-solid fa-map-location-dot" style="color:var(--primary);margin-right:8px;"></i>Fleet map
+      <i class="fa-solid fa-map-location-dot" style="color:var(--accent-ink);margin-right:8px;"></i>Fleet map
     </div>
     <div class="map-card"><div id="coop-map"></div></div>
   </div>
 
   <div class="activity-card" data-live="coop-recent-violations">
     <div style="font-size:14px;font-weight:800;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border-color);">
-      <i class="fa-solid fa-bell" style="color:#ef4444;margin-right:8px;"></i>Recent violations
+      <i class="fa-solid fa-bell" style="color:var(--danger-ink);margin-right:8px;"></i>Recent violations
     </div>
     {% set has_violations = [] %}
     {% for puv in puvs %}
       {% if puv.passengers > puv.capacity %}
       {% set _ = has_violations.append(1) %}
       <div class="activity-item">
-        <div class="activity-dot" style="background:#ef4444;box-shadow:0 0 6px #ef4444;"></div>
+        <div class="activity-dot" style="background:var(--mango);box-shadow:0 0 6px var(--mango);"></div>
         <div>
           <div style="font-size:13px;font-weight:700;">{{ puv.plate }} — Overloaded</div>
           <div style="font-size:11px;color:var(--text-muted);">{{ puv.passengers }}/{{ puv.capacity }} pax · {{ puv.loc_name }}</div>
@@ -167,7 +167,7 @@
       {% if puv.temp >= 37.5 %}
       {% set _ = has_violations.append(1) %}
       <div class="activity-item">
-        <div class="activity-dot" style="background:#f59e0b;box-shadow:0 0 6px #f59e0b;"></div>
+        <div class="activity-dot" style="background:var(--mango-soft);box-shadow:0 0 6px var(--mango-soft);"></div>
         <div>
           <div style="font-size:13px;font-weight:700;">{{ puv.plate }} — Thermal alert</div>
           <div style="font-size:11px;color:var(--text-muted);">{{ puv.temp }}°C · {{ puv.loc_name }}</div>
@@ -178,7 +178,7 @@
     {% endfor %}
     {% if has_violations | length == 0 %}
     <div style="text-align:center;padding:28px 10px;color:var(--text-muted);">
-      <i class="fa-solid fa-circle-check" style="font-size:30px;color:#10b981;display:block;margin-bottom:8px;"></i>
+      <i class="fa-solid fa-circle-check" style="font-size:30px;color:var(--ok);display:block;margin-bottom:8px;"></i>
       <div style="font-size:13px;font-weight:600;">All units operating normally</div>
     </div>
     {% endif %}
@@ -191,7 +191,7 @@
 <script>
 var puvData = JSON.parse(document.getElementById('coop-puv-data').textContent);
 var map = MaxSeatMap.create('coop-map', { fitAll: function () { return MaxSeatLive.trackedPuvs(); } });
-function coopColor(p) { return p.passengers > p.capacity ? '#ef4444' : (p.temp >= 37.5 ? '#f59e0b' : '#10b981'); }
+function coopColor(p) { return p.passengers > p.capacity ? '#C6F24E' : (p.temp >= 37.5 ? '#DDF79A' : '#2F6F5A'); }
 function coopPopup(p) { return '<strong>'+p.plate+'</strong><br>'+p.driver+'<br>'+p.passengers+'/'+p.capacity+' pax<br>'+p.temp+'°C'+MaxSeatMap.noGpsNote(p); }
 function addCoopMarker(p) {
   if (!map) return;

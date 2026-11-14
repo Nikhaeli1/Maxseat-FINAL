@@ -13,8 +13,8 @@
 
 <!-- STAT CARDS -->
 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:26px;">
-    <div class="stat-card" style="border-bottom:3px solid #2563eb;">
-        <div class="stat-icon" style="background:rgba(37,99,235,0.1);color:#2563eb;">
+    <div class="stat-card" style="border-bottom:3px solid var(--text-main);">
+        <div class="stat-icon" style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--accent-ink);">
             <i class="fa-solid fa-bus"></i>
         </div>
         <div>
@@ -22,22 +22,22 @@
             <div class="stat-value">{{ stats.total_units }}</div>
         </div>
     </div>
-    <div class="stat-card" style="border-bottom:3px solid #10b981;">
-        <div class="stat-icon" style="background:rgba(16,185,129,0.1);color:#10b981;">
+    <div class="stat-card" style="border-bottom:3px solid var(--ok);">
+        <div class="stat-icon" style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--ok);">
             <i class="fa-solid fa-route"></i>
         </div>
         <div>
             <div class="stat-label">Active &amp; Moving</div>
-            <div class="stat-value" style="color:#10b981;">{{ stats.moving_units }}</div>
+            <div class="stat-value" style="color:var(--ok);">{{ stats.moving_units }}</div>
         </div>
     </div>
-    <div class="stat-card" style="border-bottom:3px solid #ef4444;">
-        <div class="stat-icon" style="background:rgba(239,68,68,0.12);color:#ef4444;">
+    <div class="stat-card" style="border-bottom:3px solid var(--mango);">
+        <div class="stat-icon" style="background:rgba(198,242,78,0.12);color:var(--danger-ink);">
             <i class="fa-solid fa-triangle-exclamation"></i>
         </div>
         <div>
             <div class="stat-label">Active Violations</div>
-            <div class="stat-value" style="color:#ef4444;">{{ stats.active_violations }}</div>
+            <div class="stat-value" style="color:var(--danger-ink);">{{ stats.active_violations }}</div>
         </div>
     </div>
 </div>
@@ -61,7 +61,7 @@
             {% for p in puvs %}
             <div class="feed-item" data-lat="{{ p.lat }}" data-lng="{{ p.lng }}"
                  style="display:flex;align-items:center;gap:12px;padding:13px 14px;background:var(--hover-bg);border-radius:12px;cursor:pointer;transition:background 0.2s;border:1px solid var(--border-color);">
-                <div style="width:10px;height:10px;border-radius:50%;background:{{ '#ef4444' if p.is_violator else '#10b981' }};box-shadow:0 0 8px {{ '#ef4444' if p.is_violator else '#10b981' }};flex-shrink:0;"></div>
+                <div style="width:10px;height:10px;border-radius:50%;background:{{ 'var(--mango)' if p.is_violator else 'var(--ok)' }};box-shadow:0 0 8px {{ 'var(--mango)' if p.is_violator else 'transparent' }};flex-shrink:0;"></div>
                 <div style="flex:1;min-width:0;">
                     <div style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ p.plate }}</div>
                     <div style="font-size:11px;color:var(--text-muted);">{{ p.loc_name }}</div>
@@ -84,7 +84,7 @@
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'}).addTo(map);
     const puvData = JSON.parse(document.getElementById('admin-puv-data').textContent);
     puvData.forEach(p => {
-        const color = p.is_violator ? '#ef4444' : '#10b981';
+        const color = p.is_violator ? '#C6F24E' : '#2F6F5A';
         L.circleMarker([p.lat, p.lng], {radius:10,fillColor:color,color:'#fff',weight:3,fillOpacity:1}).addTo(map)
          .bindPopup(`<div style="text-align:center;"><b>${p.company}</b><br>Plate: ${p.plate}<br>Load: ${p.passengers}/${p.capacity}</div>`);
     });

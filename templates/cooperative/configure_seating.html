@@ -26,7 +26,7 @@
       {% set overloaded = puv.passengers > puv.capacity %}
       <tr>
         <td>
-          <div style="font-weight:700;color:var(--primary);">{{ puv.plate }}</div>
+          <div style="font-weight:700;color:var(--accent-ink);">{{ puv.plate }}</div>
           <div style="font-size:12px;color:var(--text-muted);">ID #{{ puv.id }}</div>
         </td>
         <td style="font-weight:600;">{{ puv.company }}</td>
@@ -51,9 +51,9 @@
   </table>
 </div>
 
-<div class="card" style="background:rgba(37,99,235,0.04);border-color:rgba(37,99,235,0.15);">
+<div class="card" style="background:color-mix(in srgb, var(--text-main) 4%, transparent);border-color:color-mix(in srgb, var(--text-main) 15%, transparent);">
   <div style="display:flex;align-items:flex-start;gap:14px;">
-    <i class="fa-solid fa-circle-info" style="color:var(--primary);font-size:18px;margin-top:2px;"></i>
+    <i class="fa-solid fa-circle-info" style="color:var(--accent-ink);font-size:18px;margin-top:2px;"></i>
     <div>
       <div style="font-weight:700;margin-bottom:4px;">LTFRB standard capacity</div>
       <p style="font-size:13.5px;color:var(--text-muted);line-height:1.6;margin:0;">
@@ -75,7 +75,7 @@ async function updateCapacity(puvId, plate) {
   });
   var data = await res.json();
   if (data.success) {
-    input.style.borderColor = '#10b981';
+    input.style.borderColor = 'var(--ok)';
     setTimeout(function(){ input.style.borderColor = ''; }, 2000);
     popAlert('Saved', 'Capacity for ' + plate + ' updated to ' + capacity + ' PAX.', 'success');
   } else {

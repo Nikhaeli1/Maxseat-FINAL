@@ -25,7 +25,7 @@
     <tbody>
       {% for log in logs %}
       <tr>
-        <td style="font-family:monospace;font-size:13px;">
+        <td style="font-family:inherit;font-variant-numeric:tabular-nums;font-size:13px;">
           <i class="fa-regular fa-clock" style="color:var(--text-muted);margin-right:6px;"></i>{{ log.timestamp }}
         </td>
         <td><span style="font-weight:700;">{{ log.actor }}</span></td>
@@ -38,8 +38,8 @@
             <span class="badge badge-blue">{{ log.event }}</span>
           {% endif %}
         </td>
-        <td style="font-family:monospace;font-size:13px;color:var(--text-muted);">{{ log.ip }}</td>
-        <td style="text-align:center;"><i class="fa-solid fa-lock" style="color:#10b981;"></i></td>
+        <td style="font-family:inherit;font-variant-numeric:tabular-nums;font-size:13px;color:var(--text-muted);">{{ log.ip }}</td>
+        <td style="text-align:center;"><i class="fa-solid fa-lock" style="color:var(--ok);"></i></td>
       </tr>
       {% else %}
       <tr>
