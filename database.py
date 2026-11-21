@@ -16,20 +16,29 @@ from sqlalchemy.pool import NullPool
 ON_VERCEL = bool(os.environ.get("VERCEL"))
 
 # ── Connection setup ────────────────────────────────────────────────────────
-def _find_database_url() -> str:
-    """DATABASE_URL, POSTGRES_URL, or a prefixed version Vercel's Storage tab may create
-    (e.g. STORAGE_DATABASE_URL / NEON_POSTGRES_URL). Pooled URLs are preferred."""
+def _find_database_url():
+    """Returns (setting name, URL). Looks for DATABASE_URL, POSTGRES_URL, a prefixed version
+    Vercel's Storage tab may create (e.g. STORAGE_DATABASE_URL / NEON_POSTGRES_URL), and as a
+    last resort any setting whose value is a postgres:// link. Pooled URLs are preferred."""
     for name in ("DATABASE_URL", "POSTGRES_URL"):
         if os.environ.get(name, "").strip():
-            return os.environ[name].strip()
+            return name, os.environ[name].strip()
+    pooled = lambda n: "UNPOOLED" not in n and "NON_POOLING" not in n
     for name in sorted(os.environ):
-        if name.endswith(("_DATABASE_URL", "_POSTGRES_URL")) and "UNPOOLED" not in name and "NON_POOLING" not in name:
+        if name.endswith(("_DATABASE_URL", "_POSTGRES_URL")) and pooled(name):
             value = os.environ[name].strip()
             if value.startswith(("postgres://", "postgresql://")):
-                return value
-    return ""
+                return name, value
+    for name in sorted(os.environ):
+        value = os.environ[name].strip()
+        if pooled(name) and value.startswith(("postgres://", "postgresql://")):
+            return name, value
+    return "", ""
 
-DATABASE_URL = _find_database_url()
+DB_URL_SOURCE, DATABASE_URL = _find_database_url()
+# Names only (never values) of settings that look database-related. Shown to admins in the
+# "no database" warning so a missing or misnamed setting is easy to spot.
+DB_ENV_NAMES = sorted(n for n in os.environ if any(k in n for k in ("DATABASE", "POSTGRES", "NEON", "PGHOST")))
 
 # Some hosts give postgres:// — SQLAlchemy 1.4+ needs postgresql+psycopg2://
 if DATABASE_URL.startswith("postgres://"):

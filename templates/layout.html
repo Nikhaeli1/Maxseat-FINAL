@@ -298,6 +298,10 @@
             <i class="fa-solid fa-triangle-exclamation"></i>
             No database is connected. Accounts, vehicles and records are being saved to temporary storage and will be lost on the next deploy.
             Connect a Neon database in Vercel (Storage) so DATABASE_URL is set.
+            <div style="font-weight:500;margin-top:4px;color:var(--text-muted);">
+                This deploy: {{ VERCEL_ENV or 'unknown' }}{% if DEPLOY_BRANCH %}, branch {{ DEPLOY_BRANCH }}{% endif %}{% if DEPLOY_COMMIT %}, commit {{ DEPLOY_COMMIT }}{% endif %}.
+                Database settings it can see: {{ DB_ENV_NAMES|join(', ') if DB_ENV_NAMES else 'none' }}.
+            </div>
         </div>
         {% endif %}
         <main class="main-content" {% if role == 'driver' %}style="padding:0;overflow:hidden;"{% endif %}>

@@ -15,7 +15,7 @@ from database import (
     db_append_citation, db_load_citations,
     db_append_complaint, db_load_complaints,
     db_save_avatar, db_load_avatar, db_delete_avatar,
-    TokenStore, DB_KIND,
+    TokenStore, DB_KIND, DB_URL_SOURCE, DB_ENV_NAMES,
 )
 
 BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
@@ -74,6 +74,11 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), na
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 templates.env.globals["LIVE_MODE"] = LIVE_MODE
 templates.env.globals["DB_KIND"]   = DB_KIND   # "temporary" = no database connected on Vercel
+# Which deploy is running, shown in the admin "no database" warning to help fix it
+VERCEL_ENV    = os.environ.get("VERCEL_ENV", "")
+DEPLOY_BRANCH = os.environ.get("VERCEL_GIT_COMMIT_REF", "")
+DEPLOY_COMMIT = os.environ.get("VERCEL_GIT_COMMIT_SHA", "")[:7]
+templates.env.globals.update(DB_ENV_NAMES=DB_ENV_NAMES, VERCEL_ENV=VERCEL_ENV, DEPLOY_BRANCH=DEPLOY_BRANCH, DEPLOY_COMMIT=DEPLOY_COMMIT)
 # CARTO map background key (https://carto.com/basemaps/apikey). Optional: without it the
 # maps use free OpenStreetMap tiles. It is sent to browsers, like any map tile key.
 templates.env.globals["CARTO_KEY"] = os.environ.get("CARTO_API_KEY", "").strip()
@@ -1657,6 +1662,8 @@ async def health():
         "ok":        ok,
         "database":  DB_KIND,
         "persistent": DB_KIND != "temporary",
+        "db_setting": DB_URL_SOURCE or None,      # name of the setting used, never its value
+        "deploy":    {"env": VERCEL_ENV or None, "branch": DEPLOY_BRANCH or None, "commit": DEPLOY_COMMIT or None},
         "vehicles":  len(puv_database),
     }, headers={"Cache-Control": "no-store"})
 
