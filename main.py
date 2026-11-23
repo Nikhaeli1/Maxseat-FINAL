@@ -56,6 +56,16 @@ GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "").replace(" ", "")
 # Then set this as an environment variable in Vercel: RESEND_API_KEY=re_xxxx
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 
+# ── Google Apps Script mailer (recommended on Vercel, free, any recipient) ──
+# Gmail blocks SMTP logins coming from Vercel's servers, so the site instead calls
+# a small script in your own Google account over normal HTTPS, and the script
+# sends the email from your Gmail (up to 100 recipients a day on a free account).
+# Set in Vercel: GOOGLE_SCRIPT_URL = the web app URL ending in /exec, and
+# GOOGLE_SCRIPT_SECRET = the same secret written in the script.
+# The script itself is in tools/maxseat-mailer.gs. When set, it is used first.
+GOOGLE_SCRIPT_URL    = os.environ.get("GOOGLE_SCRIPT_URL", "").strip()
+GOOGLE_SCRIPT_SECRET = os.environ.get("GOOGLE_SCRIPT_SECRET", "").strip()
+
 # ══════════════════════════════════════════════
 
 app = FastAPI(title="MaxSeat Alert System")
@@ -388,8 +398,8 @@ async def send_email(to_email: str, full_name: str, message: str) -> dict:
     """Send the login details by email: Gmail when GMAIL_APP_PASSWORD is set, else Resend."""
     if not to_email:
         return {"success": False, "reason": "No email address provided."}
-    if not RESEND_API_KEY and not GMAIL_APP_PASSWORD:
-        return {"success": False, "reason": "Email not set up. Add GMAIL_APP_PASSWORD (or RESEND_API_KEY) in the Vercel project environment variables."}
+    if not GOOGLE_SCRIPT_URL and not RESEND_API_KEY and not GMAIL_APP_PASSWORD:
+        return {"success": False, "reason": "Email not set up. Add GOOGLE_SCRIPT_URL and GOOGLE_SCRIPT_SECRET in the Vercel project environment variables."}
 
     html_body = message.replace("\n\n", "</p><p>").replace("\n", "<br>")
     html = f"""
@@ -410,6 +420,32 @@ async def send_email(to_email: str, full_name: str, message: str) -> dict:
         <p style="color:#94a3b8;font-size:11px;margin:0;">MaxSeat Alert System, CDO Region</p>
       </div>
     </div>"""
+
+    subject = "MaxSeat Alert: Your Account Credentials"
+
+    if GOOGLE_SCRIPT_URL:
+        try:
+            # Apps Script answers a POST with a redirect to the result; following it as a GET is correct
+            async with httpx.AsyncClient(timeout=25, follow_redirects=True) as client:
+                resp = await client.post(GOOGLE_SCRIPT_URL, json={
+                    "secret":  GOOGLE_SCRIPT_SECRET,
+                    "to":      to_email,
+                    "subject": subject,
+                    "text":    message,
+                    "html":    html,
+                    "name":    GMAIL_SENDER_NAME,
+                })
+            try:
+                data = resp.json()
+            except ValueError:
+                print(f"[EMAIL] Apps Script gave a non-JSON reply {resp.status_code}: {resp.text[:300]}")
+                return {"success": False, "reason": "The Google script did not answer properly. Check GOOGLE_SCRIPT_URL ends in /exec and the script is deployed with access set to Anyone."}
+            if data.get("ok"):
+                return {"success": True}
+            return {"success": False, "reason": f"Google script: {data.get('error', 'unknown error')}"}
+        except Exception as e:
+            print(f"[EMAIL] Apps Script call failed for {to_email}: {e}")
+            return {"success": False, "reason": f"Could not reach the Google script: {e}"}
 
     if GMAIL_APP_PASSWORD:
         msg = EmailMessage()
