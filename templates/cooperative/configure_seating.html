@@ -41,7 +41,7 @@
             style="width:90px;padding:9px 12px;border-radius:var(--radius-sm);border:1.5px solid var(--border-color);background:var(--bg);color:var(--text-main);font-family:inherit;font-size:14px;font-weight:700;">
         </td>
         <td style="text-align:right;">
-          <button onclick="updateCapacity({{ puv.id }}, '{{ puv.plate }}')" class="btn btn-primary" style="padding:9px 18px;">
+          <button onclick="updateCapacity({{ puv.id }}, {{ puv.plate|js }})" class="btn btn-primary" style="padding:9px 18px;">
             <i class="fa-solid fa-floppy-disk"></i> Save
           </button>
         </td>

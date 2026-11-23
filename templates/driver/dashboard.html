@@ -176,7 +176,7 @@
             <img src="{{ url_for('static', path='logo.png') }}" class="driver-logo" alt="MaxSeat Alert">
             <div class="driver-divider"></div>
             <div>
-                <div class="driver-vehicle">{{ puv.plate }} — {{ puv.company }}</div>
+                <div class="driver-vehicle">{{ puv.plate }} · {{ puv.company }}</div>
                 <div class="driver-route"><i class="fa-solid fa-location-dot" style="margin-right:5px;color:var(--accent-ink);"></i><span id="loc-name">{{ puv.loc_name }}</span></div>
             </div>
         </div>
@@ -224,13 +224,13 @@
             {% set temp = puv.temp %}
             {% if temp >= 37.5 %}
                 {% set temp_class = 'danger' %}
-                {% set temp_label = 'Thermal Alert — Cabin Overheating' %}
+                {% set temp_label = 'Thermal Alert · Cabin Overheating' %}
             {% elif temp >= 35.0 %}
                 {% set temp_class = 'warning' %}
-                {% set temp_label = 'Elevated — Monitor Cabin Heat' %}
+                {% set temp_label = 'Elevated · Monitor Cabin Heat' %}
             {% else %}
                 {% set temp_class = 'safe' %}
-                {% set temp_label = 'Normal — Cabin Temperature OK' %}
+                {% set temp_label = 'Normal · Cabin Temperature OK' %}
             {% endif %}
 
             <div id="temp-card" class="temp-card" style="border-left: 4px solid {{ 'var(--mango)' if temp_class == 'danger' else ('var(--mango-soft)' if temp_class == 'warning' else 'var(--ok)') }};">
@@ -311,9 +311,9 @@
 
     function renderTemp(temp) {
         const t = Number(temp) || 0;
-        let cls = 'safe', label = 'Normal — Cabin Temperature OK', border = 'var(--ok)';
-        if (t >= 37.5)      { cls = 'danger';  label = 'Thermal Alert — Cabin Overheating'; border = 'var(--mango)'; }
-        else if (t >= 35.0) { cls = 'warning'; label = 'Elevated — Monitor Cabin Heat';     border = 'var(--mango-soft)'; }
+        let cls = 'safe', label = 'Normal · Cabin Temperature OK', border = 'var(--ok)';
+        if (t >= 37.5)      { cls = 'danger';  label = 'Thermal Alert · Cabin Overheating'; border = 'var(--mango)'; }
+        else if (t >= 35.0) { cls = 'warning'; label = 'Elevated · Monitor Cabin Heat';     border = 'var(--mango-soft)'; }
         document.getElementById('temp-card').style.borderLeft = '4px solid ' + border;
         document.getElementById('temp-icon').className  = 'temp-icon '  + cls;
         const v = document.getElementById('temp-value');

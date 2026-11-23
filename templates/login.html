@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>MaxSeat System - Secure Portal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MaxSeat Alert · Sign in</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -34,6 +35,42 @@
         .role-badge.enforcer    { background: rgba(198,242,78,0.1);   color:var(--danger-ink); }
         .role-badge.driver      { background: rgba(198,242,78,0.1);  color:var(--warn-ink); }
         .role-badge.cooperative { background: color-mix(in srgb, var(--text-main) 10%, transparent);  color:var(--ok); }
+
+        /* ── Modern split layout: gradient story panel + sign-in card ── */
+        body { height: auto; min-height: 100vh; overflow: auto; background: #F1F6F3; }
+        .theme-layer { opacity: 0 !important; }
+        .auth { display: grid; grid-template-columns: 1.05fr 1fr; min-height: 100vh; width: 100%; }
+        .hero { position: relative; overflow: hidden; color: #fff; padding: 56px 64px; display: flex; flex-direction: column; justify-content: space-between;
+                background: linear-gradient(160deg, #3F8D70 0%, #2F6F5A 42%, #1C4A3B 100%); }
+        .hero::before { content: ""; position: absolute; width: 620px; height: 620px; top: -260px; right: -240px; border-radius: 50%;
+                background: radial-gradient(circle, rgba(198,242,78,0.45), transparent 64%); }
+        .hero::after { content: ""; position: absolute; width: 520px; height: 520px; bottom: -260px; left: -200px; border-radius: 50%;
+                background: radial-gradient(circle, rgba(255,255,255,0.14), transparent 66%); }
+        .hero > * { position: relative; z-index: 1; }
+        .hero-logo { max-width: 150px; filter: brightness(0) invert(1); }
+        .hero h1 { font-size: 46px; line-height: 1.08; letter-spacing: -1.2px; margin: 0 0 16px; font-weight: 800; }
+        .hero h1 span { background: linear-gradient(92deg, #E1FC84, #C6F24E); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .hero p.lead { font-size: 17px; line-height: 1.6; color: rgba(255,255,255,0.85); max-width: 460px; margin: 0 0 30px; }
+        .feats { display: grid; gap: 12px; max-width: 460px; }
+        .feat { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 16px; background: rgba(255,255,255,0.1);
+                border: 1px solid rgba(255,255,255,0.16); backdrop-filter: blur(6px); font-size: 15px; font-weight: 600; }
+        .feat i { width: 38px; height: 38px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+                background: linear-gradient(135deg, #E1FC84, #B6E23A); color: #14211B; font-size: 16px; }
+        .hero small { color: rgba(255,255,255,0.6); font-size: 13px; }
+        .side { position: relative; display: flex; align-items: center; justify-content: center; padding: 40px 24px;
+                background: radial-gradient(700px 420px at 100% 0%, rgba(198,242,78,0.20), transparent 60%), #F1F6F3; }
+        .glass-card { width: min(440px, 100%); padding: 42px; border-radius: 28px; box-shadow: 0 30px 60px -24px rgba(20,33,27,0.28); border: 1px solid rgba(220,232,225,0.9); }
+        select, input { border-radius: 14px; padding: 16px 18px; font-size: 16px; }
+        select:focus, input:focus { border-color: #2F6F5A; box-shadow: 0 0 0 4px rgba(47,111,90,0.14); }
+        button[type="submit"] { border-radius: 14px; background: linear-gradient(135deg, #3F8D70 0%, #245847 100%); box-shadow: 0 14px 28px -12px rgba(47,111,90,0.8); font-size: 17px; }
+        button[type="submit"]:hover { background: linear-gradient(135deg, #E1FC84 0%, #B6E23A 100%); }
+        .card-logo { display: none; }
+        @media (max-width: 900px) {
+            .auth { grid-template-columns: 1fr; }
+            .hero { display: none; }
+            .card-logo { display: block; }
+            .glass-card { padding: 30px 24px; }
+        }
     </style>
 </head>
 <body>
@@ -47,9 +84,24 @@
         <p style="color:white; margin-top:20px; font-weight:800; font-size:18px;">Authenticating...</p>
     </div>
 
+    <div class="auth">
+    <section class="hero" aria-hidden="false">
+        <img src="/static/logo.png" alt="MaxSeat Alert" class="hero-logo">
+        <div>
+            <h1>Safer, less crowded<br><span>jeepney rides.</span></h1>
+            <p class="lead">MaxSeat counts riders and checks cabin heat in real time, so overloading and hot cabins get caught as they happen.</p>
+            <div class="feats">
+                <div class="feat"><i class="fa-solid fa-users"></i> Live passenger count for every PUV</div>
+                <div class="feat"><i class="fa-solid fa-temperature-half"></i> Cabin heat alerts above 37.5&nbsp;°C</div>
+                <div class="feat"><i class="fa-solid fa-location-dot"></i> GPS map of the Bugo to Igpit route</div>
+            </div>
+        </div>
+        <small>MaxSeat Alert · Cagayan de Oro</small>
+    </section>
+    <section class="side">
     <div class="glass-card" id="main-card">
-        <div style="text-align:center; margin-bottom:25px;">
-            <img src="/static/logo.png" alt="MaxSeat Alert" style="max-width:170px;filter:brightness(0);opacity:0.9;">
+        <div class="card-logo" style="text-align:center; margin-bottom:22px;">
+            <img src="/static/logo.png" alt="MaxSeat Alert" style="max-width:150px;filter:brightness(0);opacity:0.9;">
         </div>
 
         {% for m in messages %}
@@ -58,16 +110,16 @@
 
         <span id="role-badge" class="role-badge admin"><i class="fa-solid fa-shield-halved"></i> System Administrator</span>
         <h2 id="role-title" style="margin: 0 0 5px 0; font-weight: 800; font-size: 26px; color:#14211B; transition:0.3s;">Admin Hub</h2>
-        <p style="color:#5E6F67; font-size: 14px; margin-bottom: 30px;">Provide secured credentials to proceed.</p>
+        <p style="color:#5E6F67; font-size: 15px; margin-bottom: 28px;">Welcome back. Choose your role and sign in.</p>
 
         <form method="POST" onsubmit="showLoader()">
             <div class="input-group">
                 <select name="role" id="role-select" onchange="updateUI()">
-                    <optgroup label="── Authority & Enforcement ──">
+                    <optgroup label="Authority and enforcement">
                         <option value="admin">System Administrator</option>
                         <option value="enforcer">LTFRB</option>
                     </optgroup>
-                    <optgroup label="── Transport Operations ──">
+                    <optgroup label="Transport operations">
                         <option value="cooperative">Transport Cooperative (OROTSCO)</option>
                         <option value="driver">PUV Driver</option>
                     </optgroup>
@@ -82,6 +134,8 @@
             </div>
             <button type="submit">Log in</button>
         </form>
+    </div>
+    </section>
     </div>
 
     <script>

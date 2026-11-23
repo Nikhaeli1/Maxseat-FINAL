@@ -65,7 +65,7 @@
 <div class="page-row" style="margin-bottom:22px;">
   <div>
     <h1 class="page-title">Dashboard</h1>
-    <p class="page-subtitle">Live fleet overview — CDO Region</p>
+    <p class="page-subtitle">Live fleet overview · CDO Region</p>
   </div>
   <button onclick="showLoader('Generating report...')" class="btn btn-dark">
     <i class="fa-solid fa-download"></i> Export report
@@ -377,7 +377,7 @@
   var puvData = JSON.parse(document.getElementById('admin-puv-data').textContent);
   var map = MaxSeatMap.create('map', { fitAll: function () { return MaxSeatLive.trackedPuvs(); } });
   function adminColor(p) { return (p.is_violator || p.is_overheating) ? '#C6F24E' : '#2F6F5A'; }
-  function adminPopup(p) { return '<div style="text-align:center;font-family:inherit;"><b>'+p.company+'</b><br>'+p.plate+'<br>'+p.passengers+'/'+p.capacity+' PAX · '+p.temp+'°C'+MaxSeatMap.noGpsNote(p)+'</div>'; }
+  function adminPopup(p) { return '<div style="text-align:center;font-family:inherit;"><b>'+esc(p.company)+'</b><br>'+esc(p.plate)+'<br>'+esc(p.passengers)+'/'+esc(p.capacity)+' PAX · '+esc(p.temp)+'°C'+MaxSeatMap.noGpsNote(p)+'</div>'; }
   function addAdminMarker(p) {
     if (!map) return;
     var m = L.circleMarker(MaxSeatMap.position(p), MaxSeatMap.style(p, adminColor, 10))

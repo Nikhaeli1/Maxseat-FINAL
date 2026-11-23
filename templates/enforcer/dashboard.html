@@ -40,13 +40,13 @@
             <div>
                 <strong>Load:</strong> <span data-puv="{{ puv.id }}" data-f="passengers">{{ puv.passengers }}</span>/{{ puv.capacity }} PAX
                 {% if puv.passengers > puv.capacity %}
-                <span style="color:var(--danger-ink);font-weight:700;"> — Overloaded</span>
+                <span style="color:var(--danger-ink);font-weight:700;"> · Overloaded</span>
                 {% endif %}
             </div>
             <div>
                 <strong>Cabin Temp:</strong> <span data-puv="{{ puv.id }}" data-f="temp">{{ puv.temp }}</span>°C
                 {% if puv.temp >= 37.5 %}
-                <span style="color:var(--warn-ink);font-weight:700;"> — Overheating</span>
+                <span style="color:var(--warn-ink);font-weight:700;"> · Overheating</span>
                 {% endif %}
             </div>
             <div><strong>Location:</strong> <span data-puv="{{ puv.id }}" data-f="loc">{{ puv.loc_name }}</span></div>
@@ -71,7 +71,7 @@
     const pd  = JSON.parse(document.getElementById('enforcer-puv-data').textContent);
     const map = MaxSeatMap.create('map', { fitAll: () => MaxSeatLive.trackedPuvs() });
     const enfColor = p => (p.is_violator || p.is_overheating) ? '#C6F24E' : '#2F6F5A';
-    const enfPopup = p => `<div style="text-align:center;"><b>${p.company}</b><br>${p.plate}<br>Load: <b>${p.passengers}/${p.capacity}</b><br>Temp: ${p.temp}°C${MaxSeatMap.noGpsNote(p)}</div>`;
+    const enfPopup = p => `<div style="text-align:center;"><b>${esc(p.company)}</b><br>${esc(p.plate)}<br>Load: <b>${esc(p.passengers)}/${esc(p.capacity)}</b><br>Temp: ${esc(p.temp)}°C${MaxSeatMap.noGpsNote(p)}</div>`;
     const addEnfMarker = p => {
         if (!map) return;
         const m = L.circleMarker(MaxSeatMap.position(p), MaxSeatMap.style(p, enfColor, 12))

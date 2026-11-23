@@ -20,7 +20,7 @@
                 <select name="plate" class="form-control" required>
                     <option value="" disabled selected>Select vehicle…</option>
                     {% for puv in puvs %}
-                    <option value="{{ puv.plate }}">{{ puv.plate }} — {{ puv.company }}</option>
+                    <option value="{{ puv.plate }}">{{ puv.plate }} · {{ puv.company }}</option>
                     {% endfor %}
                     <option value="OTHER">Other / Manual Entry</option>
                 </select>

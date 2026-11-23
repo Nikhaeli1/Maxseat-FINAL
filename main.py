@@ -5,7 +5,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from typing import List
-import json, datetime, secrets, uuid, asyncio, smtplib, ssl
+import json, datetime, secrets, uuid, asyncio, smtplib, ssl, hmac, re
+import html as _html
+from urllib.parse import urlparse
+from markupsafe import Markup
 from email.message import EmailMessage
 
 from database import (
@@ -18,6 +21,7 @@ from database import (
     db_save_avatar, db_load_avatar, db_delete_avatar,
     TokenStore, DB_KIND, DB_URL_SOURCE, DB_ENV_NAMES, db_live_snapshot,
 )
+import database as _database
 
 BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
 ON_VERCEL = bool(os.environ.get("VERCEL"))
@@ -70,13 +74,32 @@ GOOGLE_SCRIPT_SECRET = os.environ.get("GOOGLE_SCRIPT_SECRET", "").strip()
 
 app = FastAPI(title="MaxSeat Alert System")
 
+class ServerBusy(Exception):
+    """The database didn't answer. Say "try again" instead of "you're signed out"."""
+
+@app.exception_handler(ServerBusy)
+async def _server_busy(request: Request, exc: ServerBusy):
+    return JSONResponse({"success": False, "error": "The server is busy. Please try again in a moment."}, status_code=503)
+
 # --- MIDDLEWARE ---
-# Set SESSION_SECRET in the Vercel project settings. The fallback only keeps local runs working.
-SESSION_SECRET = os.environ.get("SESSION_SECRET", "maxseat_enterprise_premium_secure_key")
-if ON_VERCEL and "SESSION_SECRET" not in os.environ:
-    print("[CONFIG] WARNING: SESSION_SECRET is not set — using the built-in default key.")
-app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, max_age=604800,
-                   https_only=ON_VERCEL)
+# Login cookies are signed with this key, so it must never be a value that is public on GitHub.
+# Best: set SESSION_SECRET in Vercel. Without it, a key is made from the database address
+# (a secret setting that every server shares), so logins still work on every server.
+def _session_secret() -> str:
+    key = os.environ.get("SESSION_SECRET", "").strip()
+    if key:
+        return key
+    if DB_URL_SOURCE and _database.DATABASE_URL:
+        return hashlib.sha256(("maxseat-session:" + _database.DATABASE_URL).encode()).hexdigest()
+    if ON_VERCEL:
+        print("[CONFIG] WARNING: no SESSION_SECRET and no database; logins will not survive between servers.")
+        return secrets.token_hex(32)
+    return "maxseat-local-dev-only"
+SESSION_SECRET = _session_secret()
+# Stay logged in for 30 days. The cookie is renewed on every visit, so active users stay in.
+SESSION_DAYS = 30
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, max_age=SESSION_DAYS * 86400,
+                   https_only=ON_VERCEL, same_site="lax")
 
 # Vercel sits in front of the app as a proxy; trust its X-Forwarded-Proto so links
 # built with url_for() use https:// (avoids "mixed content" blocks in the browser).
@@ -99,7 +122,7 @@ templates.env.globals.update(DB_ENV_NAMES=DB_ENV_NAMES, VERCEL_ENV=VERCEL_ENV, D
 # load the new live-update code right after a deploy instead of an old cached copy.
 def _asset_version() -> str:
     h = hashlib.sha1()
-    for name in ("ws-client.js", "maxseat-map.js"):
+    for name in ("ws-client.js", "maxseat-map.js", "peek.js"):
         try:
             with open(os.path.join(BASE_DIR, "static", "js", name), "rb") as f:
                 h.update(f.read())
@@ -110,6 +133,9 @@ templates.env.globals["ASSET_V"] = _asset_version()
 # CARTO map background key (https://carto.com/basemaps/apikey). Optional: without it the
 # maps use free OpenStreetMap tiles. It is sent to browsers, like any map tile key.
 templates.env.globals["CARTO_KEY"] = os.environ.get("CARTO_API_KEY", "").strip()
+# {{ value|js }} gives a safe JavaScript value for inline handlers like onclick="f({{ x|js }})".
+# (Plain '{{ x }}' inside onclick can be broken out of with a quote.)
+templates.env.filters["js"] = lambda v: Markup(_html.escape(json.dumps(v), quote=True))
 
 # --- WEBSOCKET MANAGER ---
 class ConnectionManager:
@@ -138,9 +164,10 @@ manager = ConnectionManager()
 # --- GLOBAL IN-MEMORY DATABASE ---
 # Populated from the database at startup (see @app.on_event("startup") below).
 # The default admin account is seeded only when the DB has no users yet.
+_DEFAULT_ADMIN_PW = "admin@2026001"   # public in the README, so it must be changed on first use
 _DEFAULT_ADMIN = {
-    "password": "admin@2026001", "role": "admin", "email": "admin@maxseat.ph",
-    "must_change_password": False, "full_name": "System Administrator",
+    "password": _DEFAULT_ADMIN_PW, "role": "admin", "email": "admin@maxseat.ph",
+    "must_change_password": True, "full_name": "System Administrator",
     "department": "Central Command Authority", "clearance": "Level 5 - Global"
 }
 
@@ -164,9 +191,19 @@ def _ensure_ready():
     init_db()
     # strict=True: if the database can't be read we must NOT treat it as empty —
     # that used to re-create the admin account (resetting its password).
-    if not db_load_users(strict=True):
-        # First run — seed the default admin account
-        db_save_user("admin", _DEFAULT_ADMIN.copy())
+    existing = db_load_users(strict=True)
+    if not existing:
+        # First run: seed the default admin account
+        seed = _DEFAULT_ADMIN.copy()
+        seed["password"] = hash_password(seed["password"])
+        db_save_user("admin", seed)
+    else:
+        # One-time upgrade: older accounts were saved with the password in plain text
+        for uname, rec in existing.items():
+            pw = rec.get("password")
+            if isinstance(pw, str) and pw and not pw.startswith(_PW_PREFIX):
+                rec["password"] = hash_password(pw)
+                db_save_user(uname, rec)
     _ready = True
 
 def reload_puvs():
@@ -197,9 +234,26 @@ def reload_from_db():
 _LIGHT_PATHS = ("/api/sensor", "/api/driver/status", "/api/health")
 _SELF_LOADING = ("/api/live",)
 
+# Apps that log in with a Bearer token (phone app, Pi). They don't use the login cookie,
+# so the same-site check below doesn't apply to them.
+_TOKEN_PATHS = ("/api/sensor", "/api/mobile/", "/api/passenger/")
+
+def _same_site_ok(request: Request) -> bool:
+    """Block forms or scripts on OTHER websites from making changes with a user's login cookie."""
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return True
+    if request.url.path.startswith(_TOKEN_PATHS):
+        return True
+    origin = request.headers.get("origin")
+    if not origin:
+        return True                      # not sent by a browser form or script on another site
+    return urlparse(origin).netloc.lower() == request.headers.get("host", "").lower()
+
 @app.middleware("http")
 async def sync_with_database(request: Request, call_next):
     path = request.url.path
+    if not _same_site_ok(request):
+        return JSONResponse({"success": False, "error": "Blocked: request came from another website."}, status_code=403)
     if not path.startswith("/static") and path not in ("/favicon.ico", "/robots.txt"):
         _ensure_ready()
         if path in _SELF_LOADING:
@@ -208,14 +262,127 @@ async def sync_with_database(request: Request, call_next):
             reload_puvs()
         else:
             reload_from_db()
-    return await call_next(request)
+            request.state.users_fresh = True
+    response = await call_next(request)
+    # Browser safety settings on every answer
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    if response.headers.get("content-type", "").startswith("text/html"):
+        # Pages hold private data: don't keep copies, so Back after logging out shows nothing.
+        # (While logged in, Back simply loads the page again.)
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+# --- PASSWORDS ---
+# Saved as a salted PBKDF2-SHA256 hash, never as the password itself.
+_PW_PREFIX = "pbkdf2_sha256$"
+_PW_ROUNDS = 200_000
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, _PW_ROUNDS)
+    return f"{_PW_PREFIX}{_PW_ROUNDS}${base64.b64encode(salt).decode()}${base64.b64encode(digest).decode()}"
+
+def verify_password(stored, given) -> bool:
+    if not isinstance(stored, str) or not isinstance(given, str) or not stored:
+        return False
+    if stored.startswith(_PW_PREFIX):
+        try:
+            rounds, salt, digest = stored[len(_PW_PREFIX):].split("$")
+            test = hashlib.pbkdf2_hmac("sha256", given.encode(), base64.b64decode(salt), int(rounds))
+            return hmac.compare_digest(test, base64.b64decode(digest))
+        except (ValueError, TypeError):
+            return False
+    return hmac.compare_digest(stored.encode(), given.encode())   # old plain-text record
+
+def set_password(username: str, new_password: str, must_change: bool = False):
+    """Save a new password and sign out every other place this account is logged in."""
+    u = users[username]
+    u["password"]             = hash_password(new_password)
+    u["must_change_password"] = must_change
+    u["session_ver"]          = int(u.get("session_ver", 0)) + 1
+    db_save_user(username, u)
+
+# --- LOGIN LIMITS ---
+# After 8 wrong passwords in 15 minutes, that account can't log in for 15 minutes.
+# Kept in the database so every server sees the same count.
+_login_fails = TokenStore("loginfail")
+_FAIL_LIMIT, _FAIL_WINDOW = 8, 15 * 60
+
+def _fail_key(kind: str, username: str) -> str:
+    # One count per account, shared by the website and both phone apps
+    return "fail:" + hashlib.sha256(f"acct:{str(username).strip().lower()}".encode()).hexdigest()[:40]
+
+def login_locked(kind: str, username: str) -> bool:
+    rec = _login_fails.get(_fail_key(kind, username)) or {}
+    return rec.get("n", 0) >= _FAIL_LIMIT and time.time() - rec.get("t", 0) < _FAIL_WINDOW
+
+def note_login_fail(kind: str, username: str):
+    key = _fail_key(kind, username)
+    rec = _login_fails.get(key) or {}
+    if time.time() - rec.get("t", 0) > _FAIL_WINDOW:
+        rec = {"n": 0, "t": time.time()}
+    rec["n"] = rec.get("n", 0) + 1
+    try:
+        _login_fails[key] = rec
+    except Exception:
+        pass
+
+def clear_login_fails(kind: str, username: str):
+    _login_fails.pop(_fail_key(kind, username), None)
+
+LOCKED_MSG = "Too many wrong passwords. Please wait 15 minutes and try again."
+
+def check_password_login(kind: str, username: str, password: str, role: str):
+    """Returns (user, error). Upgrades an old plain-text password to a hash on success."""
+    if login_locked(kind, username):
+        return None, LOCKED_MSG
+    user = users.get(username)
+    if not user or user.get("role") != role or not verify_password(user.get("password"), password):
+        note_login_fail(kind, username)
+        return None, None
+    clear_login_fails(kind, username)
+    if not str(user.get("password", "")).startswith(_PW_PREFIX):
+        user["password"] = hash_password(password)
+        db_save_user(username, user)
+    return user, None
+
+# --- TEXT FROM USERS ---
+_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+def clean_text(value, max_len: int = 120) -> str:
+    """Plain, trimmed, length-limited text (no control characters, never a dict or list)."""
+    if value is None or isinstance(value, (dict, list)):
+        return ""
+    return _CTRL.sub("", str(value)).strip()[:max_len]
 
 # --- HELPERS ---
+def _session_ok(request: Request) -> bool:
+    """The login cookie is only good while the account still exists with the same role and
+    its password hasn't been changed or reset since (that signs out old logins)."""
+    sess = request.session
+    if not sess.get("logged_in"):
+        return False
+    if not getattr(request.state, "users_fresh", False):
+        return True                      # accounts weren't re-read on this quick request
+    u = users.get(sess.get("username"))
+    if not u or u.get("role") != sess.get("role") or int(u.get("session_ver", 0)) != int(sess.get("ver", 0)):
+        sess.clear()
+        return False
+    return True
+
 def is_logged_in(request: Request):
-    return request.session.get("logged_in", False)
+    return _session_ok(request)
 
 def get_role(request: Request):
-    return request.session.get("role", None)
+    return request.session.get("role") if _session_ok(request) else None
+
+def start_session(request: Request, username: str, user: dict):
+    request.session.clear()              # new cookie contents on every login
+    request.session['logged_in'] = True
+    request.session['username']  = username
+    request.session['role']      = user.get("role")
+    request.session['ver']       = int(user.get("session_ver", 0))
 
 def requires_password_change(request: Request):
     return request.session.get("pending_password_change", False)
@@ -241,11 +408,26 @@ def get_coop_puvs(username: str):
         if p.get('coop_owner') == username:
             result.append(p)
             continue
-        # Secondary: company name fuzzy match
+        # Secondary: older vehicles with no owner, matched by company name
+        if p.get('coop_owner'):
+            continue
         company = p.get('company', '').strip().lower()
         if org and company and (org in company or company in org):
             result.append(p)
     return result
+
+def _puv_for_role(request: Request, puv_id):
+    """The vehicle with this id, if the logged-in user may change it: admins any vehicle,
+    a cooperative only its own. Everyone else gets None."""
+    pid  = _as_int(puv_id, None)
+    role = get_role(request)
+    if role == 'admin':
+        pool = puv_database
+    elif role == 'cooperative':
+        pool = get_coop_puvs(request.session.get('username'))
+    else:
+        return None
+    return next((p for p in pool if p.get('id') == pid), None)
 
 CDO_CENTER = (8.4822, 124.6472)   # where a vehicle is shown until its GPS reports a position
 
@@ -401,7 +583,8 @@ async def send_email(to_email: str, full_name: str, message: str) -> dict:
     if not GOOGLE_SCRIPT_URL and not RESEND_API_KEY and not GMAIL_APP_PASSWORD:
         return {"success": False, "reason": "Email not set up. Add GOOGLE_SCRIPT_URL and GOOGLE_SCRIPT_SECRET in the Vercel project environment variables."}
 
-    html_body = message.replace("\n\n", "</p><p>").replace("\n", "<br>")
+    safe_msg  = _html.escape(message)             # names and passwords are text, not HTML
+    html_body = safe_msg.replace("\n\n", "</p><p>").replace("\n", "<br>")
     html = f"""
     <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
       <div style="background:#0f172a;padding:24px 32px;">
@@ -409,10 +592,10 @@ async def send_email(to_email: str, full_name: str, message: str) -> dict:
         <p style="color:#94a3b8;margin:4px 0 0;font-size:13px;">Account Credentials</p>
       </div>
       <div style="padding:28px 32px;background:#fff;">
-        <p style="color:#0f172a;">Good day, <strong>{full_name}</strong>!</p>
+        <p style="color:#0f172a;">Good day, <strong>{_html.escape(full_name)}</strong>!</p>
         <p>{html_body}</p>
         <div style="background:#f1f5f9;border-radius:8px;padding:16px 20px;margin:20px 0;font-family:monospace;font-size:14px;">
-          {message.split("credentials:")[1].split("Please")[0].strip().replace(chr(10),"<br>") if "credentials:" in message else ""}
+          {safe_msg.split("credentials:")[1].split("Please")[0].strip().replace(chr(10),"<br>") if "credentials:" in safe_msg else ""}
         </div>
         <p style="color:#64748b;font-size:12px;">Do not share your credentials with anyone.</p>
       </div>
@@ -532,6 +715,11 @@ async def index(request: Request):
 # --- AUTHENTICATION ---
 @app.get("/login", response_class=HTMLResponse)
 async def login_get(request: Request):
+    # Going Back to the login page while still logged in just returns to the app
+    if is_logged_in(request):
+        if requires_password_change(request):
+            return RedirectResponse(url="/change_password", status_code=302)
+        return RedirectResponse(url="/dashboard", status_code=302)
     return TR(request, "login.html", {"messages": get_flash(request)})
 
 @app.post("/login", response_class=HTMLResponse)
@@ -541,17 +729,20 @@ async def login_post(
     username: str = Form(...),
     password: str = Form(...)
 ):
-    user = users.get(username)
-    if user and user['password'] == password and user['role'] == role:
-        request.session['logged_in'] = True
-        request.session['username']  = username
-        request.session['role']      = role
+    username = username.strip()
+    if role == "passenger":
+        flash(request, "Passengers use the MaxSeat phone app.")
+        return RedirectResponse(url="/login", status_code=302)
+    user, err = check_password_login("web", username, password, role)
+    if user:
+        start_session(request, username, user)
         log_audit(username, "SESSION_INITIATED", request.client.host if request.client else "unknown", "green")
-        if user.get('must_change_password', False):
+        # The built-in admin password is public, so it has to be changed before going on
+        if user.get('must_change_password', False) or (username == "admin" and password == _DEFAULT_ADMIN_PW):
             request.session['pending_password_change'] = True
             return RedirectResponse(url="/change_password", status_code=302)
         return RedirectResponse(url="/dashboard", status_code=302)
-    flash(request, "Invalid credentials for the selected role.")
+    flash(request, err or "Invalid credentials for the selected role.")
     return RedirectResponse(url="/login", status_code=302)
 
 @app.get("/change_password", response_class=HTMLResponse)
@@ -575,10 +766,13 @@ async def change_password_post(
         flash(request, "Password must be at least 6 characters.")
         return RedirectResponse(url="/change_password", status_code=302)
     username = request.session.get('username')
-    users[username]['password']             = new_password
-    users[username]['must_change_password'] = False
-    db_save_user(username, users[username])
+    if new_password == _DEFAULT_ADMIN_PW or verify_password(users[username].get('password'), new_password):
+        flash(request, "Please choose a new password, not the old one.")
+        return RedirectResponse(url="/change_password", status_code=302)
+    set_password(username, new_password)
+    request.session['ver'] = users[username]['session_ver']    # keep THIS login, sign out the others
     request.session.pop('pending_password_change', None)
+    log_audit(username, "PASSWORD_CHANGED", request.client.host if request.client else "unknown", "green")
     return RedirectResponse(url="/dashboard", status_code=302)
 
 @app.get("/logout")
@@ -603,7 +797,7 @@ async def update_settings_post(request: Request):
     allowed = {'admin': ['email'], 'enforcer': ['mobile', 'shift_status'], 'driver': ['mobile', 'emergency_contact'], 'cooperative': ['mobile', 'email', 'address']}
     for key, value in form_data.items():
         if key in allowed.get(role, []):
-            users[username][key] = value
+            users[username][key] = clean_text(value)
     db_save_user(username, users[username])
     flash(request, "Settings updated successfully.")
     return RedirectResponse(url="/settings", status_code=302)
@@ -657,10 +851,17 @@ async def create_user(request: Request):
         return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
 
     data     = await request.json()
+    data     = {k: (clean_text(v, 200) if k != "password" else v) for k, v in data.items()} if isinstance(data, dict) else {}
     username = data.get("username", "").strip()
     role     = data.get("role", "driver")
     password = data.get("password", "")
 
+    if role not in ("admin", "enforcer", "driver", "cooperative"):
+        return JSONResponse({"success": False, "error": "Unknown role."})
+    if not isinstance(password, str):
+        return JSONResponse({"success": False, "error": "Password must be text."})
+    if not re.fullmatch(r"[A-Za-z0-9._@-]{3,40}", username or ""):
+        return JSONResponse({"success": False, "error": "Username can only use letters, numbers, dot, dash, underscore or @."})
     if not username or username in users:
         return JSONResponse({"success": False, "error": "Username already exists or is empty."})
     if len(password) < 6:
@@ -668,7 +869,7 @@ async def create_user(request: Request):
 
     # Base record — shared by every role
     record = {
-        "password":             password,
+        "password":             hash_password(password),
         "role":                 role,
         "full_name":            data.get("full_name", ""),
         "must_change_password": True,
@@ -724,7 +925,7 @@ async def delete_puv(request: Request):
         return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
     data   = await request.json()
     puv_id = data.get("puv_id")
-    puv    = next((p for p in puv_database if p['id'] == puv_id), None)
+    puv    = _puv_for_role(request, puv_id)
     if not puv:
         return JSONResponse({"success": False, "error": "Vehicle not found."})
     puv_database.remove(puv)
@@ -744,6 +945,8 @@ async def delete_user(request: Request):
     if username in users:
         del users[username]
         db_delete_user(username)
+        log_audit(request.session.get('username', 'admin'), f"USER_DELETED: {username}",
+                  request.client.host if request.client else "unknown", "red")
         return JSONResponse({"success": True})
     return JSONResponse({"success": False, "error": "User not found."})
 
@@ -781,7 +984,6 @@ async def admin_user_details(username: str, request: Request):
         "username":         username,
         "full_name":        u.get("full_name", ""),
         "role":             role,
-        "password":         u.get("password", ""),
         "password_pending": bool(u.get("must_change_password", False)),
         "details":          details,
         "vehicle":          vehicle,
@@ -799,10 +1001,8 @@ async def admin_reset_password(request: Request):
         return JSONResponse({"success": False, "error": "Use Settings to change your own password."})
     # Readable temporary password; the user must change it on next login
     alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
-    temp_pw  = "".join(secrets.choice(alphabet) for _ in range(8))
-    users[username]['password']             = temp_pw
-    users[username]['must_change_password'] = True
-    db_save_user(username, users[username])
+    temp_pw  = "".join(secrets.choice(alphabet) for _ in range(10))
+    set_password(username, temp_pw, must_change=True)     # also signs them out everywhere
     log_audit(request.session.get('username', 'admin'), f"PASSWORD_RESET: {username}",
               request.client.host if request.client else "unknown", "red")
     return JSONResponse({"success": True, "username": username, "password": temp_pw})
@@ -820,9 +1020,9 @@ async def update_capacity(request: Request):
         return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
     data         = await request.json()
     puv_id       = data.get("puv_id")
-    new_capacity = data.get("capacity")
-    puv = next((p for p in puv_database if p['id'] == puv_id), None)
-    if puv and new_capacity and int(new_capacity) > 0:
+    new_capacity = _as_int(data.get("capacity"), 0)
+    puv = _puv_for_role(request, puv_id)
+    if puv and 0 < new_capacity <= 100:
         puv['capacity'] = int(new_capacity)
         db_save_puv(puv['id'], puv)
         await notify_data_changed("fleet", puv['id'])
@@ -859,6 +1059,7 @@ async def admin_reports(request: Request):
 @app.get("/intercepts", response_class=HTMLResponse)
 async def intercepts(request: Request):
     if not is_logged_in(request): return RedirectResponse(url="/login", status_code=302)
+    if get_role(request) not in ('admin', 'enforcer', 'cooperative'): return RedirectResponse(url="/dashboard", status_code=302)
     violators = [p for p in puv_database if p['passengers'] > p['capacity'] or p.get('temp', 0) >= 37.5]
     stats     = compute_puv_stats()
     return TR(request, "intercepts.html", {"role": get_role(request), "puvs": violators, "stats": stats})
@@ -893,6 +1094,7 @@ async def submit_interception(
     notes:  str = Form(...)
 ):
     if get_role(request) != 'enforcer': return RedirectResponse(url="/login", status_code=302)
+    plate, notes = clean_text(plate, 20), clean_text(notes, 1000)
     citation = {
         "serial":  f"CT-{len(citations_db)+1:04d}-X",
         "plate":   plate,
@@ -959,9 +1161,9 @@ async def coop_update_capacity(request: Request):
         return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
     data         = await request.json()
     puv_id       = data.get("puv_id")
-    new_capacity = data.get("capacity")
-    puv = next((p for p in puv_database if p['id'] == puv_id), None)
-    if puv and new_capacity and int(new_capacity) > 0:
+    new_capacity = _as_int(data.get("capacity"), 0)
+    puv = _puv_for_role(request, puv_id)
+    if puv and 0 < new_capacity <= 100:
         puv['capacity'] = int(new_capacity)
         db_save_puv(puv['id'], puv)
         log_audit(request.session.get('username', 'cooperative'), "CAPACITY_UPDATED", request.client.host if request.client else "unknown", "blue")
@@ -978,9 +1180,12 @@ async def coop_update_driver(request: Request):
     allowed_fields = ["full_name", "license", "operator", "mobile", "emergency_contact", "email"]
     if username not in users or users[username].get("role") != "driver":
         return JSONResponse({"success": False, "error": "Driver not found."})
+    my_ids = {p["id"] for p in get_coop_puvs(request.session.get('username'))}
+    if any(p.get("username") == username and p["id"] not in my_ids for p in puv_database):
+        return JSONResponse({"success": False, "error": "This driver belongs to another cooperative's vehicle."}, status_code=403)
     for field in allowed_fields:
         if field in data and data[field] is not None:
-            users[username][field] = data[field]
+            users[username][field] = clean_text(data[field])
     assigned_puv_id = data.get("assigned_puv_id")
     if assigned_puv_id is not None:
         for p in puv_database:
@@ -989,7 +1194,7 @@ async def coop_update_driver(request: Request):
                 p["driver"]   = "Unassigned"
                 db_save_puv(p["id"], p)
         if assigned_puv_id != "":
-            puv = next((p for p in puv_database if p["id"] == int(assigned_puv_id)), None)
+            puv = next((p for p in puv_database if p["id"] == _as_int(assigned_puv_id, -1) and p["id"] in my_ids), None)
             if puv:
                 puv["username"] = username
                 puv["driver"]   = users[username].get("full_name", username)
@@ -1007,22 +1212,25 @@ def get_mobile_user(request: Request):
     if not auth.startswith("Bearer "):
         return None
     token = auth[7:]
-    username = mobile_tokens.get(token)
+    try:
+        username = mobile_tokens.get(token, strict=True)
+    except Exception:
+        raise ServerBusy()
     if not username:
         return None
     user = users.get(username)
-    if not user or user.get("role") != "enforcer":
-        return None
-    return {"username": username, **user}
+    if getattr(request.state, "users_fresh", False) and (not user or user.get("role") != "enforcer"):
+        return None                       # account deleted or changed
+    return {"username": username, **(user or {})}
 
 @app.post("/api/mobile/login")
 async def mobile_login(request: Request):
     data     = await request.json()
-    username = data.get("username", "").strip()
+    username = clean_text(data.get("username", ""), 60)
     password = data.get("password", "")
-    user     = users.get(username)
-    if not user or user["password"] != password or user["role"] != "enforcer":
-        return JSONResponse({"success": False, "error": "Invalid credentials."}, status_code=401)
+    user, err = check_password_login("mobile", username, password if isinstance(password, str) else "", "enforcer")
+    if not user:
+        return JSONResponse({"success": False, "error": err or "Invalid credentials."}, status_code=429 if err else 401)
     for t, u in list(mobile_tokens.items()):
         if u == username:
             del mobile_tokens[t]
@@ -1062,14 +1270,14 @@ async def mobile_dispatch(request: Request):
             violations.append({
                 "type":    "OVERLOAD",
                 "label":   "Passenger overload",
-                "detail":  f"{p['passengers']}/{p['capacity']} passengers — exceeds legal limit",
+                "detail":  f"{p['passengers']}/{p['capacity']} passengers, over the legal limit",
                 "severity": "critical",
             })
         if p.get("temp", 0) >= 37.5:
             violations.append({
                 "type":    "THERMAL",
                 "label":   "Thermal alert",
-                "detail":  f"Cabin temperature at {p['temp']}°C — exceeds 37.5°C threshold",
+                "detail":  f"Cabin temperature at {p['temp']}°C, above the 37.5°C limit",
                 "severity": "warning",
             })
         if violations:
@@ -1098,9 +1306,11 @@ async def mobile_intercept(request: Request):
     if not mobile_user:
         return JSONResponse({"success": False, "error": "Unauthorized."}, status_code=401)
     data   = await request.json()
-    plate  = data.get("plate", "")
-    action = data.get("action", "")
-    notes  = data.get("notes", "")
+    plate  = clean_text(data.get("plate", ""), 20)
+    action = clean_text(data.get("action", ""), 20)
+    notes  = clean_text(data.get("notes", ""), 1000)
+    if action not in ("ticket", "apprehend", "warning"):
+        action = "warning" if action else ""
     if not plate or not action:
         return JSONResponse({"success": False, "error": "Plate and action are required."})
     serial = f"CT-{len(citations_db)+1:04d}-M"
@@ -1118,7 +1328,7 @@ async def mobile_intercept(request: Request):
     }
     citations_db.append(citation)
     db_append_citation(citation)
-    log_audit(mobile_user["username"], f"MOBILE_INTERCEPT: {plate} — {action.upper()}", request.client.host if request.client else "unknown", "red")
+    log_audit(mobile_user["username"], f"MOBILE_INTERCEPT: {plate} · {action.upper()}", request.client.host if request.client else "unknown", "red")
     await notify_data_changed("citations")
     return JSONResponse({
         "success": True,
@@ -1136,18 +1346,33 @@ def get_passenger_user(request: Request):
     if not auth.startswith("Bearer "):
         return None
     token = auth[7:]
-    return passenger_tokens.get(token)
+    try:
+        data = passenger_tokens.get(token, strict=True)
+    except Exception:
+        raise ServerBusy()
+    if not data:
+        return None
+    u = users.get(data.get("username"))
+    if getattr(request.state, "users_fresh", False) and (not u or u.get("role") != "passenger"):
+        return None                       # account was deleted
+    return data
 
 @app.post("/api/passenger/register")
 async def passenger_register(request: Request):
     data      = await request.json()
-    username  = data.get("username", "").strip().lower()
+    if not isinstance(data, dict):
+        return JSONResponse({"error": "Bad request."}, status_code=400)
+    username  = clean_text(data.get("username", ""), 60).lower()
     password  = data.get("password", "")
-    full_name = data.get("full_name", "").strip()
-    mobile    = data.get("mobile", "").strip()
+    full_name = clean_text(data.get("full_name", ""), 80)
+    mobile    = clean_text(data.get("mobile", ""), 20)
 
     if not username:
         return JSONResponse({"error": "Username is required."}, status_code=400)
+    if not re.fullmatch(r"[a-z0-9._@-]{3,40}", username):
+        return JSONResponse({"error": "Username can use letters, numbers, dot, dash, underscore or @ (3 to 40 characters)."}, status_code=400)
+    if not isinstance(password, str) or len(password) > 200:
+        return JSONResponse({"error": "Password is not valid."}, status_code=400)
     if username in users:
         return JSONResponse({"error": "Username already taken."}, status_code=409)
     if len(password) < 6:
@@ -1156,11 +1381,11 @@ async def passenger_register(request: Request):
         return JSONResponse({"error": "Full name is required."}, status_code=400)
 
     record = {
-        "password":             password,
+        "password":             hash_password(password),
         "role":                 "passenger",
         "full_name":            full_name,
         "mobile":               mobile,
-        "email":                data.get("email", ""),
+        "email":                clean_text(data.get("email", ""), 120),
         "must_change_password": False,
     }
     users[username] = record
@@ -1186,14 +1411,14 @@ async def passenger_register(request: Request):
 @app.post("/api/passenger/login")
 async def passenger_login(request: Request):
     data     = await request.json()
-    username = data.get("username", "").strip()
+    username = clean_text(data.get("username", ""), 60)
     password = data.get("password", "")
     # Registration saves usernames in lowercase, so "Bradley" must find "bradley"
     if username not in users and username.lower() in users:
         username = username.lower()
-    user     = users.get(username)
-    if not user or user["password"] != password or user["role"] != "passenger":
-        return JSONResponse({"error": "Invalid credentials."}, status_code=401)
+    user, err = check_password_login("passenger", username, password if isinstance(password, str) else "", "passenger")
+    if not user:
+        return JSONResponse({"error": err or "Invalid credentials."}, status_code=429 if err else 401)
     token = secrets.token_hex(32)
     passenger_tokens[token] = {
         "username":  username,
@@ -1290,9 +1515,9 @@ async def passenger_complaint(request: Request):
     if not pax_user:
         return JSONResponse({"error": "Unauthorized."}, status_code=401)
     body        = await request.json()
-    plate       = body.get("plate", "").strip().upper()
-    complaint   = body.get("complaint", "").strip()
-    description = body.get("description", "").strip()
+    plate       = clean_text(body.get("plate", ""), 20).upper()
+    complaint   = clean_text(body.get("complaint", ""), 60)
+    description = clean_text(body.get("description", ""), 1000)
     if not plate or not complaint:
         return JSONResponse({"error": "Plate and complaint type are required."}, status_code=400)
     puv    = next((p for p in puv_database if p["plate"].upper() == plate), None)
@@ -1312,7 +1537,7 @@ async def passenger_complaint(request: Request):
     }
     complaints_db.append(record)
     db_append_complaint(record)
-    log_audit(pax_user["username"], f"PASSENGER_COMPLAINT: {plate} — {complaint.upper()}", request.client.host if request.client else "unknown", "blue")
+    log_audit(pax_user["username"], f"PASSENGER_COMPLAINT: {plate} · {complaint.upper()}", request.client.host if request.client else "unknown", "blue")
     return JSONResponse({
         "message": "Complaint submitted successfully. Thank you for your report.",
         "serial":  serial,
@@ -1343,7 +1568,7 @@ async def passenger_update_profile(request: Request):
     data = await request.json()
     for key in ("mobile", "full_name", "email"):
         if key in data and isinstance(data[key], str):
-            value = data[key].strip()
+            value = clean_text(data[key], 80 if key == "full_name" else 120)
             if key == "full_name" and not value:
                 return JSONResponse({"error": "Full name can't be empty."}, status_code=400)
             users[username][key] = value
@@ -1371,13 +1596,14 @@ async def passenger_change_password(request: Request):
     data = await request.json()
     current_pw = data.get("current_password", "")
     new_pw     = data.get("new_password", "")
-    if user.get("password") != current_pw:
+    if login_locked("passenger", username):
+        return JSONResponse({"error": LOCKED_MSG}, status_code=429)
+    if not verify_password(user.get("password"), current_pw):
+        note_login_fail("passenger", username)
         return JSONResponse({"error": "Current password is incorrect."}, status_code=400)
-    if len(new_pw) < 6:
+    if not isinstance(new_pw, str) or not 6 <= len(new_pw) <= 200:
         return JSONResponse({"error": "Password must be at least 6 characters."}, status_code=400)
-    user["password"]             = new_pw
-    user["must_change_password"] = False
-    db_save_user(username, user)
+    set_password(username, new_pw)
     log_audit(username, "PASSWORD_CHANGED (mobile)", request.client.host if request.client else "unknown", "green")
     return JSONResponse({"success": True})
 
@@ -1415,9 +1641,11 @@ async def update_profile(request: Request):
         'cooperative': ['full_name', 'email', 'mobile', 'address'],
         'passenger':   ['full_name', 'mobile', 'email'],
     }
+    if username not in users or not isinstance(data, dict):
+        return JSONResponse({"success": False, "error": "Account not found."}, status_code=404)
     for key, value in data.items():
         if key in allowed.get(role, []) and value is not None:
-            users[username][key] = value
+            users[username][key] = clean_text(value)
     db_save_user(username, users[username])
     log_audit(username, "PROFILE_UPDATED", request.client.host if request.client else "unknown", "blue")
     return JSONResponse({"success": True})
@@ -1430,13 +1658,15 @@ async def change_password_api(request: Request):
     data     = await request.json()
     current  = data.get("current_password", "")
     new_pw   = data.get("new_password", "")
-    if users.get(username, {}).get('password') != current:
+    if login_locked("web", username):
+        return JSONResponse({"success": False, "error": LOCKED_MSG})
+    if not verify_password(users.get(username, {}).get('password'), current):
+        note_login_fail("web", username)
         return JSONResponse({"success": False, "error": "Current password is incorrect."})
-    if len(new_pw) < 6:
+    if not isinstance(new_pw, str) or not 6 <= len(new_pw) <= 200:
         return JSONResponse({"success": False, "error": "New password must be at least 6 characters."})
-    users[username]['password']             = new_pw
-    users[username]['must_change_password'] = False
-    db_save_user(username, users[username])
+    set_password(username, new_pw)
+    request.session['ver'] = users[username]['session_ver']    # stay logged in here
     log_audit(username, "PASSWORD_CHANGED", request.client.host if request.client else "unknown", "green")
     return JSONResponse({"success": True})
 
@@ -1460,6 +1690,10 @@ async def upload_avatar(request: Request, file: UploadFile = File(...)):
     contents = await file.read()
     if len(contents) > 2 * 1024 * 1024:
         return JSONResponse({"success": False, "error": "Image must be under 2MB."})
+    magic = {"image/jpeg": (b"\xff\xd8\xff",), "image/png": (b"\x89PNG\r\n\x1a\n",),
+             "image/gif": (b"GIF87a", b"GIF89a"), "image/webp": (b"RIFF",)}
+    if not contents.startswith(magic[file.content_type]) or (file.content_type == "image/webp" and contents[8:12] != b"WEBP"):
+        return JSONResponse({"success": False, "error": "That file is not a real image."})
 
     db_save_avatar(username, file.content_type, contents)
 
@@ -1497,9 +1731,14 @@ async def coop_add_vehicle(request: Request):
     if get_role(request) != 'cooperative':
         return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
     data     = await request.json()
-    plate    = data.get("plate", "").strip().upper()
-    company  = data.get("company", "").strip()
-    capacity = data.get("capacity", 22)
+    if not isinstance(data, dict):
+        return JSONResponse({"success": False, "error": "Bad request."})
+    data     = {k: (clean_text(v, 120) if isinstance(v, str) else v) for k, v in data.items()}
+    plate    = clean_text(data.get("plate", ""), 20).upper()
+    company  = clean_text(data.get("company", ""), 80)
+    capacity = _as_int(data.get("capacity", 22), 0)
+    if not 0 < capacity <= 100:
+        return JSONResponse({"success": False, "error": "Please enter a valid seated capacity."})
 
     if not plate:
         return JSONResponse({"success": False, "error": "Plate number is required."})
@@ -1522,9 +1761,9 @@ async def coop_add_vehicle(request: Request):
         "plate":             plate,
         "driver":            driver_name,
         "passengers":        0,
-        "capacity":          int(capacity),
-        "standing_capacity": int(data.get("standing_capacity", 0)),
-        "loc_name":          "CDO — Not yet tracked",
+        "capacity":          capacity,
+        "standing_capacity": max(0, min(100, _as_int(data.get("standing_capacity", 0), 0))),
+        "loc_name":          "CDO · Not yet tracked",
         "lat":               8.4822,
         "lng":               124.6472,
         "status":            "Active",
@@ -1563,13 +1802,13 @@ async def coop_request_capacity(request: Request):
         return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
     data         = await request.json()
     puv_id       = data.get("puv_id")
-    new_capacity = data.get("capacity")
-    puv = next((p for p in puv_database if p['id'] == puv_id), None)
+    new_capacity = _as_int(data.get("capacity"), 0)
+    puv = _puv_for_role(request, puv_id)
     if not puv:
         return JSONResponse({"success": False, "error": "Vehicle not found."})
-    if not new_capacity or int(new_capacity) < 1:
+    if not 0 < new_capacity <= 100:
         return JSONResponse({"success": False, "error": "Invalid capacity value."})
-    standing = int(data.get("standing_capacity", 0))
+    standing = max(0, min(100, _as_int(data.get("standing_capacity", 0), 0)))
     # Store as pending — not applied until LTFRB approves
     puv['pending_capacity'] = {
         "seated":   int(new_capacity),
@@ -1579,7 +1818,7 @@ async def coop_request_capacity(request: Request):
     db_save_puv(puv['id'], puv)
     log_audit(
         request.session.get('username', 'cooperative'),
-        f"CAPACITY_REQUEST: {puv['plate']} — {new_capacity} seated + {standing} standing (Pending LTFRB)",
+        f"CAPACITY_REQUEST: {puv['plate']} · {new_capacity} seated + {standing} standing (Pending LTFRB)",
         request.client.host if request.client else "unknown",
         "blue"
     )
@@ -1668,9 +1907,9 @@ def apply_sensor_update(payload: dict):
         puv['lat'], puv['lng'] = coords
         puv['gps_at'] = _stamp_now()
     if payload.get("loc_name"):
-        puv['loc_name'] = str(payload["loc_name"])
+        puv['loc_name'] = clean_text(payload["loc_name"], 80)
     if payload.get("speed") is not None:
-        puv['speed'] = str(payload["speed"])
+        puv['speed'] = clean_text(payload["speed"], 20)
     puv['last_update']    = _stamp_now()
     puv['is_violator']    = puv['passengers'] > puv['capacity']
     puv['is_overheating'] = puv.get('temp', 0) >= 37.5
@@ -1753,6 +1992,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 continue                      # ignore malformed frames instead of dropping the connection
             if not isinstance(payload, dict) or payload.get("type") != "sensor_update":
                 continue
+            if SENSOR_API_KEY and not secrets.compare_digest(str(payload.get("key", websocket.query_params.get("key", ""))), SENSOR_API_KEY):
+                continue                      # readings must carry the device key
             _ensure_ready()
             reload_puvs()
             puv = apply_sensor_update(payload)
