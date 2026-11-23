@@ -596,25 +596,16 @@ async function cuSubmit() {
   hideLoader();
 
   if (data.success) {
-    var notifs = data.notifications || {};
-    var smsOk    = notifs.sms   && notifs.sms.success;
+    var notifs   = data.notifications || {};
     var emailOk  = notifs.email && notifs.email.success;
     var emailErr = notifs.email && notifs.email.reason ? notifs.email.reason : null;
-    var smsErr   = notifs.sms   && notifs.sms.reason   ? notifs.sms.reason   : null;
-    var sentLine = '';
-    if (smsOk && emailOk) {
-      sentLine = '<br><span style="color:var(--ok);font-size:12px;"><i class="fa-solid fa-check-circle"></i> Credentials sent via SMS &amp; email.</span>';
-    } else if (smsOk) {
-      sentLine = '<br><span style="color:var(--ok);font-size:12px;"><i class="fa-solid fa-check-circle"></i> Credentials sent via SMS.</span>';
-      if (emailErr) sentLine += '<br><span style="color:var(--danger-ink);font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> Email failed: ' + emailErr + '</span>';
-    } else if (emailOk) {
-      sentLine = '<br><span style="color:var(--ok);font-size:12px;"><i class="fa-solid fa-check-circle"></i> Credentials sent via email.</span>';
-      if (smsErr) sentLine += '<br><span style="color:var(--danger-ink);font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> SMS failed: ' + smsErr + '</span>';
+    var sentLine;
+    if (emailOk) {
+      sentLine = '<br><span style="color:var(--ok);font-size:12px;"><i class="fa-solid fa-check-circle"></i> Login details sent by email.</span>';
+    } else if (emailErr) {
+      sentLine = '<br><span style="color:var(--danger-ink);font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> Email failed: ' + emailErr + '</span>';
     } else {
-      sentLine = '<br>';
-      if (emailErr) sentLine += '<span style="color:var(--danger-ink);font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> Email failed: ' + emailErr + '</span><br>';
-      if (smsErr)   sentLine += '<span style="color:var(--danger-ink);font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> SMS failed: ' + smsErr + '</span><br>';
-      if (!emailErr && !smsErr) sentLine += '<span style="color:var(--warn-ink);font-size:12px;"><i class="fa-solid fa-exclamation-circle"></i> No email or mobile provided — share credentials manually.</span>';
+      sentLine = '<br><span style="color:var(--warn-ink);font-size:12px;"><i class="fa-solid fa-exclamation-circle"></i> No email given. Share the login details with them yourself.</span>';
     }
 
     await Swal.fire({

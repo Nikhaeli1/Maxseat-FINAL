@@ -41,9 +41,6 @@ complaints_db: list = []
 # ══════════════════════════════════════════════
 # NOTIFICATION CONFIG — fill these in
 # ══════════════════════════════════════════════
-SEMAPHORE_API_KEY  = "YOUR_SEMAPHORE_API_KEY"   # get from semaphore.co
-SEMAPHORE_SENDER   = "MaxSeat"                   # your registered sender name (max 11 chars)
-
 GMAIL_ADDRESS      = os.environ.get("GMAIL_ADDRESS", "asok.marielle04@gmail.com").strip()
 GMAIL_SENDER_NAME  = "MaxSeat Alert System"
 # ── Gmail (sends to ANY email, free) ───────────────────────────────────────
@@ -387,32 +384,8 @@ def build_credentials_message(full_name: str, username: str, password: str, role
         f"- MaxSeat Alert System"
     )
 
-async def send_sms(mobile: str, message: str) -> dict:
-    """Send SMS via Semaphore API."""
-    if not mobile or SEMAPHORE_API_KEY == "YOUR_SEMAPHORE_API_KEY":
-        return {"success": False, "reason": "SMS not configured or no mobile number."}
-    # Clean mobile number — Semaphore expects 09XXXXXXXXX or +639XXXXXXXXX
-    clean = mobile.replace("-", "").replace(" ", "").replace("+", "")
-    if clean.startswith("63"):
-        clean = "0" + clean[2:]
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(
-                "https://api.semaphore.co/api/v4/messages",
-                data={
-                    "apikey":      SEMAPHORE_API_KEY,
-                    "number":      clean,
-                    "message":     message,
-                    "sendername":  SEMAPHORE_SENDER,
-                }
-            )
-        data = resp.json()
-        return {"success": resp.status_code == 200, "data": data}
-    except Exception as e:
-        return {"success": False, "reason": str(e)}
-
 async def send_email(to_email: str, full_name: str, message: str) -> dict:
-    """Send email via Resend HTTP API (works on Vercel — no SMTP ports needed)."""
+    """Send the login details by email: Gmail when GMAIL_APP_PASSWORD is set, else Resend."""
     if not to_email:
         return {"success": False, "reason": "No email address provided."}
     if not RESEND_API_KEY and not GMAIL_APP_PASSWORD:
@@ -434,29 +407,45 @@ async def send_email(to_email: str, full_name: str, message: str) -> dict:
         <p style="color:#64748b;font-size:12px;">Do not share your credentials with anyone.</p>
       </div>
       <div style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;">
-        <p style="color:#94a3b8;font-size:11px;margin:0;">MaxSeat Alert System — CDO Region</p>
+        <p style="color:#94a3b8;font-size:11px;margin:0;">MaxSeat Alert System, CDO Region</p>
       </div>
     </div>"""
 
     if GMAIL_APP_PASSWORD:
-        def _send():
-            msg = EmailMessage()
-            msg["From"]    = f"{GMAIL_SENDER_NAME} <{GMAIL_ADDRESS}>"
-            msg["To"]      = to_email
-            msg["Subject"] = "MaxSeat Alert: Your Account Credentials"
-            msg.set_content(message)
-            msg.add_alternative(html, subtype="html")
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ssl.create_default_context(), timeout=15) as smtp:
+        msg = EmailMessage()
+        msg["From"]    = f"{GMAIL_SENDER_NAME} <{GMAIL_ADDRESS}>"
+        msg["To"]      = to_email
+        msg["Subject"] = "MaxSeat Alert: Your Account Credentials"
+        msg.set_content(message)
+        msg.add_alternative(html, subtype="html")
+
+        # Try Gmail's SSL port first, then its STARTTLS port. A fixed EHLO name is
+        # used because the server's own host name can be one Gmail refuses.
+        def _via_465():
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465, local_hostname="maxseat-final.vercel.app",
+                                  context=ssl.create_default_context(), timeout=10) as smtp:
                 smtp.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
                 smtp.send_message(msg)
-        try:
-            await asyncio.to_thread(_send)
-            return {"success": True}
-        except smtplib.SMTPAuthenticationError:
-            return {"success": False, "reason": "Gmail rejected the login. GMAIL_APP_PASSWORD must be a 16-letter App Password, not the normal password."}
-        except Exception as e:
-            print(f"[EMAIL] Gmail failed to send to {to_email}: {e}")
-            return {"success": False, "reason": f"Gmail could not send it: {e}"}
+
+        def _via_587():
+            with smtplib.SMTP("smtp.gmail.com", 587, local_hostname="maxseat-final.vercel.app", timeout=10) as smtp:
+                smtp.ehlo()
+                smtp.starttls(context=ssl.create_default_context())
+                smtp.ehlo()
+                smtp.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+                smtp.send_message(msg)
+
+        errors = []
+        for port, attempt in ((465, _via_465), (587, _via_587)):
+            try:
+                await asyncio.to_thread(attempt)
+                return {"success": True}
+            except smtplib.SMTPAuthenticationError:
+                return {"success": False, "reason": "Gmail rejected the login. Check GMAIL_ADDRESS, and that GMAIL_APP_PASSWORD is the 16-letter App Password, not the normal password."}
+            except Exception as e:
+                print(f"[EMAIL] Gmail port {port} failed for {to_email}: {type(e).__name__}: {e}")
+                errors.append(f"port {port}: {e or type(e).__name__}")
+        return {"success": False, "reason": "Gmail could not send it (" + "; ".join(errors) + ")"}
 
     try:
         async with httpx.AsyncClient(timeout=15) as client:
@@ -484,16 +473,13 @@ async def send_email(to_email: str, full_name: str, message: str) -> dict:
         return {"success": False, "reason": str(e)}
 
 async def notify_new_user(user_data: dict, username: str, password: str):
-    """Send credentials via SMS and/or email."""
+    """Email the new user their login details (no SMS)."""
     full_name = user_data.get("full_name", username)
     role      = user_data.get("role", "")
-    mobile    = user_data.get("mobile", "")
     email     = user_data.get("email", "")
     message   = build_credentials_message(full_name, username, password, role)
 
     results = {}
-    if mobile:
-        results["sms"]   = await send_sms(mobile, message)
     if email:
         results["email"] = await send_email(email, full_name, message)
     return results
@@ -692,7 +678,7 @@ async def create_user(request: Request):
         request.client.host if request.client else "unknown",
         "blue"
     )
-    # Send credentials via SMS and/or email
+    # Email the login details to the new user
     notify_results = await notify_new_user(record, username, password)
     return JSONResponse({"success": True, "notifications": notify_results})
 
