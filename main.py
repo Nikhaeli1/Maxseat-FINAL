@@ -5,7 +5,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from typing import List
-import json, datetime, secrets, uuid
+import json, datetime, secrets, uuid, asyncio, smtplib, ssl
+from email.message import EmailMessage
 
 from database import (
     init_db,
@@ -43,8 +44,15 @@ complaints_db: list = []
 SEMAPHORE_API_KEY  = "YOUR_SEMAPHORE_API_KEY"   # get from semaphore.co
 SEMAPHORE_SENDER   = "MaxSeat"                   # your registered sender name (max 11 chars)
 
-GMAIL_ADDRESS      = "asok.marielle04@gmail.com"
+GMAIL_ADDRESS      = os.environ.get("GMAIL_ADDRESS", "asok.marielle04@gmail.com").strip()
 GMAIL_SENDER_NAME  = "MaxSeat Alert System"
+# ── Gmail (sends to ANY email, free) ───────────────────────────────────────
+# Resend's free test mode only delivers to your own address. To email every new
+# user, set these in Vercel: GMAIL_ADDRESS = the sending Gmail account, and
+# GMAIL_APP_PASSWORD = a 16-letter App Password from that account
+# (Google Account → Security → 2-Step Verification → App passwords).
+# When GMAIL_APP_PASSWORD is set, Gmail is used instead of Resend.
+GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "").replace(" ", "")
 
 # ── Resend (HTTP email API — works on Vercel) ──────────────────────────────
 # Sign up free at https://resend.com → API Keys → Create Key
@@ -374,7 +382,7 @@ def build_credentials_message(full_name: str, username: str, password: str, role
         f"  Username : {username}\n"
         f"  Password : {password}\n\n"
         f"Please log in and change your password immediately.\n"
-        f"Login at: http://127.0.0.1:8000/login\n\n"
+        f"Login at: https://maxseat-final.vercel.app/login\n\n"
         f"NOTE: Do not share your credentials with anyone.\n"
         f"- MaxSeat Alert System"
     )
@@ -407,8 +415,8 @@ async def send_email(to_email: str, full_name: str, message: str) -> dict:
     """Send email via Resend HTTP API (works on Vercel — no SMTP ports needed)."""
     if not to_email:
         return {"success": False, "reason": "No email address provided."}
-    if not RESEND_API_KEY:
-        return {"success": False, "reason": "RESEND_API_KEY not set. Add it in the Vercel project environment variables."}
+    if not RESEND_API_KEY and not GMAIL_APP_PASSWORD:
+        return {"success": False, "reason": "Email not set up. Add GMAIL_APP_PASSWORD (or RESEND_API_KEY) in the Vercel project environment variables."}
 
     html_body = message.replace("\n\n", "</p><p>").replace("\n", "<br>")
     html = f"""
@@ -430,6 +438,26 @@ async def send_email(to_email: str, full_name: str, message: str) -> dict:
       </div>
     </div>"""
 
+    if GMAIL_APP_PASSWORD:
+        def _send():
+            msg = EmailMessage()
+            msg["From"]    = f"{GMAIL_SENDER_NAME} <{GMAIL_ADDRESS}>"
+            msg["To"]      = to_email
+            msg["Subject"] = "MaxSeat Alert: Your Account Credentials"
+            msg.set_content(message)
+            msg.add_alternative(html, subtype="html")
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ssl.create_default_context(), timeout=15) as smtp:
+                smtp.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+                smtp.send_message(msg)
+        try:
+            await asyncio.to_thread(_send)
+            return {"success": True}
+        except smtplib.SMTPAuthenticationError:
+            return {"success": False, "reason": "Gmail rejected the login. GMAIL_APP_PASSWORD must be a 16-letter App Password, not the normal password."}
+        except Exception as e:
+            print(f"[EMAIL] Gmail failed to send to {to_email}: {e}")
+            return {"success": False, "reason": f"Gmail could not send it: {e}"}
+
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(
@@ -441,7 +469,7 @@ async def send_email(to_email: str, full_name: str, message: str) -> dict:
                 json={
                     "from":    f"{GMAIL_SENDER_NAME} <onboarding@resend.dev>",
                     "to":      [to_email],
-                    "subject": "MaxSeat Alert — Your Account Credentials",
+                    "subject": "MaxSeat Alert: Your Account Credentials",
                     "text":    message,
                     "html":    html,
                 }
