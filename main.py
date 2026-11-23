@@ -15,7 +15,7 @@ from database import (
     db_append_citation, db_load_citations,
     db_append_complaint, db_load_complaints,
     db_save_avatar, db_load_avatar, db_delete_avatar,
-    TokenStore, DB_KIND, DB_URL_SOURCE, DB_ENV_NAMES,
+    TokenStore, DB_KIND, DB_URL_SOURCE, DB_ENV_NAMES, db_live_snapshot,
 )
 
 BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
@@ -79,6 +79,19 @@ VERCEL_ENV    = os.environ.get("VERCEL_ENV", "")
 DEPLOY_BRANCH = os.environ.get("VERCEL_GIT_COMMIT_REF", "")
 DEPLOY_COMMIT = os.environ.get("VERCEL_GIT_COMMIT_SHA", "")[:7]
 templates.env.globals.update(DB_ENV_NAMES=DB_ENV_NAMES, VERCEL_ENV=VERCEL_ENV, DEPLOY_BRANCH=DEPLOY_BRANCH, DEPLOY_COMMIT=DEPLOY_COMMIT)
+
+# Cache-buster for our own scripts (?v=...): changes whenever the files change, so browsers
+# load the new live-update code right after a deploy instead of an old cached copy.
+def _asset_version() -> str:
+    h = hashlib.sha1()
+    for name in ("ws-client.js", "maxseat-map.js"):
+        try:
+            with open(os.path.join(BASE_DIR, "static", "js", name), "rb") as f:
+                h.update(f.read())
+        except OSError:
+            pass
+    return h.hexdigest()[:10]
+templates.env.globals["ASSET_V"] = _asset_version()
 # CARTO map background key (https://carto.com/basemaps/apikey). Optional: without it the
 # maps use free OpenStreetMap tiles. It is sent to browsers, like any map tile key.
 templates.env.globals["CARTO_KEY"] = os.environ.get("CARTO_API_KEY", "").strip()
@@ -165,14 +178,18 @@ def reload_from_db():
     complaints_db[:] = fresh_complaints
 
 # Endpoints that are called often and only need vehicle data
-_LIGHT_PATHS = ("/api/live", "/api/sensor", "/api/driver/status", "/api/health")
+# (/api/live loads its own snapshot in one go, so it skips the reload here)
+_LIGHT_PATHS = ("/api/sensor", "/api/driver/status", "/api/health")
+_SELF_LOADING = ("/api/live",)
 
 @app.middleware("http")
 async def sync_with_database(request: Request, call_next):
     path = request.url.path
     if not path.startswith("/static") and path not in ("/favicon.ico", "/robots.txt"):
         _ensure_ready()
-        if path in _LIGHT_PATHS:
+        if path in _SELF_LOADING:
+            pass
+        elif path in _LIGHT_PATHS:
             reload_puvs()
         else:
             reload_from_db()
@@ -1628,10 +1645,10 @@ async def sensor_post(request: Request):
     await manager.broadcast(live)            # reaches WebSocket pages when running outside Vercel
     return JSONResponse({"success": True, **live})
 
-def _live_version() -> str:
+def _live_version(n_citations: int, n_complaints: int) -> str:
     """Changes whenever anything on the fleet changes (readings, vehicles added/removed,
     capacity, driver, citations). Pages refresh their server-rendered parts when it changes."""
-    parts = [str(len(citations_db)), str(len(complaints_db))]
+    parts = [str(n_citations), str(n_complaints)]
     for p in sorted(puv_database, key=lambda x: x.get('id', 0)):
         parts.append(json.dumps(p, sort_keys=True, default=str))
     return hashlib.sha1("|".join(parts).encode()).hexdigest()[:16]
@@ -1641,10 +1658,16 @@ async def live_feed(request: Request):
     """Polled every few seconds by open pages when LIVE_MODE is "poll"."""
     if not is_logged_in(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
-    citations_db[:]  = db_load_citations()
-    complaints_db[:] = db_load_complaints()
+    # One database session for the whole answer: this runs every few seconds per open page
+    try:
+        fresh, n_citations, n_complaints = db_live_snapshot()
+        puv_database[:] = fresh
+    except Exception as e:
+        print(f"[DB] live snapshot failed, sending current data: {e}")
+        n_citations, n_complaints = len(citations_db), len(complaints_db)
     return JSONResponse(
-        {"version": _live_version(), "puvs": [puv_live_payload(p) for p in puv_database]},
+        {"version": _live_version(n_citations, n_complaints),
+         "puvs": [puv_live_payload(p) for p in puv_database]},
         headers={"Cache-Control": "no-store"},
     )
 

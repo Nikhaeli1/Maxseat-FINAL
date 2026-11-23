@@ -11,7 +11,7 @@ and profile pictures all live here.
 import os, json, time
 from sqlalchemy import create_engine, Column, Integer, String, Text, LargeBinary, Float
 from sqlalchemy.orm import declarative_base, sessionmaker
-from sqlalchemy.pool import NullPool
+from sqlalchemy import func
 
 ON_VERCEL = bool(os.environ.get("VERCEL"))
 
@@ -65,10 +65,15 @@ elif DATABASE_URL.startswith("sqlite"):
 else:
     DB_KIND = "postgres"
 
-# Serverless functions are frozen between requests, so pooled connections go stale.
-# NullPool opens a fresh connection per use (use Neon's *pooled* connection string).
+# Serverless functions are frozen between requests, so a kept connection can go stale.
+# Opening a brand-new connection to Neon for every query is slow, though (several network
+# round trips each), and live pages ask for data every few seconds. So keep a tiny pool:
+# pool_pre_ping tests a kept connection before use and quietly reconnects if it died while
+# the function was frozen, and pool_recycle retires connections before Neon drops them.
+# (Use Neon's *pooled* connection string.)
 if ON_VERCEL and not DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(DATABASE_URL, poolclass=NullPool)
+    engine = create_engine(DATABASE_URL, pool_size=1, max_overflow=4,
+                           pool_pre_ping=True, pool_recycle=240, pool_timeout=10)
 else:
     engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine)
@@ -206,6 +211,16 @@ def db_load_puvs(strict: bool = False) -> list:
         if strict:
             raise
         return []
+
+
+def db_live_snapshot() -> tuple:
+    """Everything the live feed needs, in ONE database round trip session:
+    (vehicles, number of citations, number of complaints). Raises if the database can't be read."""
+    with SessionLocal() as session:
+        puvs = [json.loads(row.data) for row in session.query(DBPuv).all()]
+        n_citations  = session.query(func.count(DBCitation.id)).scalar() or 0
+        n_complaints = session.query(func.count(DBComplaint.id)).scalar() or 0
+    return puvs, n_citations, n_complaints
 
 
 # ── Audit logs ───────────────────────────────────────────────────────────────

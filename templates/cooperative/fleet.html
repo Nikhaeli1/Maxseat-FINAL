@@ -116,7 +116,7 @@
         </div>
         <div class="puv-meta-item">
           <div class="puv-meta-label">Location</div>
-          <div class="puv-meta-value" data-live="fleet-loc-{{ puv.id }}" style="font-size:12px;">{{ puv.loc_name }}</div>
+          <div class="puv-meta-value" data-live="fleet-loc-{{ puv.id }}" style="font-size:12px;"><span data-puv="{{ puv.id }}" data-f="loc">{{ puv.loc_name }}</span></div>
         </div>
         <div class="puv-meta-item">
           <div class="puv-meta-label">Seated capacity</div>
@@ -141,7 +141,7 @@
       <div data-live="fleet-load-{{ puv.id }}" style="margin-top:12px;">
         <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
           <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);">Current load</span>
-          <span style="font-size:12px;font-weight:700;color:{{ 'var(--danger-ink)' if overload else 'var(--text-muted)' }};">{{ puv.passengers }}/{{ total_max }} ({{ pct }}%)</span>
+          <span style="font-size:12px;font-weight:700;color:{{ 'var(--danger-ink)' if overload else 'var(--text-muted)' }};"><span data-puv="{{ puv.id }}" data-f="passengers">{{ puv.passengers }}</span>/{{ total_max }} ({{ pct }}%)</span>
         </div>
         <div class="load-bar">
           <div class="load-fill" style="width:{{ [pct,100]|min }}%;background:{{ 'var(--mango)' if overload else ('var(--mango-soft)' if pct >= 80 else 'var(--ok)') }};"></div>

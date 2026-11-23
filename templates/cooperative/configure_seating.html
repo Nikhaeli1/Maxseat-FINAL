@@ -32,7 +32,7 @@
         <td style="font-weight:600;">{{ puv.company }}</td>
         <td data-live="seat-load-{{ puv.id }}">
           <span class="badge {{ 'badge-red' if overloaded else 'badge-green' }}">
-            {{ puv.passengers }} PAX
+            <span data-puv="{{ puv.id }}" data-f="passengers">{{ puv.passengers }}</span> PAX
             {% if overloaded %}<i class="fa-solid fa-triangle-exclamation"></i>{% endif %}
           </span>
         </td>

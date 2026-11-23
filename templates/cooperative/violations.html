@@ -69,15 +69,15 @@
         </div>
         <div style="flex:1;">
             <div class="alert-plate">{{ puv.plate }}</div>
-            <div class="alert-detail">{{ puv.driver }} &nbsp;·&nbsp; {{ puv.loc_name }} &nbsp;·&nbsp; {{ puv.last_update }}</div>
+            <div class="alert-detail">{{ puv.driver }} &nbsp;·&nbsp; <span data-puv="{{ puv.id }}" data-f="loc">{{ puv.loc_name }}</span> &nbsp;·&nbsp; <span data-puv="{{ puv.id }}" data-f="updated">{{ puv.last_update }}</span></div>
         </div>
         <div style="text-align:right;">
             {% if puv.passengers > puv.capacity %}
-            <div style="font-size:13px;font-weight:800;color:var(--danger-ink);">{{ puv.passengers }}/{{ puv.capacity }} pax</div>
+            <div style="font-size:13px;font-weight:800;color:var(--danger-ink);"><span data-puv="{{ puv.id }}" data-f="passengers">{{ puv.passengers }}</span>/{{ puv.capacity }} pax</div>
             <div style="font-size:11px;color:var(--text-muted);">OVERLOADED</div>
             {% endif %}
             {% if puv.temp >= 37.5 %}
-            <div style="font-size:13px;font-weight:800;color:var(--warn-ink);">{{ puv.temp }}°C</div>
+            <div style="font-size:13px;font-weight:800;color:var(--warn-ink);"><span data-puv="{{ puv.id }}" data-f="temp">{{ puv.temp }}</span>°C</div>
             <div style="font-size:11px;color:var(--text-muted);">THERMAL ALERT</div>
             {% endif %}
         </div>

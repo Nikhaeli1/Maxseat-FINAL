@@ -101,18 +101,18 @@
         </td>
         <td style="font-weight:600;font-size:13px;">{{ puv.driver }}</td>
         <td>
-          <div style="font-weight:600;font-size:13px;">{{ puv.loc_name }}</div>
-          <div style="font-size:11px;color:var(--text-muted);">{{ puv.speed }} · {{ puv.last_update }}</div>
+          <div style="font-weight:600;font-size:13px;"><span data-puv="{{ puv.id }}" data-f="loc">{{ puv.loc_name }}</span></div>
+          <div style="font-size:11px;color:var(--text-muted);">{{ puv.speed }} · <span data-puv="{{ puv.id }}" data-f="updated">{{ puv.last_update }}</span></div>
         </td>
         <td>
           <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-weight:700;font-size:13px;color:{{ 'var(--danger-ink)' if overload else 'var(--text-main)' }};">{{ puv.passengers }}/{{ puv.capacity }}</span>
+            <span style="font-weight:700;font-size:13px;color:{{ 'var(--danger-ink)' if overload else 'var(--text-main)' }};"><span data-puv="{{ puv.id }}" data-f="passengers">{{ puv.passengers }}</span>/{{ puv.capacity }}</span>
             <div class="load-bar">
-              <div class="load-fill" style="width:{{ [pct,100]|min }}%;background:{{ 'var(--mango)' if overload else ('var(--mango-soft)' if pct >= 80 else 'var(--ok)') }};"></div>
+              <div class="load-fill" data-puv="{{ puv.id }}" data-f="bar" style="width:{{ [pct,100]|min }}%;background:{{ 'var(--mango)' if overload else ('var(--mango-soft)' if pct >= 80 else 'var(--ok)') }};"></div>
             </div>
           </div>
         </td>
-        <td style="font-weight:700;color:{{ 'var(--danger-ink)' if hot else ('var(--warn-ink)' if puv.temp >= 35 else 'var(--ok)') }};">{{ puv.temp }}°C</td>
+        <td style="font-weight:700;color:{{ 'var(--danger-ink)' if hot else ('var(--warn-ink)' if puv.temp >= 35 else 'var(--ok)') }};"><span data-puv="{{ puv.id }}" data-f="temp">{{ puv.temp }}</span>°C</td>
         <td>
           {% if overload %}
           <span class="badge badge-red"><i class="fa-solid fa-triangle-exclamation"></i> Overloaded</span>
@@ -159,8 +159,8 @@
         <div class="activity-dot" style="background:var(--mango);box-shadow:0 0 6px var(--mango);"></div>
         <div>
           <div style="font-size:13px;font-weight:700;">{{ puv.plate }} — Overloaded</div>
-          <div style="font-size:11px;color:var(--text-muted);">{{ puv.passengers }}/{{ puv.capacity }} pax · {{ puv.loc_name }}</div>
-          <div style="font-size:11px;color:var(--text-muted);">{{ puv.last_update }}</div>
+          <div style="font-size:11px;color:var(--text-muted);"><span data-puv="{{ puv.id }}" data-f="passengers">{{ puv.passengers }}</span>/{{ puv.capacity }} pax · <span data-puv="{{ puv.id }}" data-f="loc">{{ puv.loc_name }}</span></div>
+          <div style="font-size:11px;color:var(--text-muted);"><span data-puv="{{ puv.id }}" data-f="updated">{{ puv.last_update }}</span></div>
         </div>
       </div>
       {% endif %}
@@ -170,8 +170,8 @@
         <div class="activity-dot" style="background:var(--mango-soft);box-shadow:0 0 6px var(--mango-soft);"></div>
         <div>
           <div style="font-size:13px;font-weight:700;">{{ puv.plate }} — Thermal alert</div>
-          <div style="font-size:11px;color:var(--text-muted);">{{ puv.temp }}°C · {{ puv.loc_name }}</div>
-          <div style="font-size:11px;color:var(--text-muted);">{{ puv.last_update }}</div>
+          <div style="font-size:11px;color:var(--text-muted);"><span data-puv="{{ puv.id }}" data-f="temp">{{ puv.temp }}</span>°C · <span data-puv="{{ puv.id }}" data-f="loc">{{ puv.loc_name }}</span></div>
+          <div style="font-size:11px;color:var(--text-muted);"><span data-puv="{{ puv.id }}" data-f="updated">{{ puv.last_update }}</span></div>
         </div>
       </div>
       {% endif %}
@@ -187,7 +187,7 @@
 
 <script id="coop-puv-data" type="application/json" data-live="coop-puv-json">{{ puvs | tojson | safe if puvs else '[]' }}</script>
 <script src="{{ url_for('static', path='vendor/leaflet/leaflet.js') }}"></script>
-<script src="{{ url_for('static', path='js/maxseat-map.js') }}"></script>
+<script src="{{ url_for('static', path='js/maxseat-map.js') }}?v={{ ASSET_V }}"></script>
 <script>
 var puvData = JSON.parse(document.getElementById('coop-puv-data').textContent);
 var map = MaxSeatMap.create('coop-map', { fitAll: function () { return MaxSeatLive.trackedPuvs(); } });

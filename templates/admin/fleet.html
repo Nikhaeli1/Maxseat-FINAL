@@ -40,15 +40,15 @@
                 </td>
                 <td>
                     <span class="badge {{ 'badge-red' if overloaded else 'badge-blue' }}" style="margin-bottom:6px;">
-                        {{ p.passengers }}/{{ p.capacity }} PAX
+                        <span data-puv="{{ p.id }}" data-f="passengers">{{ p.passengers }}</span>/{{ p.capacity }} PAX
                     </span>
                     <div class="progress-bar">
-                        <div class="progress-fill" style="width:{{ [load_pct,100]|min }}%;background:{{ 'var(--mango)' if overloaded else 'var(--text-main)' }};"></div>
+                        <div class="progress-fill" data-puv="{{ p.id }}" data-f="bar" style="width:{{ [load_pct,100]|min }}%;background:{{ 'var(--mango)' if overloaded else 'var(--text-main)' }};"></div>
                     </div>
                 </td>
                 <td>
-                    <div style="font-weight:600;">{{ p.loc_name }}</div>
-                    <div style="font-size:12px;color:var(--text-muted);">{{ p.speed }} · {{ p.last_update }}</div>
+                    <div style="font-weight:600;"><span data-puv="{{ p.id }}" data-f="loc">{{ p.loc_name }}</span></div>
+                    <div style="font-size:12px;color:var(--text-muted);">{{ p.speed }} · <span data-puv="{{ p.id }}" data-f="updated">{{ p.last_update }}</span></div>
                 </td>
                 <td>
                     {% if p.status == 'Active' %}

@@ -64,11 +64,11 @@
                 <div style="width:10px;height:10px;border-radius:50%;background:{{ 'var(--mango)' if p.is_violator else 'var(--ok)' }};box-shadow:0 0 8px {{ 'var(--mango)' if p.is_violator else 'transparent' }};flex-shrink:0;"></div>
                 <div style="flex:1;min-width:0;">
                     <div style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ p.plate }}</div>
-                    <div style="font-size:11px;color:var(--text-muted);">{{ p.loc_name }}</div>
+                    <div style="font-size:11px;color:var(--text-muted);"><span data-puv="{{ p.id }}" data-f="loc">{{ p.loc_name }}</span></div>
                 </div>
                 <div style="text-align:right;flex-shrink:0;">
-                    <div style="font-weight:800;font-size:13px;">{{ p.passengers }}/{{ p.capacity }}</div>
-                    <div style="font-size:10px;color:var(--text-muted);">{{ p.last_update }}</div>
+                    <div style="font-weight:800;font-size:13px;"><span data-puv="{{ p.id }}" data-f="passengers">{{ p.passengers }}</span>/{{ p.capacity }}</div>
+                    <div style="font-size:10px;color:var(--text-muted);"><span data-puv="{{ p.id }}" data-f="updated">{{ p.last_update }}</span></div>
                 </div>
             </div>
             {% endfor %}
@@ -78,7 +78,7 @@
 
 <script id="admin-puv-data" type="application/json">{{ puvs | tojson | safe if puvs else '[]' }}</script>
 <script src="{{ url_for('static', path='vendor/leaflet/leaflet.js') }}"></script>
-<script src="{{ url_for('static', path='js/maxseat-map.js') }}"></script>
+<script src="{{ url_for('static', path='js/maxseat-map.js') }}?v={{ ASSET_V }}"></script>
 <script>
     const map = L.map('map', {zoomControl:false}).setView([8.486, 124.65], 13);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'}).addTo(map);
