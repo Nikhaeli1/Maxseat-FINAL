@@ -158,11 +158,11 @@
         <div class="feed-dot" style="background:{{ 'var(--mango)' if p.is_violator or p.is_overheating else 'var(--ok)' }};box-shadow:0 0 6px {{ 'var(--mango)' if p.is_violator or p.is_overheating else 'transparent' }};"></div>
         <div style="flex:1;min-width:0;">
           <div style="font-weight:700;font-size:13px;">{{ p.plate }}</div>
-          <div style="font-size:11px;color:var(--text-muted);">{{ p.loc_name }}</div>
+          <div style="font-size:11px;color:var(--text-muted);"><span data-puv="{{ p.id }}" data-f="loc">{{ p.loc_name }}</span></div>
         </div>
         <div style="text-align:right;flex-shrink:0;">
-          <div style="font-weight:800;font-size:13px;color:{{ 'var(--danger-ink)' if p.is_violator else 'var(--text-main)' }};">{{ p.passengers }}/{{ p.capacity }}</div>
-          <div style="font-size:10px;color:var(--text-muted);">{{ p.last_update }}</div>
+          <div style="font-weight:800;font-size:13px;color:{{ 'var(--danger-ink)' if p.is_violator else 'var(--text-main)' }};"><span data-puv="{{ p.id }}" data-f="passengers">{{ p.passengers }}</span>/{{ p.capacity }}</div>
+          <div style="font-size:10px;color:var(--text-muted);"><span data-puv="{{ p.id }}" data-f="updated">{{ p.last_update }}</span></div>
         </div>
       </div>
       {% endfor %}
@@ -372,7 +372,7 @@
 
 <script id="admin-puv-data" type="application/json" data-live="admin-puv-json">{{ puvs | tojson | safe if puvs else '[]' }}</script>
 <script src="{{ url_for('static', path='vendor/leaflet/leaflet.js') }}"></script>
-<script src="{{ url_for('static', path='js/maxseat-map.js') }}"></script>
+<script src="{{ url_for('static', path='js/maxseat-map.js') }}?v={{ ASSET_V }}"></script>
 <script>
   var puvData = JSON.parse(document.getElementById('admin-puv-data').textContent);
   var map = MaxSeatMap.create('map', { fitAll: function () { return MaxSeatLive.trackedPuvs(); } });

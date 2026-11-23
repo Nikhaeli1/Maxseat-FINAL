@@ -274,7 +274,7 @@
 
 <script id="driver-puv-data" type="application/json">{{ {"id": puv.id, "lat": puv.lat, "lng": puv.lng, "has_gps": puv.has_gps, "driver": puv.driver} | tojson }}</script>
 <script src="{{ url_for('static', path='vendor/leaflet/leaflet.js') }}"></script>
-<script src="{{ url_for('static', path='js/maxseat-map.js') }}"></script>
+<script src="{{ url_for('static', path='js/maxseat-map.js') }}?v={{ ASSET_V }}"></script>
 <script>
     // Clock
     (function tick() {

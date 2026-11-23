@@ -5,7 +5,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from typing import List
-import json, datetime, secrets, uuid
+import json, datetime, secrets, uuid, asyncio, smtplib, ssl
+from email.message import EmailMessage
 
 from database import (
     init_db,
@@ -15,7 +16,7 @@ from database import (
     db_append_citation, db_load_citations,
     db_append_complaint, db_load_complaints,
     db_save_avatar, db_load_avatar, db_delete_avatar,
-    TokenStore, DB_KIND,
+    TokenStore, DB_KIND, DB_URL_SOURCE, DB_ENV_NAMES, db_live_snapshot,
 )
 
 BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
@@ -43,8 +44,15 @@ complaints_db: list = []
 SEMAPHORE_API_KEY  = "YOUR_SEMAPHORE_API_KEY"   # get from semaphore.co
 SEMAPHORE_SENDER   = "MaxSeat"                   # your registered sender name (max 11 chars)
 
-GMAIL_ADDRESS      = "asok.marielle04@gmail.com"
+GMAIL_ADDRESS      = os.environ.get("GMAIL_ADDRESS", "asok.marielle04@gmail.com").strip()
 GMAIL_SENDER_NAME  = "MaxSeat Alert System"
+# ── Gmail (sends to ANY email, free) ───────────────────────────────────────
+# Resend's free test mode only delivers to your own address. To email every new
+# user, set these in Vercel: GMAIL_ADDRESS = the sending Gmail account, and
+# GMAIL_APP_PASSWORD = a 16-letter App Password from that account
+# (Google Account → Security → 2-Step Verification → App passwords).
+# When GMAIL_APP_PASSWORD is set, Gmail is used instead of Resend.
+GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "").replace(" ", "")
 
 # ── Resend (HTTP email API — works on Vercel) ──────────────────────────────
 # Sign up free at https://resend.com → API Keys → Create Key
@@ -74,6 +82,24 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), na
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 templates.env.globals["LIVE_MODE"] = LIVE_MODE
 templates.env.globals["DB_KIND"]   = DB_KIND   # "temporary" = no database connected on Vercel
+# Which deploy is running, shown in the admin "no database" warning to help fix it
+VERCEL_ENV    = os.environ.get("VERCEL_ENV", "")
+DEPLOY_BRANCH = os.environ.get("VERCEL_GIT_COMMIT_REF", "")
+DEPLOY_COMMIT = os.environ.get("VERCEL_GIT_COMMIT_SHA", "")[:7]
+templates.env.globals.update(DB_ENV_NAMES=DB_ENV_NAMES, VERCEL_ENV=VERCEL_ENV, DEPLOY_BRANCH=DEPLOY_BRANCH, DEPLOY_COMMIT=DEPLOY_COMMIT)
+
+# Cache-buster for our own scripts (?v=...): changes whenever the files change, so browsers
+# load the new live-update code right after a deploy instead of an old cached copy.
+def _asset_version() -> str:
+    h = hashlib.sha1()
+    for name in ("ws-client.js", "maxseat-map.js"):
+        try:
+            with open(os.path.join(BASE_DIR, "static", "js", name), "rb") as f:
+                h.update(f.read())
+        except OSError:
+            pass
+    return h.hexdigest()[:10]
+templates.env.globals["ASSET_V"] = _asset_version()
 # CARTO map background key (https://carto.com/basemaps/apikey). Optional: without it the
 # maps use free OpenStreetMap tiles. It is sent to browsers, like any map tile key.
 templates.env.globals["CARTO_KEY"] = os.environ.get("CARTO_API_KEY", "").strip()
@@ -160,14 +186,18 @@ def reload_from_db():
     complaints_db[:] = fresh_complaints
 
 # Endpoints that are called often and only need vehicle data
-_LIGHT_PATHS = ("/api/live", "/api/sensor", "/api/driver/status", "/api/health")
+# (/api/live loads its own snapshot in one go, so it skips the reload here)
+_LIGHT_PATHS = ("/api/sensor", "/api/driver/status", "/api/health")
+_SELF_LOADING = ("/api/live",)
 
 @app.middleware("http")
 async def sync_with_database(request: Request, call_next):
     path = request.url.path
     if not path.startswith("/static") and path not in ("/favicon.ico", "/robots.txt"):
         _ensure_ready()
-        if path in _LIGHT_PATHS:
+        if path in _SELF_LOADING:
+            pass
+        elif path in _LIGHT_PATHS:
             reload_puvs()
         else:
             reload_from_db()
@@ -352,7 +382,7 @@ def build_credentials_message(full_name: str, username: str, password: str, role
         f"  Username : {username}\n"
         f"  Password : {password}\n\n"
         f"Please log in and change your password immediately.\n"
-        f"Login at: http://127.0.0.1:8000/login\n\n"
+        f"Login at: https://maxseat-final.vercel.app/login\n\n"
         f"NOTE: Do not share your credentials with anyone.\n"
         f"- MaxSeat Alert System"
     )
@@ -385,8 +415,8 @@ async def send_email(to_email: str, full_name: str, message: str) -> dict:
     """Send email via Resend HTTP API (works on Vercel — no SMTP ports needed)."""
     if not to_email:
         return {"success": False, "reason": "No email address provided."}
-    if not RESEND_API_KEY:
-        return {"success": False, "reason": "RESEND_API_KEY not set. Add it in the Vercel project environment variables."}
+    if not RESEND_API_KEY and not GMAIL_APP_PASSWORD:
+        return {"success": False, "reason": "Email not set up. Add GMAIL_APP_PASSWORD (or RESEND_API_KEY) in the Vercel project environment variables."}
 
     html_body = message.replace("\n\n", "</p><p>").replace("\n", "<br>")
     html = f"""
@@ -408,6 +438,26 @@ async def send_email(to_email: str, full_name: str, message: str) -> dict:
       </div>
     </div>"""
 
+    if GMAIL_APP_PASSWORD:
+        def _send():
+            msg = EmailMessage()
+            msg["From"]    = f"{GMAIL_SENDER_NAME} <{GMAIL_ADDRESS}>"
+            msg["To"]      = to_email
+            msg["Subject"] = "MaxSeat Alert: Your Account Credentials"
+            msg.set_content(message)
+            msg.add_alternative(html, subtype="html")
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ssl.create_default_context(), timeout=15) as smtp:
+                smtp.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+                smtp.send_message(msg)
+        try:
+            await asyncio.to_thread(_send)
+            return {"success": True}
+        except smtplib.SMTPAuthenticationError:
+            return {"success": False, "reason": "Gmail rejected the login. GMAIL_APP_PASSWORD must be a 16-letter App Password, not the normal password."}
+        except Exception as e:
+            print(f"[EMAIL] Gmail failed to send to {to_email}: {e}")
+            return {"success": False, "reason": f"Gmail could not send it: {e}"}
+
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(
@@ -419,7 +469,7 @@ async def send_email(to_email: str, full_name: str, message: str) -> dict:
                 json={
                     "from":    f"{GMAIL_SENDER_NAME} <onboarding@resend.dev>",
                     "to":      [to_email],
-                    "subject": "MaxSeat Alert — Your Account Credentials",
+                    "subject": "MaxSeat Alert: Your Account Credentials",
                     "text":    message,
                     "html":    html,
                 }
@@ -1623,10 +1673,10 @@ async def sensor_post(request: Request):
     await manager.broadcast(live)            # reaches WebSocket pages when running outside Vercel
     return JSONResponse({"success": True, **live})
 
-def _live_version() -> str:
+def _live_version(n_citations: int, n_complaints: int) -> str:
     """Changes whenever anything on the fleet changes (readings, vehicles added/removed,
     capacity, driver, citations). Pages refresh their server-rendered parts when it changes."""
-    parts = [str(len(citations_db)), str(len(complaints_db))]
+    parts = [str(n_citations), str(n_complaints)]
     for p in sorted(puv_database, key=lambda x: x.get('id', 0)):
         parts.append(json.dumps(p, sort_keys=True, default=str))
     return hashlib.sha1("|".join(parts).encode()).hexdigest()[:16]
@@ -1636,10 +1686,16 @@ async def live_feed(request: Request):
     """Polled every few seconds by open pages when LIVE_MODE is "poll"."""
     if not is_logged_in(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
-    citations_db[:]  = db_load_citations()
-    complaints_db[:] = db_load_complaints()
+    # One database session for the whole answer: this runs every few seconds per open page
+    try:
+        fresh, n_citations, n_complaints = db_live_snapshot()
+        puv_database[:] = fresh
+    except Exception as e:
+        print(f"[DB] live snapshot failed, sending current data: {e}")
+        n_citations, n_complaints = len(citations_db), len(complaints_db)
     return JSONResponse(
-        {"version": _live_version(), "puvs": [puv_live_payload(p) for p in puv_database]},
+        {"version": _live_version(n_citations, n_complaints),
+         "puvs": [puv_live_payload(p) for p in puv_database]},
         headers={"Cache-Control": "no-store"},
     )
 
@@ -1657,6 +1713,8 @@ async def health():
         "ok":        ok,
         "database":  DB_KIND,
         "persistent": DB_KIND != "temporary",
+        "db_setting": DB_URL_SOURCE or None,      # name of the setting used, never its value
+        "deploy":    {"env": VERCEL_ENV or None, "branch": DEPLOY_BRANCH or None, "commit": DEPLOY_COMMIT or None},
         "vehicles":  len(puv_database),
     }, headers={"Cache-Control": "no-store"})
 

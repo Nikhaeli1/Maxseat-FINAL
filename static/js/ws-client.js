@@ -13,6 +13,9 @@
  *      MaxSeatWS.isConnected()  true while the feed is working
  *
  * 2. MaxSeatLive — keeps pages current without a manual refresh.
+ *      • Any element with  data-puv="<vehicle id>" data-f="passengers|temp|loc|updated|bar"
+ *        is updated the moment a reading arrives (no waiting, no page fetch), with a
+ *        short lime flash so you can see what changed.
  *      • Any element with  data-live="some-unique-key"  is re-rendered by the server
  *        in the background after a sensor update and swapped in place. Because the
  *        server renders it, colors, badges, counts and violation lists all stay correct.
@@ -30,7 +33,7 @@
 const MaxSeatWS = (() => {
   const MODE              = window.MAXSEAT_LIVE_MODE === 'poll' ? 'poll' : 'ws';
   const POLL_URL          = '/api/live';
-  const POLL_MS           = 4000;   // how often open pages ask for new readings (poll mode)
+  const POLL_MS           = 2500;   // how often open pages ask for new readings (poll mode)
   const WS_PROTOCOL       = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
   const WS_URL            = WS_PROTOCOL + window.location.host + '/ws';
   const RECONNECT_BASE_MS = 1000;   // first retry after 1 s
@@ -196,8 +199,8 @@ const MaxSeatWS = (() => {
 
 
 const MaxSeatLive = (() => {
-  const MIN_GAP_MS    = 2000;   // at most one background refresh every 2 s
-  const SETTLE_MS     = 400;    // wait for a burst of sensor messages to settle
+  const MIN_GAP_MS    = 1500;   // at most one background refresh every 1.5 s
+  const SETTLE_MS     = 250;    // wait for a burst of sensor messages to settle
   const FALLBACK_POLL = 15000;  // refresh interval while the WebSocket is down
 
   const markers = {};           // puv_id -> { marker, data, popupFn, colorFn }
@@ -252,6 +255,48 @@ const MaxSeatLive = (() => {
     });
   }
 
+  // ── Instant values ───────────────────────────────────────────────────────
+  // Numbers tagged with data-puv/data-f change as soon as a reading arrives. The
+  // background region refresh below then fixes colors, badges and totals.
+  let flashCss = false;
+  function flash(el) {
+    if (!flashCss) {
+      flashCss = true;
+      const st = document.createElement('style');
+      st.textContent = '@keyframes msTick{0%{background:rgba(198,242,78,.6);box-shadow:0 0 0 3px rgba(198,242,78,.6)}100%{background:transparent;box-shadow:0 0 0 3px transparent}}' +
+                       '.ms-tick{animation:msTick 1.4s ease-out;border-radius:4px}';
+      document.head.appendChild(st);
+    }
+    el.classList.remove('ms-tick');
+    void el.offsetWidth;            // restart the animation if it is already running
+    el.classList.add('ms-tick');
+  }
+
+  function patchValues(msg) {
+    if (msg.puv_id === undefined || msg.puv_id === null) return;
+    document.querySelectorAll('[data-puv="' + CSS.escape(String(msg.puv_id)) + '"][data-f]').forEach((el) => {
+      const f = el.getAttribute('data-f');
+      let v = null;
+      if (f === 'passengers') v = msg.passengers;
+      else if (f === 'loc') v = msg.loc_name;
+      else if (f === 'updated') v = msg.last_update;
+      else if (f === 'temp') {
+        const t = Number(msg.temp);
+        if (msg.temp === null || msg.temp === undefined || !isFinite(t)) return;
+        if (parseFloat(el.textContent) === t) return;          // same value, maybe written 31 vs 31.0
+        v = Number.isInteger(t) ? t.toFixed(1) : String(t);
+      } else if (f === 'bar') {
+        const cap = Number(msg.capacity);
+        if (!cap) return;
+        el.style.width = Math.min(100, Math.round((Number(msg.passengers) / cap) * 100)) + '%';
+        return;
+      }
+      if (v === null || v === undefined || v === '') return;
+      v = String(v);
+      if (el.textContent !== v) { el.textContent = v; flash(el); }
+    });
+  }
+
   // ── Server-rendered live regions ────────────────────────────────────────
   function regions() {
     return document.querySelectorAll('[data-live]');
@@ -295,7 +340,15 @@ const MaxSeatLive = (() => {
         const fresh = doc.querySelector('[data-live="' + CSS.escape(key) + '"]');
         if (!fresh) return;
         if (isBusy(el)) { deferred = true; return; }
-        if (el.innerHTML !== fresh.innerHTML) { el.innerHTML = fresh.innerHTML; changed = true; }
+        if (el.innerHTML !== fresh.innerHTML) {
+          // Keep the lime flash on values that were just patched in place
+          const ticking = new Set(Array.from(el.querySelectorAll('.ms-tick[data-puv]')).map((t) => t.getAttribute('data-puv') + '|' + t.getAttribute('data-f')));
+          el.innerHTML = fresh.innerHTML;
+          if (ticking.size) el.querySelectorAll('[data-puv][data-f]').forEach((t) => {
+            if (ticking.has(t.getAttribute('data-puv') + '|' + t.getAttribute('data-f'))) t.classList.add('ms-tick');
+          });
+          changed = true;
+        }
         syncAttributes(el, fresh);
       });
       if (changed) document.dispatchEvent(new CustomEvent('maxseat:live-updated'));
@@ -317,12 +370,14 @@ const MaxSeatLive = (() => {
     if (!msg) return;
     if (msg.type === 'data_changed') { scheduleRefresh(); return; }
     if (msg.puv_id === undefined) return;
+    patchValues(msg);
     updateMarker(msg);
     scheduleRefresh();
   }
 
   function start() {
-    if (!regions().length && !Object.keys(markers).length) return;   // nothing live on this page
+    if (!regions().length && !Object.keys(markers).length &&
+        !document.querySelector('[data-puv][data-f]')) return;          // nothing live on this page
     MaxSeatWS.init(onMessage);
     setInterval(() => { if (!MaxSeatWS.isConnected()) scheduleRefresh(); }, FALLBACK_POLL);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleRefresh(); });

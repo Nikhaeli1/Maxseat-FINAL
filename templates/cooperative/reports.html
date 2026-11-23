@@ -93,7 +93,7 @@
         </div>
         <div class="compliance-bar-wrap">
             <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
-                <span style="font-size:11px;color:var(--text-muted);font-weight:600;">{{ puv.passengers }}/{{ puv.capacity }} passengers</span>
+                <span style="font-size:11px;color:var(--text-muted);font-weight:600;"><span data-puv="{{ puv.id }}" data-f="passengers">{{ puv.passengers }}</span>/{{ puv.capacity }} passengers</span>
                 <span style="font-size:11px;font-weight:700;color:{{ 'var(--danger-ink)' if overload else 'var(--ok)' }};">{{ pct }}%</span>
             </div>
             <div class="compliance-bar">

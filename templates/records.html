@@ -47,12 +47,12 @@
         <td>
           {% if overloaded %}
           <span class="badge badge-red" style="margin-bottom:4px;">
-            <i class="fa-solid fa-users"></i> Overload ({{ p.passengers }}/{{ p.capacity }})
+            <i class="fa-solid fa-users"></i> Overload (<span data-puv="{{ p.id }}" data-f="passengers">{{ p.passengers }}</span>/{{ p.capacity }})
           </span>
           {% endif %}
           {% if overheating %}
           <span class="badge badge-yellow">
-            <i class="fa-solid fa-temperature-high"></i> Thermal ({{ p.temp }}°C)
+            <i class="fa-solid fa-temperature-high"></i> Thermal (<span data-puv="{{ p.id }}" data-f="temp">{{ p.temp }}</span>°C)
           </span>
           {% endif %}
           {% if not overloaded and not overheating %}
@@ -60,10 +60,10 @@
           {% endif %}
         </td>
         <td>
-          <div style="font-weight:600;">{{ p.loc_name }}</div>
+          <div style="font-weight:600;"><span data-puv="{{ p.id }}" data-f="loc">{{ p.loc_name }}</span></div>
           <div style="font-size:12px;color:var(--text-muted);">{{ p.lat }}, {{ p.lng }}</div>
         </td>
-        <td style="color:var(--text-muted);font-size:13px;">{{ p.last_update }}</td>
+        <td style="color:var(--text-muted);font-size:13px;"><span data-puv="{{ p.id }}" data-f="updated">{{ p.last_update }}</span></td>
         <td>
           {% if overloaded or overheating %}
           {% if role == 'enforcer' %}
