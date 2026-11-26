@@ -1,0 +1,153 @@
+{% extends "layout.html" %}
+{% block content %}
+{% set labels = {'open': 'New', 'reviewed': 'Under review', 'resolved': 'Resolved'} %}
+{% set badge  = {'open': 'badge-yellow', 'reviewed': 'badge-blue', 'resolved': 'badge-green'} %}
+{% set icons  = {'open': 'fa-circle-exclamation', 'reviewed': 'fa-magnifying-glass', 'resolved': 'fa-circle-check'} %}
+<style>
+  .pr-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 18px; }
+  .pr-tab { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 99px; border: 1.5px solid var(--border-color); background: var(--card-bg); color: var(--text-main); font-weight: 700; font-size: 13.5px; text-decoration: none; transition: border-color .15s, background .15s; }
+  .pr-tab:hover { border-color: var(--mango); }
+  .pr-tab.on { background: var(--sky); border-color: var(--sky); color: #FFFFFF; }
+  .pr-tab .n { font-variant-numeric: tabular-nums; opacity: .75; }
+  .pr-desc { font-size: 13px; color: var(--text-muted); margin-top: 4px; max-width: 360px; line-height: 1.45; }
+  .pr-note { font-size: 12.5px; color: var(--text-muted); margin-top: 6px; max-width: 240px; line-height: 1.4; }
+  .pr-note b { color: var(--text-main); }
+  .pr-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pr-actions .btn { padding: 7px 12px; font-size: 12.5px; }
+  .pr-meta { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+</style>
+
+<div class="page-row">
+    <div>
+        <h1 class="page-title">Passenger reports</h1>
+        <p class="page-subtitle">
+            {% if role == 'cooperative' %}Violations passengers reported about your vehicles through the MaxSeat app.
+            {% else %}Violations passengers reported through the MaxSeat app. Mark each one reviewed or resolved; the passenger sees the update in the app.{% endif %}
+        </p>
+    </div>
+</div>
+
+<div class="pr-tabs" data-live="report-tabs">
+    {% for key, text in [('all', 'All'), ('open', 'New'), ('reviewed', 'Under review'), ('resolved', 'Resolved')] %}
+    <a href="/passenger_reports{{ '' if key == 'all' else '?status=' ~ key }}" class="pr-tab {{ 'on' if filter == key }}">{{ text }} <span class="n">{{ counts[key] }}</span></a>
+    {% endfor %}
+</div>
+
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Reference</th>
+                <th>Vehicle</th>
+                <th>What was reported</th>
+                <th>At the time</th>
+                <th>Status</th>
+                {% if can_update %}<th>Update</th>{% endif %}
+            </tr>
+        </thead>
+        <tbody data-live="report-rows">
+            {% for c in reports %}
+            {% set st = c.status if c.status in labels else 'open' %}
+            <tr>
+                <td>
+                    <code style="font-family:inherit;font-variant-numeric:tabular-nums;font-weight:700;font-size:13px;color:var(--accent-ink);white-space:nowrap;">{{ c.serial }}</code>
+                    <div class="pr-meta">{{ (c.timestamp or '')|replace('T', ' ')|truncate(16, True, '') }}</div>
+                    {% if role != 'cooperative' and c.reporter %}<div class="pr-meta">by {{ c.reporter }}</div>{% endif %}
+                </td>
+                <td>
+                    <div style="font-weight:700;">{{ c.plate }}</div>
+                    <div style="font-size:12px;color:var(--text-muted);">{{ company.get((c.plate or '')|upper, '') or c.company or 'Not in the fleet list' }}</div>
+                    {% if c.driver %}<div style="font-size:12px;color:var(--text-muted);">Driver: {{ c.driver }}</div>{% endif %}
+                </td>
+                <td>
+                    <div style="font-weight:700;">{{ types.get(c.complaint, c.complaint|capitalize) }}</div>
+                    {% if c.description %}<div class="pr-desc">“{{ c.description }}”</div>{% endif %}
+                </td>
+                <td style="font-size:13px;white-space:nowrap;">
+                    {% if c.passengers is not none %}<div><i class="fa-solid fa-users" style="color:var(--text-muted);width:16px;"></i> {{ c.passengers }}/{{ c.capacity }}</div>{% endif %}
+                    {% if c.temp is not none %}<div><i class="fa-solid fa-temperature-half" style="color:var(--text-muted);width:16px;"></i> {{ c.temp }}°C</div>{% endif %}
+                    {% if c.loc_name %}<div style="white-space:normal;max-width:200px;"><i class="fa-solid fa-location-dot" style="color:var(--text-muted);width:16px;"></i> {{ c.loc_name }}</div>{% endif %}
+                    {% if c.passengers is none and c.temp is none %}<span style="color:var(--text-muted);">No sensor data</span>{% endif %}
+                </td>
+                <td>
+                    <span class="badge {{ badge[st] }}"><i class="fa-solid {{ icons[st] }}"></i> {{ labels[st] }}</span>
+                    {% if c.status_at and st != 'open' %}<div class="pr-meta">{{ c.status_at|replace('T', ' ')|truncate(16, True, '') }}</div>{% endif %}
+                    {% if c.note %}<div class="pr-note"><b>Note:</b> {{ c.note }}</div>{% endif %}
+                </td>
+                {% if can_update %}
+                <td>
+                    <div class="pr-actions">
+                        {% if st == 'open' %}
+                        <button class="btn btn-outline js-report-status" data-serial="{{ c.serial }}" data-status="reviewed" type="button"><i class="fa-solid fa-magnifying-glass"></i> Mark reviewed</button>
+                        {% endif %}
+                        {% if st != 'resolved' %}
+                        <button class="btn btn-primary js-report-status" data-serial="{{ c.serial }}" data-status="resolved" type="button"><i class="fa-solid fa-check"></i> Resolve</button>
+                        {% else %}
+                        <button class="btn-ghost js-report-status" data-serial="{{ c.serial }}" data-status="open" type="button"><i class="fa-solid fa-rotate-left"></i> Reopen</button>
+                        {% endif %}
+                    </div>
+                </td>
+                {% endif %}
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="{{ 6 if can_update else 5 }}">
+                    <div class="empty-state">
+                        <i class="fa-solid fa-bullhorn"></i>
+                        {% if filter == 'all' %}
+                        <h3>No passenger reports yet</h3>
+                        <p>When a passenger reports a PUV in the MaxSeat app, it shows up here right away.</p>
+                        {% else %}
+                        <h3>Nothing here</h3>
+                        <p>No reports are {{ labels[filter]|lower }} right now.</p>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if can_update %}
+<script>
+document.addEventListener('click', async function (e) {
+  var b = e.target.closest('.js-report-status');
+  if (!b) return;
+  var serial = b.dataset.serial, status = b.dataset.status, body = { status: status };
+  if (status === 'resolved') {
+    var r = await Swal.fire({
+      title: 'Resolve ' + serial + '?',
+      input: 'textarea',
+      inputLabel: 'What was done? Optional. The passenger sees this note.',
+      inputPlaceholder: 'Example: Driver cited for overloading on the Bugo to Igpit route.',
+      inputAttributes: { maxlength: 300 },
+      showCancelButton: true,
+      confirmButtonText: 'Mark resolved',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#2F6F5A',
+      background: 'var(--card-bg)',
+      color: 'var(--text-main)'
+    });
+    if (!r.isConfirmed) return;
+    body.note = (r.value || '').trim();
+  }
+  b.disabled = true;
+  try {
+    var res = await fetch('/api/complaints/' + encodeURIComponent(serial) + '/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    var data = await res.json().catch(function () { return {}; });
+    if (!res.ok) throw new Error(data.error || "The server didn't save it. Please try again.");
+    showLoader('Updating...');
+    window.location.reload();
+  } catch (err) {
+    b.disabled = false;
+    popAlert("Couldn't update the report", err.message, 'error');
+  }
+});
+</script>
+{% endif %}
+{% endblock %}

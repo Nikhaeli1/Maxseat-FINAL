@@ -1,0 +1,62 @@
+{# Latest passenger reports from the MaxSeat app. Used on the LTFRB and cooperative dashboards.
+   Needs: recent_reports (newest first), new_reports (number still "open"), role. #}
+{% set rp_types  = {'overload': 'Passenger overloading', 'thermal': 'Elevated temperature', 'other': 'Other violation'} %}
+{% set rp_icons  = {'overload': 'fa-users', 'thermal': 'fa-temperature-high', 'other': 'fa-circle-exclamation'} %}
+{% set rp_labels = {'open': 'New', 'reviewed': 'Under review', 'resolved': 'Resolved'} %}
+{% set rp_badge  = {'open': 'badge-yellow', 'reviewed': 'badge-blue', 'resolved': 'badge-green'} %}
+<style>
+  .rp-card { padding: 0; overflow: hidden; margin-bottom: 22px; }
+  .rp-head { padding: 16px 22px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .rp-title { font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
+  .rp-new { font-size: 11.5px; font-weight: 800; padding: 3px 10px; border-radius: 99px; background: var(--mango); color: #14211B; font-variant-numeric: tabular-nums; }
+  .rp-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; font-weight: 600; }
+  .rp-item { display: flex; align-items: center; gap: 14px; padding: 13px 22px; border-bottom: 1px solid var(--border-color); text-decoration: none; color: inherit; transition: background .15s; }
+  .rp-item:last-child { border-bottom: none; }
+  .rp-item:hover { background: var(--hover-bg); }
+  .rp-icon { width: 38px; height: 38px; border-radius: 11px; background: var(--hover-bg); color: var(--accent-ink); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .rp-item.is-new .rp-icon { background: var(--mango); color: #14211B; }
+  .rp-main { flex: 1; min-width: 0; }
+  .rp-what { font-size: 13.5px; font-weight: 700; }
+  .rp-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rp-empty { padding: 26px 22px; display: flex; align-items: center; gap: 12px; color: var(--text-muted); font-size: 13px; font-weight: 600; }
+  @media (max-width: 640px) { .rp-item { padding: 12px 16px; } .rp-head { padding: 14px 16px; } .rp-item .badge { display: none; } }
+</style>
+
+<div class="card rp-card" data-live="dash-reports">
+  <div class="rp-head">
+    <div>
+      <div class="rp-title">
+        <i class="fa-solid fa-bullhorn" style="color:var(--accent-ink);"></i> Passenger reports
+        {% if new_reports %}<span class="rp-new">{{ new_reports }} new</span>{% endif %}
+      </div>
+      <div class="rp-sub">
+        {% if role == 'cooperative' %}What passengers reported about your vehicles in the MaxSeat app
+        {% else %}Violations passengers reported in the MaxSeat app{% endif %}
+      </div>
+    </div>
+    <a href="/passenger_reports" class="btn btn-outline" onclick="showLoader('Loading...')">
+      {% if role == 'enforcer' and new_reports %}Review reports{% else %}See all reports{% endif %} <i class="fa-solid fa-arrow-right"></i>
+    </a>
+  </div>
+
+  {% for c in recent_reports %}
+  {% set st = c.status if c.status in rp_labels else 'open' %}
+  <a href="/passenger_reports" class="rp-item {{ 'is-new' if st == 'open' }}" onclick="showLoader('Loading...')">
+    <div class="rp-icon"><i class="fa-solid {{ rp_icons.get(c.complaint, 'fa-circle-exclamation') }}"></i></div>
+    <div class="rp-main">
+      <div class="rp-what">{{ rp_types.get(c.complaint, (c.complaint or 'Report')|capitalize) }} · {{ c.plate }}</div>
+      <div class="rp-meta">
+        {{ (c.timestamp or '')|replace('T', ' ')|truncate(16, True, '') }}
+        {% if c.passengers is not none %} · {{ c.passengers }}/{{ c.capacity }} pax{% endif %}
+        {% if c.description %} · “{{ c.description|truncate(70, True, '…') }}”{% endif %}
+      </div>
+    </div>
+    <span class="badge {{ rp_badge[st] }}">{{ rp_labels[st] }}</span>
+  </a>
+  {% else %}
+  <div class="rp-empty">
+    <i class="fa-solid fa-circle-check" style="font-size:20px;color:var(--ok);"></i>
+    No passenger reports yet. New ones show up here right away.
+  </div>
+  {% endfor %}
+</div>

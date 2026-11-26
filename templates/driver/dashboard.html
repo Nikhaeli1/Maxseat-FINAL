@@ -39,20 +39,6 @@
     }
     .status-pill.safe   { background: color-mix(in srgb, var(--text-main) 10%, transparent); color:var(--ok); border: 1.5px solid color-mix(in srgb, var(--text-main) 25%, transparent); }
     .status-pill.danger { background: rgba(198,242,78,0.1);  color:var(--danger-ink);  border: 1.5px solid rgba(198,242,78,0.25); }
-    .sensor-controls {
-        position: absolute; bottom: 20px; right: 20px;
-        display: flex; align-items: center; gap: 10px;
-        background: var(--hover-bg); padding: 10px 14px;
-        border-radius: 40px; border: 1px solid var(--border-color);
-    }
-    .sensor-btn {
-        width: 42px; height: 42px; border-radius: 50%; border: 1.5px solid var(--border-color);
-        background: var(--card-bg); color: var(--text-main); font-size: 18px;
-        cursor: pointer; display: flex; align-items: center; justify-content: center;
-        transition: all 0.2s; font-family: inherit;
-    }
-    .sensor-btn:hover { background: var(--primary); color:var(--on-primary); border-color: var(--primary); box-shadow: 0 4px 12px color-mix(in srgb, var(--text-main) 25%, transparent); }
-    .sensor-hint { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); text-align: center; line-height: 1.4; }
 
     /* RIGHT COLUMN */
     .driver-right { flex: 1; display: flex; flex-direction: column; gap: 16px; }
@@ -72,10 +58,25 @@
     .temp-value.warning { color:var(--warn-ink); }
     .temp-value.danger  { color:var(--danger-ink); }
     .temp-status { font-size: 12px; color: var(--text-muted); font-weight: 600; margin-top: 3px; }
+    .temp-side { display: flex; gap: 20px; }
 
     /* MAP */
-    .map-card { flex: 1; background: var(--card-bg); border-radius: 20px; border: 2px solid var(--border-color); overflow: hidden; min-height: 0; box-shadow: var(--shadow-sm); }
+    .map-card { flex: 1; position: relative; background: var(--card-bg); border-radius: 20px; border: 2px solid var(--border-color); overflow: hidden; min-height: 0; box-shadow: var(--shadow-sm); }
     #driver-map { height: 100%; width: 100%; }
+
+    /* Where the jeep is now, in words (on top of the map) */
+    .loc-bar { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 1000; pointer-events: none;
+        display: flex; align-items: center; gap: 12px; padding: 11px 16px;
+        background: color-mix(in srgb, var(--card-bg) 92%, transparent); backdrop-filter: blur(6px);
+        border: 1px solid var(--border-color); border-radius: 14px; box-shadow: var(--shadow-sm); }
+    .loc-pin { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+        background: var(--primary); color: var(--on-primary); font-size: 16px; }
+    .loc-bar[data-state="old"] .loc-pin, .loc-bar[data-state="none"] .loc-pin { background: var(--hover-bg); color: var(--text-muted); }
+    .loc-text { min-width: 0; }
+    .loc-label { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text-muted); }
+    .loc-now { font-size: 17px; font-weight: 800; color: var(--text-main); line-height: 1.25; overflow: hidden;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .loc-sub { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     /* DRIVER INFO */
     .driver-info-card {
@@ -97,6 +98,14 @@
     .live-badge[data-state="connected"] .dot { background:var(--ok); box-shadow:0 0 6px var(--ok); }
     .live-badge[data-state="connecting"] .dot { background:var(--mango-soft); }
     .live-badge[data-state="disconnected"] .dot { background:var(--mango); }
+    /* In-vehicle counter status (bottom of the passenger panel) */
+    .device-chip { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); display:flex; white-space:nowrap; align-items:center; gap:10px; text-align:left;
+        padding:9px 16px 9px 13px; border-radius:40px; background:var(--hover-bg); border:1px solid var(--border-color); }
+    .device-chip .dot { width:10px; height:10px; border-radius:50%; background:#9BA8A1; flex-shrink:0; }
+    .device-chip[data-state="online"] .dot  { background:var(--ok); box-shadow:0 0 6px var(--ok); }
+    .device-chip[data-state="offline"] .dot { background:var(--mango); }
+    .device-title { font-size:12px; font-weight:800; color:var(--text-main); line-height:1.25; }
+    .device-sub { font-size:10.5px; font-weight:600; color:var(--text-muted); line-height:1.3; }
     .flash-update { animation: flashUpdate 0.6s ease-out; }
     @keyframes flashUpdate { 0%{transform:scale(1.06);} 100%{transform:scale(1);} }
 
@@ -116,7 +125,10 @@
         .passenger-denom { font-size: 32px; }
         .driver-right { flex: none; }
         .map-card { flex: none; height: 300px; }
-        .sensor-controls { position: static; margin-top: 16px; }
+        .device-chip { position: static; transform: none; display: inline-flex; margin-top: 16px; }
+        .temp-card { flex-wrap: wrap; }
+        .temp-side { width: 100%; gap: 28px; padding-top: 12px; border-top: 1px solid var(--border-color); }
+        .temp-side > div { text-align: left !important; }
     }
 </style>
 
@@ -211,10 +223,12 @@
                 {% endif %}
             </div>
 
-            <div class="sensor-controls">
-                <button onclick="updateSensor('sub')" class="sensor-btn"><i class="fa-solid fa-minus"></i></button>
-                <div class="sensor-hint">Sensor<br>Override</div>
-                <button onclick="updateSensor('add')" class="sensor-btn"><i class="fa-solid fa-plus"></i></button>
+            <div id="device-chip" class="device-chip" data-state="none">
+                <span class="dot"></span>
+                <div>
+                    <div id="device-title" class="device-title">Counter</div>
+                    <div id="device-sub" class="device-sub">Checking…</div>
+                </div>
             </div>
         </div>
 
@@ -242,14 +256,28 @@
                     <div id="temp-value" class="temp-value {{ temp_class }}">{{ temp }}°C</div>
                     <div id="temp-status" class="temp-status">{{ temp_label }}</div>
                 </div>
+                <div class="temp-side">
+                <div style="text-align:right;">
+                    <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px;">Humidity</div>
+                    <div id="hum-value" style="font-size:18px;font-weight:800;color:var(--text-muted);">{{ (puv.get('humidity') | round | int ~ '%') if puv.get('humidity') is not none else '--' }}</div>
+                </div>
                 <div style="text-align:right;">
                     <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px;">Threshold</div>
                     <div style="font-size:18px;font-weight:800;color:var(--text-muted);">37.5°C</div>
+                </div>
                 </div>
             </div>
 
             <!-- MAP -->
             <div class="map-card">
+                <div id="loc-bar" class="loc-bar" data-state="none">
+                    <div class="loc-pin"><i class="fa-solid fa-location-dot"></i></div>
+                    <div class="loc-text">
+                        <div id="loc-label" class="loc-label">Where you are</div>
+                        <div id="loc-now" class="loc-now">Waiting for GPS</div>
+                        <div id="loc-sub" class="loc-sub">The location shows once the GPS has a fix</div>
+                    </div>
+                </div>
                 <div id="driver-map"></div>
             </div>
 
@@ -272,7 +300,9 @@
     </div>
 </div>
 
-<script id="driver-puv-data" type="application/json">{{ {"id": puv.id, "lat": puv.lat, "lng": puv.lng, "has_gps": puv.has_gps, "driver": puv.driver} | tojson }}</script>
+<script id="driver-puv-data" type="application/json">{{ {"id": puv.id, "lat": puv.lat, "lng": puv.lng, "has_gps": puv.has_gps, "driver": puv.driver,
+    "device_ts": puv.device_ts or none, "server_now": server_now, "device_online_s": device_online_s,
+    "loc_name": puv.get('loc_name'), "speed": puv.get('speed'), "gps_at": puv.get('gps_at'), "gps_ts": puv.get('gps_ts')} | tojson }}</script>
 <script src="{{ url_for('static', path='vendor/leaflet/leaflet.js') }}"></script>
 <script src="{{ url_for('static', path='js/maxseat-map.js') }}?v={{ ASSET_V }}"></script>
 <script>
@@ -322,7 +352,72 @@
         document.getElementById('temp-status').textContent = label;
     }
 
+    // In-vehicle counter: online while it keeps sending readings (at least one a minute)
+    const clockSkew = (pd.server_now || Date.now() / 1000) - Date.now() / 1000;   // server clock minus this screen's clock
+    let deviceTs = pd.device_ts;
+    function ago(s) {
+        if (s < 90)     return Math.round(s) + ' s ago';
+        if (s < 5400)   return Math.round(s / 60) + ' min ago';
+        if (s < 172800) return Math.round(s / 3600) + ' h ago';
+        return Math.round(s / 86400) + ' days ago';
+    }
+    function renderDevice() {
+        const chip = document.getElementById('device-chip');
+        const title = document.getElementById('device-title'), sub = document.getElementById('device-sub');
+        if (!deviceTs) {
+            chip.dataset.state = 'none'; title.textContent = 'Counter not connected'; sub.textContent = 'No reading from the device yet';
+            return;
+        }
+        const age = Math.max(0, Date.now() / 1000 + clockSkew - deviceTs);
+        if (age <= (pd.device_online_s || 150)) {
+            chip.dataset.state = 'online'; title.textContent = 'Counter online'; sub.textContent = 'Counting automatically';
+        } else {
+            chip.dataset.state = 'offline'; title.textContent = 'Counter offline'; sub.textContent = 'Last reading ' + ago(age);
+        }
+    }
+    renderDevice();
+    setInterval(renderDevice, 5000);
+
+    // Where the jeep is now, in words: street / barangay, speed, when the GPS last updated
+    const loc = { name: pd.loc_name, speed: pd.speed, at: pd.gps_at, ts: pd.gps_ts, lat: pd.lat, lng: pd.lng, has: pd.has_gps };
+    function renderLocation() {
+        const bar = document.getElementById('loc-bar');
+        const label = document.getElementById('loc-label'), now = document.getElementById('loc-now'), sub = document.getElementById('loc-sub');
+        if (!loc.has) {
+            bar.dataset.state = 'none'; label.textContent = 'Where you are';
+            now.textContent = 'Waiting for GPS'; sub.textContent = 'The location shows once the GPS has a fix';
+            return;
+        }
+        const coords = Number(loc.lat).toFixed(5) + ', ' + Number(loc.lng).toFixed(5);
+        const named = loc.name && !/not yet tracked/i.test(loc.name);
+        now.textContent = named ? loc.name : coords;
+        const age = loc.ts ? Math.max(0, Date.now() / 1000 + clockSkew - loc.ts) : null;
+        const fresh = age !== null && age <= (pd.device_online_s || 150);
+        const parts = [];
+        if (fresh) {
+            const kmh = parseFloat(loc.speed);
+            parts.push(isFinite(kmh) && kmh >= 3 ? 'Moving · ' + Math.round(kmh) + ' km/h' : 'Stopped');
+            if (loc.at) parts.push('GPS ' + loc.at);
+        } else if (age !== null) {
+            parts.push('Last GPS position ' + ago(age));
+        }
+        if (named) parts.push(coords);
+        bar.dataset.state = fresh ? 'live' : 'old';
+        label.textContent = fresh ? 'You are here' : 'Last known location';
+        sub.textContent = parts.join(' · ');
+    }
+    renderLocation();
+    setInterval(renderLocation, 5000);
+
     function applyReading(d) {
+        if (d.device_ts) { deviceTs = d.device_ts; renderDevice(); }
+        if (d.gps_ts && d.gps_ts !== loc.ts) {
+            Object.assign(loc, { ts: d.gps_ts, at: d.gps_at, lat: d.lat, lng: d.lng, has: MaxSeatMap.hasGps(d) });
+        }
+        if (d.loc_name) loc.name = d.loc_name;
+        if (d.speed !== undefined && d.speed !== null) loc.speed = d.speed;
+        renderLocation();
+        if (d.humidity !== undefined && d.humidity !== null) document.getElementById('hum-value').textContent = Math.round(d.humidity) + '%';
         if (typeof d.passengers === 'number') renderPassengers(d.passengers, d.capacity);
         if (d.temp !== undefined && d.temp !== null) renderTemp(d.temp);
         if (map && marker && d.lat !== undefined && d.lng !== undefined) {
@@ -353,13 +448,6 @@
 
     // Safety net: if the WebSocket is down, poll every 5 s so the numbers still move
     setInterval(function () { if (!MaxSeatWS.isConnected()) refreshFromServer(); }, 5000);
-
-    // Sensor override (+/- buttons)
-    async function updateSensor(action) {
-        const res  = await fetch('/api/update_sensor', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({action})});
-        const data = await res.json();
-        if (data.success) applyReading(data);
-    }
 
     // Toggle name
     async function toggleName() {

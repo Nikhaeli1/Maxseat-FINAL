@@ -215,12 +215,16 @@ def db_load_puvs(strict: bool = False) -> list:
 
 def db_live_snapshot() -> tuple:
     """Everything the live feed needs, in ONE database round trip session:
-    (vehicles, number of citations, number of complaints). Raises if the database can't be read."""
+    (vehicles, number of citations, complaints signature). Raises if the database can't be read.
+    The complaints signature also changes when a report is marked reviewed or resolved,
+    so open pages refresh for the passenger reports too."""
     with SessionLocal() as session:
         puvs = [json.loads(row.data) for row in session.query(DBPuv).all()]
         n_citations  = session.query(func.count(DBCitation.id)).scalar() or 0
         n_complaints = session.query(func.count(DBComplaint.id)).scalar() or 0
-    return puvs, n_citations, n_complaints
+        n_reviewed   = session.query(func.count(DBComplaint.id)).filter(DBComplaint.data.contains('"status": "reviewed"')).scalar() or 0
+        n_resolved   = session.query(func.count(DBComplaint.id)).filter(DBComplaint.data.contains('"status": "resolved"')).scalar() or 0
+    return puvs, n_citations, f"{n_complaints}.{n_reviewed}.{n_resolved}"
 
 
 # ── Audit logs ───────────────────────────────────────────────────────────────
@@ -277,6 +281,20 @@ def db_append_complaint(data: dict):
     except Exception as e:
         print(f"[DB] db_append_complaint error: {e}")
         raise   # never pretend data was saved
+
+
+def db_update_complaint(serial: str, changes: dict):
+    """Merge `changes` into the saved complaint with this serial. Returns the updated record,
+    or None if no complaint has that serial. Raises if the database can't be written."""
+    with SessionLocal() as session:
+        for row in session.query(DBComplaint).filter(DBComplaint.data.contains(serial)).all():
+            data = json.loads(row.data)
+            if data.get("serial") == serial:
+                data.update(changes)
+                row.data = json.dumps(data)
+                session.commit()
+                return data
+    return None
 
 
 def db_load_complaints(strict: bool = False) -> list:
