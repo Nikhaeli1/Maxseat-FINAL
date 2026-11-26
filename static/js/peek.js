@@ -1,6 +1,8 @@
 /* Adds a show / hide eye button to every password box on the page. */
 (function () {
-  var css = '.peek-wrap{position:relative;display:block}' +
+  // Microsoft Edge adds its own eye (and an X) inside password boxes. Hide them, so there is only ours.
+  var css = 'input::-ms-reveal,input::-ms-clear{display:none!important;width:0;height:0}' +
+    '.peek-wrap{position:relative;display:block}' +
     '.peek-wrap>input{padding-right:52px!important;width:100%}' +
     '.peek-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:38px;height:38px;' +
     'display:flex;align-items:center;justify-content:center;border:none;background:none;border-radius:10px;' +

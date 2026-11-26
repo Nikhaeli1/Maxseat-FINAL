@@ -1,0 +1,198 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+    .enf-name { font-weight: 800; font-size: 14px; }
+    .enf-sub  { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .enf-code { font-family: inherit; font-weight: 700; font-size: 13px; color: var(--accent-ink); white-space: nowrap; }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 500; justify-content: center; align-items: center; }
+    .modal-overlay.open { display: flex; }
+    .modal-box { background: var(--card-bg); border-radius: var(--radius-lg); padding: 30px; width: 560px; max-width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.25); }
+    .modal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
+    .modal-title { font-size: 19px; font-weight: 800; }
+    .modal-close { background: none; border: none; color: var(--text-muted); font-size: 22px; cursor: pointer; padding: 4px 8px; border-radius: 8px; }
+    .modal-section { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin: 18px 0 10px; }
+    .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .modal-footer { display: flex; gap: 10px; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border-color); }
+    .pw-choice { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 12px; font-size: 14px; font-weight: 600; }
+    .pw-choice label { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+    .pw-choice input { accent-color: #2F6F5A; width: 16px; height: 16px; }
+    @media (max-width: 560px) { .modal-grid { grid-template-columns: 1fr; } }
+</style>
+
+<div class="page-row">
+    <div>
+        <h1 class="page-title">Enforcer accounts</h1>
+        <p class="page-subtitle">Field enforcers sign in on the MaxSeat mobile app to respond to violations and passenger reports.</p>
+    </div>
+    <button type="button" class="btn btn-primary" onclick="openAdd()">
+        <i class="fa-solid fa-user-plus"></i> Add enforcer
+    </button>
+</div>
+
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Enforcer</th>
+                <th>ID / Username</th>
+                <th>Badge no.</th>
+                <th>Station</th>
+                <th>Contact</th>
+                <th>Added by</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for uname, e in enforcers %}
+            <tr>
+                <td>
+                    <div class="enf-name">{{ (e | list_name) or '—' }}</div>
+                    <div class="enf-sub">{{ e.get('shift_status') or 'On Duty' }}</div>
+                </td>
+                <td><code class="enf-code">{{ uname }}</code></td>
+                <td>{{ e.get('badge') or '—' }}</td>
+                <td>{{ e.get('precinct') or '—' }}</td>
+                <td>
+                    <div style="font-size:13px;">{{ e.get('mobile') or '—' }}</div>
+                    {% if e.get('email') %}<div class="enf-sub">{{ e.get('email') }}</div>{% endif %}
+                </td>
+                <td style="font-size:13px;color:var(--text-muted);">
+                    {{ e.get('created_by') or 'System admin' }}
+                    {% if e.get('created_at') %}<div class="enf-sub">{{ e.get('created_at')|replace('T', ' ')|truncate(16, True, '') }}</div>{% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6">
+                    <div class="empty-state">
+                        <i class="fa-solid fa-user-shield"></i>
+                        <h3>No enforcers yet</h3>
+                        <p style="margin-bottom:16px;">Add your field enforcers. They sign in on the mobile app with the ID number and password you give them.</p>
+                        <button type="button" class="btn btn-primary" onclick="openAdd()"><i class="fa-solid fa-user-plus"></i> Add first enforcer</button>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- ADD ENFORCER -->
+<div id="add-modal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-header">
+            <div>
+                <div class="modal-title"><i class="fa-solid fa-user-plus" style="color:var(--accent-ink);margin-right:9px;"></i>Add enforcer</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">The ID number is also their username on the mobile app.</div>
+            </div>
+            <button class="modal-close" onclick="closeAdd()" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="modal-section">ID number</div>
+        <div class="pw-choice" role="radiogroup">
+            <label><input type="radio" name="idmode" value="auto" checked onchange="modes()"> Automatic</label>
+            <label><input type="radio" name="idmode" value="own" onchange="modes()"> I'll type it</label>
+        </div>
+        <div class="form-group" id="id-wrap" style="display:none;">
+            <input type="text" class="form-control" id="f-id" placeholder="e.g. 2027015 or LTFRB-0015" autocomplete="off">
+            <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;">3 to 40 characters: letters, numbers, dot, dash, underscore or @.</div>
+        </div>
+
+        <div class="modal-section">Name</div>
+        <div class="modal-grid">
+            <div class="form-group">
+                <label class="form-label" for="f-first">First name</label>
+                <input type="text" class="form-control" id="f-first" placeholder="e.g. Maria">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="f-last">Last name</label>
+                <input type="text" class="form-control" id="f-last" placeholder="e.g. Santos">
+            </div>
+        </div>
+
+        <div class="modal-section">Details</div>
+        <div class="modal-grid">
+            <div class="form-group">
+                <label class="form-label" for="f-badge">Badge no.</label>
+                <input type="text" class="form-control" id="f-badge" placeholder="e.g. LTFRB-10-0231">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="f-station">Station</label>
+                <input type="text" class="form-control" id="f-station" placeholder="e.g. Region X, CDO">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="f-mobile">Mobile number</label>
+                <input type="text" class="form-control" id="f-mobile" placeholder="09XX-XXX-XXXX">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="f-email">Email <span style="font-weight:600;text-transform:none;letter-spacing:0;">(we email them their login)</span></label>
+                <input type="email" class="form-control" id="f-email" placeholder="name@ltfrb.gov.ph">
+            </div>
+        </div>
+
+        <div class="modal-section">Password</div>
+        <div class="pw-choice" role="radiogroup">
+            <label><input type="radio" name="pwmode" value="auto" checked onchange="modes()"> Make one for me</label>
+            <label><input type="radio" name="pwmode" value="own" onchange="modes()"> I'll type it</label>
+        </div>
+        <div class="form-group" id="pw-wrap" style="display:none;">
+            <input type="password" class="form-control" id="f-pw" placeholder="At least 6 characters" autocomplete="new-password">
+        </div>
+
+        <div class="modal-footer">
+            <button onclick="closeAdd()" class="btn btn-outline" style="flex:1;">Cancel</button>
+            <button onclick="addEnforcer()" class="btn btn-primary" style="flex:2;"><i class="fa-solid fa-user-plus"></i> Add enforcer</button>
+        </div>
+    </div>
+</div>
+
+<script>
+var modal = document.getElementById('add-modal');
+function picked(name) { return document.querySelector('input[name="' + name + '"]:checked').value === 'own'; }
+function modes() {
+    document.getElementById('id-wrap').style.display = picked('idmode') ? 'block' : 'none';
+    document.getElementById('pw-wrap').style.display = picked('pwmode') ? 'block' : 'none';
+}
+function openAdd() {
+    ['f-id','f-first','f-last','f-badge','f-station','f-mobile','f-email','f-pw'].forEach(function (id) { document.getElementById(id).value = ''; });
+    document.querySelector('input[name="idmode"][value="auto"]').checked = true;
+    document.querySelector('input[name="pwmode"][value="auto"]').checked = true;
+    modes();
+    modal.classList.add('open');
+    setTimeout(function () { document.getElementById('f-first').focus(); }, 50);
+}
+function closeAdd() { modal.classList.remove('open'); }
+modal.addEventListener('click', function (e) { if (e.target === modal) closeAdd(); });
+
+async function addEnforcer() {
+    var v = function (id) { return document.getElementById(id).value.trim(); };
+    var ownId = picked('idmode'), ownPw = picked('pwmode');
+    if (ownId && !/^[A-Za-z0-9._@-]{3,40}$/.test(v('f-id'))) { popAlert('Check the ID number', 'Use 3 to 40 letters, numbers, dot, dash, underscore or @. No spaces.', 'warning'); return; }
+    if (!v('f-first') || !v('f-last')) { popAlert('Name needed', "Type the enforcer's first name and last name.", 'warning'); return; }
+    if (ownPw && document.getElementById('f-pw').value.length < 6) { popAlert('Password too short', 'Use at least 6 characters.', 'warning'); return; }
+    var payload = {
+        username: ownId ? v('f-id') : '',
+        first_name: v('f-first'), last_name: v('f-last'),
+        badge: v('f-badge'), precinct: v('f-station'), mobile: v('f-mobile'), email: v('f-email'),
+        password: ownPw ? document.getElementById('f-pw').value : ''
+    };
+    showLoader('Adding enforcer...');
+    var res = await fetch('/api/ltfrb/enforcers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    var data = await res.json().catch(function () { return {}; });
+    hideLoader();
+    if (!data.success) { popAlert("Couldn't add the enforcer", data.error || 'Please try again.', 'error'); return; }
+    closeAdd();
+    var mailed = data.notifications && data.notifications.email && data.notifications.email.success;
+    await Swal.fire({
+        title: 'Enforcer added', icon: 'success', confirmButtonColor: '#2F6F5A',
+        background: 'var(--card-bg)', color: 'var(--text-main)',
+        html: '<div style="text-align:left;font-size:14px;line-height:1.9;">'
+            + '<b>ID / Username:</b> <code style="background:#EEF5F1;padding:2px 7px;border-radius:5px;">' + esc(data.username) + '</code><br>'
+            + '<b>Password:</b> ' + (data.password ? '<code style="background:#EEF5F1;padding:2px 7px;border-radius:5px;">' + esc(data.password) + '</code>' : 'the one you typed')
+            + '<br><span style="color:#5E6F67;font-size:12.5px;">They sign in on the MaxSeat mobile app as <b>Enforcer</b>. '
+            + (mailed ? 'Their login details were emailed to them.' : 'Give them these login details.') + '</span>'
+            + '</div>'
+    });
+    location.reload();
+}
+</script>
+{% endblock %}

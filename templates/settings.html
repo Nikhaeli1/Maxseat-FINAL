@@ -97,10 +97,17 @@
       <input id="p-fullname" type="text" class="form-control" value="{{ udata.get('full_name', '') }}" placeholder="First Last">
     </div>
 
-    {% if role == 'admin' or role == 'cooperative' or role == 'enforcer' %}
+    {% if role == 'admin' or role == 'cooperative' or role == 'ltfrb' %}
     <div class="form-group">
       <label class="form-label">Email address</label>
       <input id="p-email" type="email" class="form-control" value="{{ udata.get('email', '') }}" placeholder="your@email.com">
+    </div>
+    {% endif %}
+
+    {% if role == 'ltfrb' %}
+    <div class="form-group">
+      <label class="form-label">Mobile number</label>
+      <input id="p-mobile" type="text" class="form-control" value="{{ udata.get('mobile', '') }}" placeholder="0917-xxx-xxxx">
     </div>
     {% endif %}
 

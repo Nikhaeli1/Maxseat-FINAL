@@ -72,7 +72,7 @@
                 <td>
                     <span class="badge {{ badge[st] }}"><i class="fa-solid {{ icons[st] }}"></i> {{ labels[st] }}</span>
                     {% if c.status_at and st != 'open' %}<div class="pr-meta">{{ c.status_at|replace('T', ' ')|truncate(16, True, '') }}</div>{% endif %}
-                    {% if c.note %}<div class="pr-note"><b>Note:</b> {{ c.note }}</div>{% endif %}
+                    {% if c.note %}<div class="pr-note"><b>Action taken:</b> {{ c.note }}</div>{% endif %}
                 </td>
                 {% if can_update %}
                 <td>
@@ -119,7 +119,7 @@ document.addEventListener('click', async function (e) {
     var r = await Swal.fire({
       title: 'Resolve ' + serial + '?',
       input: 'textarea',
-      inputLabel: 'What was done? Optional. The passenger sees this note.',
+      inputLabel: 'Action taken. The passenger sees this in the app.',
       inputPlaceholder: 'Example: Driver cited for overloading on the Bugo to Igpit route.',
       inputAttributes: { maxlength: 300 },
       showCancelButton: true,

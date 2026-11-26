@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MaxSeat Alert · {{ role|capitalize if role else 'System' }}</title>
+    <title>MaxSeat Alert · {{ ROLE_LABELS.get(role, role|capitalize) if role else 'System' }}</title>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>window.MAXSEAT_LIVE_MODE = "{{ LIVE_MODE|default('ws') }}"; window.MAXSEAT_CARTO_KEY = {{ (CARTO_KEY or '')|tojson }};</script>
     <script>
@@ -269,6 +269,31 @@
         /* Pop-ups match */
         html body .swal2-popup { border-radius: 24px !important; }
         html body .swal2-confirm { background: var(--grad-btn) !important; border-radius: 12px !important; }
+
+        /* ── PRINTING (Print Report etc.) ─────────────────────────────────────
+           The app normally scrolls inside its main area, so a printout used to show only one
+           screenful, cut off. In print: no sidebar or top bar, the whole page flows onto as many
+           sheets as it needs, light colors even in dark mode, and cards don't split across sheets. */
+        @media print {
+            @page { size: A4; margin: 12mm; }
+            body, body.dark-mode {
+                --bg:#FFFFFF; --card-bg:#FFFFFF; --text-main:#14211B; --text-muted:#5E6F67;
+                --border-color:#DCE8E1; --hover-bg:#F5F9F7; --accent-ink:#2F6F5A; --ok:#14211B;
+                --warn-ink:#4D6B00; --danger-ink:#4D6B00; --success:#14211B; --shadow-sm:none; --shadow-md:none;
+            }
+            html, body { height: auto !important; overflow: visible !important; background: #FFFFFF !important; }
+            body { display: block !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .sidebar, .top-nav, #loader-overlay, .nav-toggle, .print-btn, .no-print, .btn, button { display: none !important; }
+            .main-wrapper, .main-content { display: block !important; height: auto !important; overflow: visible !important;
+                                           padding: 0 !important; animation: none !important; background: #FFFFFF !important; }
+            .table-wrap, .report-section, .card { overflow: visible !important; box-shadow: none !important; }
+            .stat-card, tr, .compliance-row, .fine-total, .report-section-header { break-inside: avoid; page-break-inside: avoid; }
+            .report-section-header { break-after: avoid; page-break-after: avoid; }   /* a section title never sits alone at the bottom of a sheet */
+            table { width: 100% !important; }
+            thead { display: table-header-group; }      /* table headings repeat on every sheet */
+            a { color: inherit !important; text-decoration: none !important; }
+            html body .page-title, html body.dark-mode .page-title { background: none !important; color: #14211B !important; -webkit-text-fill-color: #14211B !important; }
+        }
     </style>
 </head>
 <body>
@@ -310,7 +335,7 @@
             <i class="fa-solid fa-chart-bar"></i> Reports
         </a>
 
-        {% elif role == 'enforcer' %}
+        {% elif role == 'ltfrb' %}
         <span class="nav-section">Enforcement</span>
         <a href="/intercepts" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/intercepts' }}">
             <i class="fa-solid fa-triangle-exclamation"></i> Active violations
@@ -334,6 +359,10 @@
         </a>
         <a href="/reports" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/reports' }}">
             <i class="fa-solid fa-chart-bar"></i> Reports
+        </a>
+        <span class="nav-section">People</span>
+        <a href="/ltfrb/enforcers" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/ltfrb/enforcers' }}">
+            <i class="fa-solid fa-user-shield"></i> Enforcer accounts
         </a>
 
         {% elif role == 'cooperative' %}
@@ -370,7 +399,7 @@
 
         <div class="sidebar-user">
             <div class="sidebar-user-name">{{ request.session.get('username') }}</div>
-            <div class="sidebar-user-role">{{ role }} access</div>
+            <div class="sidebar-user-role">{{ ROLE_LABELS.get(role, role) }} access</div>
         </div>
         <a href="#" onclick="triggerLogout()" class="nav-link nav-logout">
             <i class="fa-solid fa-power-off"></i> Logout
@@ -402,7 +431,7 @@
                 {% endif %}
                 <div>
                   <div style="color:var(--text-main);font-weight:700;font-size:13px;">{{ _fname }}</div>
-                  <div style="font-size:10px;color:var(--text-muted);text-transform:capitalize;">{{ request.session.get('role') }} access</div>
+                  <div style="font-size:10px;color:var(--text-muted);">{{ ROLE_LABELS.get(request.session.get('role'), request.session.get('role')) }} access</div>
                 </div>
             </div>
         </header>

@@ -23,6 +23,8 @@
         select, input { width: 100%; padding: 18px 20px; border:2px solid #DCE8E1; border-radius: 16px; box-sizing: border-box; font-family: inherit; transition: 0.3s; font-size: 15px; background:#F5F9F7; }
         select:focus, input:focus { outline: none; border-color:var(--text-main); background:#fff; box-shadow: 0 0 0 4px color-mix(in srgb, var(--text-main) 10%, transparent); }
         .select-divider { color:#9BA8A1; font-size: 12px; font-weight: 700; background:#EEF5F1; }
+        /* Microsoft Edge adds its own eye inside password boxes: hide it, so only ours shows */
+        input::-ms-reveal, input::-ms-clear { display: none !important; width: 0; height: 0; }
         .peek-btn { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); color:#9BA8A1; cursor: pointer; border: none; background: none; font-size: 18px; padding: 0; }
         button[type="submit"] { width: 100%; padding: 18px; background:#2F6F5A; color: white; border: none; border-radius: 16px; font-weight: 800; font-size: 16px; cursor: pointer; transition: 0.3s cubic-bezier(0.25, 1, 0.5, 1); margin-top: 10px; }
         button[type="submit"]:hover { background:var(--mango); color:#14211B; transform: translateY(-4px); box-shadow: 0 15px 25px color-mix(in srgb, var(--text-main) 25%, transparent); }
@@ -117,7 +119,7 @@
                 <select name="role" id="role-select" onchange="updateUI()">
                     <optgroup label="Authority and enforcement">
                         <option value="admin">System Administrator</option>
-                        <option value="enforcer">LTFRB</option>
+                        <option value="ltfrb">LTFRB</option>
                     </optgroup>
                     <optgroup label="Transport operations">
                         <option value="cooperative">Transport Cooperative (OROTSCO)</option>
@@ -141,7 +143,7 @@
     <script>
         const roleConfig = {
             admin:       { bg: 'bg-admin',       title: 'Admin Hub',              badge: 'admin',       label: 'System Administrator',           icon: 'fa-shield-halved' },
-            enforcer:    { bg: 'bg-enforcer',     title: 'Enforcer Hub',           badge: 'enforcer',    label: 'LTFRB',    icon: 'fa-user-shield' },
+            ltfrb:       { bg: 'bg-enforcer',     title: 'LTFRB Portal',           badge: 'enforcer',    label: 'LTFRB',    icon: 'fa-user-shield' },
             cooperative: { bg: 'bg-cooperative',  title: 'Cooperative Portal',     badge: 'cooperative', label: 'Transport Cooperative (OROTSCO)', icon: 'fa-building' },
             driver:      { bg: 'bg-driver',       title: 'Driver Operations',      badge: 'driver',      label: 'PUV Driver',                     icon: 'fa-id-card' },
         };

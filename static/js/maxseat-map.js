@@ -8,7 +8,10 @@
  *     which is what caused grey/blank maps before.
  *   • Bad coordinates (null, text, 0,0 from a GPS with no fix) never break the map.
  *     Vehicles with no GPS fix yet are drawn grey at the CDO center and left out of the zoom.
- *   • fit() zooms to where the vehicles actually are; a "show all" button does it again.
+ *   • fit() zooms to where the vehicles actually are; a "show all vehicles" button does it again.
+ *   • Scrolling the page over a map scrolls the PAGE. To zoom with the wheel: hold Ctrl (⌘ on a Mac),
+ *     or click the map first. The + / − buttons and pinch always work.
+ *   • A fullscreen button (top right) opens the map on the whole screen; Esc or the button closes it.
  *
  *   const map = MaxSeatMap.create('map', { fitAll: () => currentPuvs });
  *   MaxSeatMap.fit(map, puvs);
@@ -112,23 +115,80 @@ const MaxSeatMap = (() => {
     setTimeout(fix, 1000);
   }
 
-  function addFitButton(map, getPuvs) {
-    const Ctl = L.Control.extend({
-      options: { position: 'topright' },
-      onAdd() {
-        const b = L.DomUtil.create('a', 'leaflet-bar maxseat-fit-btn');
-        b.href = '#';
-        b.title = 'Show all vehicles';
-        b.setAttribute('role', 'button');
-        b.innerHTML = '&#x2922;';
-        b.style.cssText = 'display:block;width:34px;height:34px;line-height:32px;text-align:center;' +
-                          'background:#fff;color:#14211B;font-size:18px;font-weight:700;text-decoration:none;';
-        L.DomEvent.disableClickPropagation(b);
-        L.DomEvent.on(b, 'click', (e) => { L.DomEvent.preventDefault(e); fit(map, getPuvs()); });
-        return b;
-      },
-    });
+  // Small square map buttons (same look as Leaflet's + / −)
+  const ICONS = {
+    expand:   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
+    compress: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>',
+    target:   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg>',
+  };
+
+  function mapButton(title, icon, onClick) {
+    const b = L.DomUtil.create('a', 'leaflet-bar maxseat-map-btn');
+    b.href = '#';
+    b.title = title;
+    b.setAttribute('role', 'button');
+    b.setAttribute('aria-label', title);
+    b.innerHTML = icon;
+    b.style.cssText = 'display:flex;align-items:center;justify-content:center;width:34px;height:34px;' +
+                      'background:#fff;color:#14211B;text-decoration:none;margin-bottom:8px;';
+    L.DomEvent.disableClickPropagation(b);
+    L.DomEvent.on(b, 'click', (e) => { L.DomEvent.preventDefault(e); onClick(b); });
+    return b;
+  }
+
+  function addControl(map, build) {
+    const Ctl = L.Control.extend({ options: { position: 'topright' }, onAdd: build });
     map.addControl(new Ctl());
+  }
+
+  function addFitButton(map, getPuvs) {
+    addControl(map, () => mapButton('Show all vehicles', ICONS.target, () => fit(map, getPuvs())));
+  }
+
+  // Fullscreen: the map fills the whole screen. Hidden where the browser can't do it (iPhone).
+  function fullscreenEl() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
+  function addFullscreenButton(map, el) {
+    const can = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!can || !(document.fullscreenEnabled || document.webkitFullscreenEnabled)) return;
+    let btn;
+    const sync = () => {
+      const on = fullscreenEl() === el;
+      btn.innerHTML = on ? ICONS.compress : ICONS.expand;
+      btn.title = on ? 'Exit fullscreen' : 'Fullscreen';
+      btn.setAttribute('aria-label', btn.title);
+      setTimeout(() => { try { map.invalidateSize({ pan: false }); } catch (e) { /* map removed */ } }, 120);
+    };
+    addControl(map, () => {
+      btn = mapButton('Fullscreen', ICONS.expand, () => {
+        if (fullscreenEl() === el) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+        else (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      });
+      return btn;
+    });
+    document.addEventListener('fullscreenchange', sync);
+    document.addEventListener('webkitfullscreenchange', sync);
+  }
+
+  // Mouse wheel: scrolls the page unless Ctrl/⌘ is held, the map was clicked, or it is fullscreen.
+  function wheelScrollsPage(el) {
+    const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+    const hint = document.createElement('div');
+    hint.textContent = mac ? 'Hold ⌘ and scroll to zoom the map' : 'Hold Ctrl and scroll to zoom the map';
+    hint.style.cssText = 'position:absolute;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;' +
+      'pointer-events:none;background:rgba(20,33,27,.45);color:#fff;font:700 15px/1.3 inherit;text-align:center;' +
+      'padding:16px;opacity:0;transition:opacity .25s;';
+    el.appendChild(hint);
+    let active = false, timer = null;
+    el.addEventListener('mousedown', () => { active = true; });
+    el.addEventListener('mouseleave', () => { active = false; });
+    el.addEventListener('wheel', (e) => {
+      if (e.ctrlKey || e.metaKey || active || fullscreenEl() === el) return;   // let the map zoom
+      e.stopImmediatePropagation();            // the map ignores it, so the page scrolls as normal
+      e.stopPropagation();
+      hint.style.opacity = '1';
+      clearTimeout(timer);
+      timer = setTimeout(() => { hint.style.opacity = '0'; }, 1100);
+    }, { capture: true });
   }
 
   function create(elOrId, opts) {
@@ -148,7 +208,9 @@ const MaxSeatMap = (() => {
     map.attributionControl.setPrefix(false);
     addTiles(map);
     keepSized(map, el);
+    if (opts.fullscreen !== false) addFullscreenButton(map, el);
     if (typeof opts.fitAll === 'function') addFitButton(map, opts.fitAll);
+    if (opts.wheelScrollsPage !== false) wheelScrollsPage(el);
     return map;
   }
 
