@@ -317,6 +317,7 @@
     const driverColor = () => '#2F6F5A';
     const map = MaxSeatMap.create('driver-map', {
         zoomControl: false,
+        fullscreen: false,          // the "You are here" bar sits where the map buttons would be
         center: MaxSeatMap.position(pd),
         zoom: MaxSeatMap.hasGps(pd) ? 16 : 13,
     });

@@ -11,9 +11,10 @@
   .um-stat-value { font-size:26px; font-weight:800; line-height:1.1; }
 
   /* ── Kanban board ── */
-  .um-board { display:grid; grid-template-columns:repeat(4,1fr) 1.1fr; gap:14px; align-items:start; }
+  .um-board { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)) 1.1fr; gap:14px; align-items:start; }
   .um-col { background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--radius-lg); overflow:hidden; }
   .um-col[data-role="admin"]       { border-top:3px solid var(--text-main); }
+  .um-col[data-role="ltfrb"]       { border-top:3px solid var(--accent-ink); }
   .um-col[data-role="enforcer"]    { border-top:3px solid var(--mango); }
   .um-col[data-role="driver"]      { border-top:3px solid var(--mango-soft); }
   .um-col[data-role="cooperative"] { border-top:3px solid var(--ok); }
@@ -74,7 +75,12 @@
   .cu-back:hover { color:var(--accent-ink); }
 
   /* role cards */
-  .cu-role-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:28px; }
+  .cu-role-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; margin-bottom:28px; }
+  .cu-role-card[data-r="ltfrb"].sel       { border-color:var(--accent-ink); background:color-mix(in srgb, var(--accent-ink) 8%, transparent); box-shadow:var(--shadow-md); }
+  .cu-role-card[data-r="ltfrb"].sel       .cu-role-icon { color:var(--accent-ink); }
+  .cu-choice { display:flex; gap:16px; flex-wrap:wrap; margin:2px 0 8px; font-size:13px; font-weight:600; }
+  .cu-choice label { display:inline-flex; align-items:center; gap:6px; cursor:pointer; }
+  .cu-choice input { accent-color:#2F6F5A; width:15px; height:15px; }
   .cu-role-card { border:1.5px solid var(--border-color); border-radius:var(--radius); padding:20px 14px; cursor:pointer; text-align:center; transition:all .18s; background:var(--card-bg); }
   .cu-role-card:hover { border-color:var(--primary); background:var(--primary-glow); transform:translateY(-2px); box-shadow:var(--shadow-sm); }
   .cu-role-card.sel { transform:translateY(-2px); box-shadow:var(--shadow-md); }
@@ -105,6 +111,7 @@
   .cu-section-title::after { content:''; flex:1; height:1px; background:var(--border-color); }
   .cu-step-num { font-size:11px; width:18px; height:18px; background:var(--primary); color:var(--on-primary); border-radius:50%; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
   .cu-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .cu-name-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   .cu-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
   .cu-full   { grid-column:1/-1; }
   .cu-role-fields { display:none; }
@@ -170,7 +177,8 @@
 
   {% set managed_cols = [
     ('admin',       'fa-shield',         'var(--text-main)', 'System admins',   'Full access'),
-    ('enforcer',    'fa-shield-halved',  'var(--text-main)', 'Field enforcers', 'Intercepts &amp; citations'),
+    ('ltfrb',       'fa-landmark',       'var(--text-main)', 'LTFRB admins',    'LTFRB web portal'),
+    ('enforcer',    'fa-shield-halved',  'var(--text-main)', 'Field enforcers', 'Mobile app'),
     ('driver',      'fa-steering-wheel', 'var(--text-main)', 'Drivers',         'Vehicle &amp; sensor'),
     ('cooperative', 'fa-building',       'var(--text-main)', 'Cooperatives',    'Fleet management'),
   ] %}
@@ -192,7 +200,7 @@
           <div class="um-card-top">
             <div class="um-avatar" style="background:var(--hover-bg);color:var(--text-main);border:1px solid var(--border-color);">{{ initials }}</div>
             <div style="min-width:0;flex:1;">
-              <div class="um-card-name">{{ udata.get('full_name','—') }}</div>
+              <div class="um-card-name">{{ (udata | list_name) or '—' }}</div>
               <div class="um-card-username">{{ uname }}</div>
             </div>
           </div>
@@ -249,7 +257,7 @@
           <div class="um-card-top">
             <div class="um-avatar" style="background:color-mix(in srgb, var(--text-main) 15%, transparent);color:var(--text-main);">{{ initials }}</div>
             <div style="min-width:0;flex:1;">
-              <div class="um-card-name">{{ udata.get('full_name','—') }}</div>
+              <div class="um-card-name">{{ (udata | list_name) or '—' }}</div>
               <div class="um-card-username">{{ uname }}</div>
             </div>
           </div>
@@ -304,10 +312,15 @@
         <div class="cu-role-name">System admin</div>
         <div class="cu-role-desc">Full access to everything</div>
       </div>
+      <div class="cu-role-card" data-r="ltfrb" onclick="cuPickRole('ltfrb')">
+        <div class="cu-role-icon"><i class="fa-solid fa-landmark"></i></div>
+        <div class="cu-role-name">LTFRB admin</div>
+        <div class="cu-role-desc">LTFRB web portal</div>
+      </div>
       <div class="cu-role-card" data-r="enforcer" onclick="cuPickRole('enforcer')">
         <div class="cu-role-icon"><i class="fa-solid fa-shield-halved"></i></div>
         <div class="cu-role-name">Field enforcer</div>
-        <div class="cu-role-desc">Intercepts &amp; citations</div>
+        <div class="cu-role-desc">Mobile app</div>
       </div>
       <div class="cu-role-card" data-r="driver" onclick="cuPickRole('driver')">
         <div class="cu-role-icon"><i class="fa-solid fa-steering-wheel"></i></div>
@@ -321,7 +334,8 @@
       </div>
     </div>
     <div class="cu-hint cu-hint-admin"       id="cu-hint-admin">       <i class="fa-solid fa-circle-info"></i> System admins have full access to all data, users, and configuration. Create these accounts carefully.</div>
-    <div class="cu-hint cu-hint-enforcer"    id="cu-hint-enforcer">    <i class="fa-solid fa-circle-info"></i> Field enforcers can log intercepts, issue citations, and submit reports from the web or mobile app.</div>
+    <div class="cu-hint cu-hint-ltfrb"       id="cu-hint-ltfrb">       <i class="fa-solid fa-circle-info"></i> LTFRB admins use the LTFRB web portal: violations, passenger reports, dispatch, citations and reports. They can also add field enforcer accounts.</div>
+    <div class="cu-hint cu-hint-enforcer"    id="cu-hint-enforcer">    <i class="fa-solid fa-circle-info"></i> Field enforcers sign in on the MaxSeat mobile app to respond to violations and passenger reports. LTFRB admins can add these accounts too.</div>
     <div class="cu-hint cu-hint-driver"      id="cu-hint-driver">      <i class="fa-solid fa-circle-info"></i> Drivers access the vehicle dashboard to track passengers and sensor readings. You can assign a vehicle after creating the account.</div>
     <div class="cu-hint cu-hint-cooperative" id="cu-hint-cooperative"> <i class="fa-solid fa-circle-info"></i> Cooperative accounts manage their own fleet and drivers, view violations, and generate compliance reports.</div>
   </div>
@@ -335,16 +349,26 @@
     <!-- Auto-generated ID + Full name -->
     <div class="cu-grid-2" style="margin-bottom:16px;">
       <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label">ID number <span style="color:var(--accent-ink);font-size:10px;font-weight:700;margin-left:4px;">AUTO-GENERATED</span></label>
-        <div class="cu-auto-field">
-          <input id="f-username" type="text" class="form-control" readonly tabindex="-1">
-          <span class="cu-auto-tag"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:3px;"></i>Auto</span>
+        <label class="form-label">ID number</label>
+        <div class="cu-choice" role="radiogroup">
+          <label><input type="radio" name="cu-idmode" value="auto" checked onchange="cuIdMode()"> Automatic</label>
+          <label><input type="radio" name="cu-idmode" value="own" onchange="cuIdMode()"> I'll type it</label>
+        </div>
+        <div class="cu-auto-field" id="cu-id-field">
+          <input id="f-username" type="text" class="form-control" readonly tabindex="-1" autocomplete="off">
+          <span class="cu-auto-tag" id="cu-id-tag"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:3px;"></i>Auto</span>
         </div>
         <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">This will also be the username for login.</div>
       </div>
-      <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label">Full name</label>
-        <input id="f-fullname" type="text" class="form-control" placeholder="First Last">
+      <div class="cu-name-grid">
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="f-firstname">First name</label>
+          <input id="f-firstname" type="text" class="form-control" placeholder="e.g. Juan" autocomplete="off">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="f-lastname">Last name</label>
+          <input id="f-lastname" type="text" class="form-control" placeholder="e.g. Dela Cruz" autocomplete="off">
+        </div>
       </div>
     </div>
 
@@ -358,6 +382,28 @@
         <div class="form-group" style="margin-bottom:0;">
           <label class="form-label">Department</label>
           <input id="f-department" type="text" class="form-control" placeholder="e.g. Central Command">
+        </div>
+      </div>
+    </div>
+
+    <!-- LTFRB admin fields -->
+    <div class="cu-role-fields" id="rf-ltfrb">
+      <div class="cu-grid-2" style="margin-bottom:16px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Office</label>
+          <input id="f-office" type="text" class="form-control" placeholder="e.g. LTFRB Region X">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Position</label>
+          <input id="f-ltfrb-position" type="text" class="form-control" placeholder="e.g. Enforcement Officer">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Email</label>
+          <input id="f-ltfrb-email" type="email" class="form-control" placeholder="name@ltfrb.gov.ph">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Mobile number</label>
+          <input id="f-ltfrb-mobile" type="text" class="form-control" placeholder="0917-xxx-xxxx">
         </div>
       </div>
     </div>
@@ -439,20 +485,25 @@
     <div class="divider"></div>
 
     <!-- Step 3 — Auto password preview -->
-    <div class="cu-section-title"><span class="cu-step-num">3</span> Initial password</div>
+    <div class="cu-section-title"><span class="cu-step-num">3</span> Password</div>
+    <div class="cu-choice" role="radiogroup">
+      <label><input type="radio" name="cu-pwmode" value="auto" checked onchange="cuPwMode()"> Make one for me</label>
+      <label><input type="radio" name="cu-pwmode" value="own" onchange="cuPwMode()"> I'll type it</label>
+    </div>
     <div class="cu-grid-2" style="margin-bottom:10px;">
-      <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label">Password <span style="color:var(--accent-ink);font-size:10px;font-weight:700;margin-left:4px;">AUTO-GENERATED</span></label>
+      <div class="form-group" style="margin-bottom:0;" id="cu-pw-auto">
         <div class="cu-auto-field">
           <input id="f-password-preview" type="text" class="form-control" readonly tabindex="-1" placeholder="Choose a role first…">
           <span class="cu-auto-tag"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:3px;"></i>Auto</span>
         </div>
       </div>
-      <div style="display:flex;align-items:flex-end;padding-bottom:2px;">
+      <div class="form-group" style="margin-bottom:0;display:none;" id="cu-pw-own">
+        <input id="f-own-password" type="password" class="form-control" placeholder="At least 6 characters" autocomplete="new-password">
+      </div>
+      <div style="display:flex;align-items:center;">
         <div style="font-size:12.5px;color:var(--text-muted);line-height:1.6;">
           <i class="fa-solid fa-circle-info" style="color:var(--accent-ink);margin-right:5px;"></i>
-          Format: <code style="background:var(--hover-bg);padding:1px 6px;border-radius:5px;font-size:12px;">username@idnumber</code><br>
-          The user will be asked to change this on first login.
+          They can sign in with it right away and change it anytime in Settings.
         </div>
       </div>
     </div>
@@ -507,15 +558,38 @@ function updatePasswordPreview() {
   }
 }
 
+/* ID number and password: automatic unless "I'll type it" is picked */
+function cuOwn(name) { var r = document.querySelector('input[name="' + name + '"]:checked'); return !!r && r.value === 'own'; }
+function cuIdMode() {
+  var el = document.getElementById('f-username'), own = cuOwn('cu-idmode');
+  el.readOnly = !own;
+  el.tabIndex = own ? 0 : -1;
+  el.value = own ? '' : (_cuId || '');
+  el.placeholder = own ? 'Type an ID number, e.g. 2028015' : '';
+  document.getElementById('cu-id-tag').style.display = own ? 'none' : '';
+  document.getElementById('cu-id-field').classList.toggle('cu-auto-field', !own);
+  if (own) el.focus();
+}
+function cuPwMode() {
+  var own = cuOwn('cu-pwmode');
+  document.getElementById('cu-pw-auto').style.display = own ? 'none' : '';
+  document.getElementById('cu-pw-own').style.display  = own ? '' : 'none';
+  if (own) document.getElementById('f-own-password').focus();
+}
+
 /* ── view switching ── */
 function showCreate(preRole) {
   _cuRole = null; _cuId = null;
-  ['f-fullname','f-admin-email','f-department',
+  ['f-firstname','f-lastname','f-admin-email','f-department','f-own-password',
+   'f-office','f-ltfrb-position','f-ltfrb-email','f-ltfrb-mobile',
    'f-badge','f-precinct','f-enf-email','f-enf-mobile',
    'f-license','f-operator','f-drv-mobile','f-emergency',
    'f-org','f-position','f-coop-email','f-coop-mobile','f-address'
   ].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
   document.getElementById('f-username').value         = '';
+  document.querySelector('input[name="cu-idmode"][value="auto"]').checked = true;
+  document.querySelector('input[name="cu-pwmode"][value="auto"]').checked = true;
+  cuIdMode(); cuPwMode();
   document.getElementById('f-password-preview').value = '';
   document.getElementById('f-password-preview').placeholder = 'Choose a role first…';
   document.querySelectorAll('.cu-role-card').forEach(function(c){ c.classList.remove('sel'); });
@@ -552,9 +626,10 @@ async function cuPickRole(role) {
 
   /* auto-generate ID */
   var idField = document.getElementById('f-username');
-  idField.value = 'Generating…';
+  var typed = cuOwn('cu-idmode');
+  if (!typed) idField.value = 'Generating…';
   _cuId = await fetchNextId(role);
-  idField.value = _cuId;
+  if (!typed) idField.value = _cuId;
   updatePasswordPreview();
 
   setTimeout(function(){
@@ -572,15 +647,29 @@ function cuShowError(msg){
 /* ── submit ── */
 async function cuSubmit() {
   if (!_cuRole) { cuShowError('Please choose a role above first.'); return; }
+  if (cuOwn('cu-idmode')) {
+    var typedId = cuVal('f-username');
+    if (!/^[A-Za-z0-9._@-]{3,40}$/.test(typedId)) { cuShowError('ID number: use 3 to 40 letters, numbers, dot, dash, underscore or @. No spaces.'); return; }
+    _cuId = typedId;
+  }
   if (!_cuId)   { cuShowError('ID number not generated yet. Please try again.'); return; }
-  if (!cuVal('f-fullname')) { cuShowError('Full name is required.'); return; }
+  var first = cuVal('f-firstname'), last = cuVal('f-lastname');
+  if (!first || !last) { cuShowError('First name and last name are both required.'); return; }
 
-  var password = _cuPw || makePassword();
-  var payload  = { username:_cuId, full_name:cuVal('f-fullname'), role:_cuRole, password:password };
+  var typedPw  = cuOwn('cu-pwmode');
+  if (typedPw && document.getElementById('f-own-password').value.length < 6) { cuShowError('Password: use at least 6 characters.'); return; }
+  var password = typedPw ? document.getElementById('f-own-password').value : (_cuPw || makePassword());
+  var payload  = { username:_cuId, first_name:first, last_name:last, full_name:first + ' ' + last,
+                   role:_cuRole, password:password };
 
   if (_cuRole === 'admin') {
     payload.email      = cuVal('f-admin-email');
     payload.department = cuVal('f-department');
+  } else if (_cuRole === 'ltfrb') {
+    payload.office   = cuVal('f-office');
+    payload.position = cuVal('f-ltfrb-position');
+    payload.email    = cuVal('f-ltfrb-email');
+    payload.mobile   = cuVal('f-ltfrb-mobile');
   } else if (_cuRole === 'enforcer') {
     payload.badge    = cuVal('f-badge');
     payload.precinct = cuVal('f-precinct');
@@ -622,9 +711,9 @@ async function cuSubmit() {
       title: 'Account created',
       html:  '<div style="text-align:left;font-size:14px;line-height:1.9;">'
            + '<b>ID / Username:</b> <code style="background:#EEF5F1;padding:2px 7px;border-radius:5px;">' + esc(_cuId) + '</code><br>'
-           + '<b>Initial password:</b> <code style="background:#EEF5F1;padding:2px 7px;border-radius:5px;">' + esc(password) + '</code>'
+           + '<b>Password:</b> ' + (typedPw ? 'the one you typed' : '<code style="background:#EEF5F1;padding:2px 7px;border-radius:5px;">' + esc(password) + '</code>')
            + sentLine + '<br><br>'
-           + '<span style="color:#5E6F67;font-size:12px;">The user will be asked to change their password on first login.</span>'
+           + '<span style="color:#5E6F67;font-size:12px;">' + (_cuRole === 'enforcer' ? 'Enforcers sign in on the MaxSeat mobile app.' : 'They can sign in right away and change the password anytime in Settings.') + '</span>'
            + '</div>',
       icon:'success', confirmButtonColor:'#2F6F5A',
       background:'var(--card-bg)', color:'var(--text-main)'
@@ -716,7 +805,7 @@ async function umView(username) {
 
   var html = '<div class="umd">'
     + '<div class="umd-head"><div class="umd-avatar">' + umEsc(initials) + '</div><div>'
-    + '<div class="umd-name">' + umEsc(d.full_name || '—') + '</div>'
+    + '<div class="umd-name">' + umEsc(d.list_name || d.full_name || '—') + '</div>'
     + '<div class="umd-role">' + umEsc(d.role) + '</div></div></div>'
     + '<div class="umd-box">'
     + umdRow('Username', '<span class="umd-code">' + umEsc(d.username) + '</span>'

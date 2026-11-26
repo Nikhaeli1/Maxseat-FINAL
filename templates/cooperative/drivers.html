@@ -30,16 +30,24 @@
     .modal-section { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin: 18px 0 10px; }
     .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .modal-footer { display: flex; gap: 10px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-color); }
+    .pw-choice { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 12px; font-size: 14px; font-weight: 600; }
+    .pw-choice label { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+    .pw-choice input { accent-color: #2F6F5A; width: 16px; height: 16px; }
 </style>
 
 <div class="page-row">
     <div>
         <div class="page-title">Manage Drivers</div>
-        <div class="page-subtitle">View, edit, and assign PUVs to your cooperative's drivers</div>
+        <div class="page-subtitle">Add your drivers, edit their details, and assign them to your PUVs</div>
     </div>
-    <a href="/dashboard" class="btn btn-outline" onclick="showLoader('Loading...')">
-        <i class="fa-solid fa-arrow-left"></i> Back to Dashboard
-    </a>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <a href="/dashboard" class="btn btn-outline" onclick="showLoader('Loading...')">
+            <i class="fa-solid fa-arrow-left"></i> Back to Dashboard
+        </a>
+        <button type="button" class="btn btn-primary" onclick="openAddModal()">
+            <i class="fa-solid fa-user-plus"></i> Add driver
+        </button>
+    </div>
 </div>
 
 {% if drivers %}
@@ -51,7 +59,7 @@
         <div class="driver-card-top">
             <div class="driver-avatar"><i class="fa-solid fa-user"></i></div>
             <div style="flex:1;min-width:0;">
-                <div class="driver-name">{{ driver.full_name | default('—') }}</div>
+                <div class="driver-name">{{ (driver | list_name) or '—' }}</div>
                 <div class="driver-id">ID:{{ username }}</div>
             </div>
             {% if assigned_puv %}
@@ -94,14 +102,14 @@
         <!-- ACTIONS -->
         <div class="card-actions">
             <button class="edit-btn" onclick="openEditModal(
-                '{{ username }}',
-                '{{ driver.full_name | default('') }}',
-                '{{ driver.license | default('') }}',
-                '{{ driver.operator | default('') }}',
-                '{{ driver.mobile | default('') }}',
-                '{{ driver.emergency_contact | default('') }}',
-                '{{ driver.email | default('') }}',
-                '{{ assigned_puv.id if assigned_puv else '' }}'
+                {{ username | js }},
+                {{ driver.full_name | default('') | js }},
+                {{ driver.license | default('') | js }},
+                {{ driver.operator | default('') | js }},
+                {{ driver.mobile | default('') | js }},
+                {{ driver.emergency_contact | default('') | js }},
+                {{ driver.email | default('') | js }},
+                {{ ((assigned_puv.id | string) if assigned_puv else '') | js }}
             )">
                 <i class="fa-solid fa-pen-to-square"></i> Edit Driver
             </button>
@@ -112,10 +120,91 @@
 {% else %}
 <div class="empty-state">
     <i class="fa-solid fa-users-slash"></i>
-    <h3>No Drivers Registered</h3>
-    <p>Contact the system administrator to register drivers for your cooperative.</p>
+    <h3>No drivers yet</h3>
+    <p style="margin-bottom:16px;">Add your drivers here. They sign in with the ID number and password you give them.</p>
+    <button type="button" class="btn btn-primary" onclick="openAddModal()"><i class="fa-solid fa-user-plus"></i> Add first driver</button>
 </div>
 {% endif %}
+
+<!-- ADD DRIVER MODAL -->
+<div id="add-modal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-header">
+            <div>
+                <div class="modal-title"><i class="fa-solid fa-user-plus" style="color:var(--accent-ink);margin-right:9px;"></i>Add driver</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">The ID number is also their username for signing in.</div>
+            </div>
+            <button class="modal-close" onclick="closeAddModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="modal-section">ID number</div>
+        <div class="pw-choice" role="radiogroup">
+            <label><input type="radio" name="add-idmode" value="auto" checked onchange="idMode()"> Automatic</label>
+            <label><input type="radio" name="add-idmode" value="own" onchange="idMode()"> I'll type it</label>
+        </div>
+        <div class="form-group" id="add-id-wrap" style="display:none;">
+            <input type="text" class="form-control" id="add-id" placeholder="e.g. 2028015 or D-0015" autocomplete="off">
+            <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;">3 to 40 characters: letters, numbers, dot, dash, underscore or @.</div>
+        </div>
+
+        <div class="modal-section">Name</div>
+        <div class="modal-grid">
+            <div class="form-group">
+                <label class="form-label" for="add-first">First name</label>
+                <input type="text" class="form-control" id="add-first" placeholder="e.g. Juan">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="add-last">Last name</label>
+                <input type="text" class="form-control" id="add-last" placeholder="e.g. Dela Cruz">
+            </div>
+        </div>
+
+        <div class="modal-section">Details</div>
+        <div class="modal-grid">
+            <div class="form-group">
+                <label class="form-label" for="add-license">License number</label>
+                <input type="text" class="form-control" id="add-license" placeholder="L02-XX-XXXXXX">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="add-mobile">Mobile number</label>
+                <input type="text" class="form-control" id="add-mobile" placeholder="09XX-XXX-XXXX">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="add-email">Email <span style="font-weight:600;text-transform:none;letter-spacing:0;">(we email them their login)</span></label>
+                <input type="email" class="form-control" id="add-email" placeholder="driver@email.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="add-emergency">Emergency contact</label>
+                <input type="text" class="form-control" id="add-emergency" placeholder="Name (09XX-XXX-XXXX)">
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="add-puv">Assign to a PUV <span style="font-weight:600;text-transform:none;letter-spacing:0;">(optional)</span></label>
+            <select class="form-control" id="add-puv">
+                <option value="">— Not yet —</option>
+                {% for puv in puvs if not puv.username %}
+                <option value="{{ puv.id }}">{{ puv.plate }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="modal-section">Password</div>
+        <div class="pw-choice" role="radiogroup">
+            <label><input type="radio" name="add-pwmode" value="auto" checked onchange="pwMode()"> Make one for me</label>
+            <label><input type="radio" name="add-pwmode" value="own" onchange="pwMode()"> I'll type it</label>
+        </div>
+        <div class="form-group" id="add-pw-wrap" style="display:none;">
+            <input type="password" class="form-control" id="add-pw" placeholder="At least 6 characters" autocomplete="new-password">
+        </div>
+
+        <div class="modal-footer">
+            <button onclick="closeAddModal()" class="btn btn-outline" style="flex:1;">Cancel</button>
+            <button onclick="addDriver()" class="btn btn-primary" style="flex:2;">
+                <i class="fa-solid fa-user-plus"></i> Add driver
+            </button>
+        </div>
+    </div>
+</div>
 
 <!-- EDIT DRIVER MODAL -->
 <div id="edit-modal" class="modal-overlay">
@@ -181,6 +270,62 @@
 </div>
 
 <script>
+function openAddModal() {
+    ['add-id','add-first','add-last','add-license','add-mobile','add-email','add-emergency','add-pw','add-puv']
+        .forEach(function (id) { document.getElementById(id).value = ''; });
+    document.querySelector('input[name="add-pwmode"][value="auto"]').checked = true;
+    document.querySelector('input[name="add-idmode"][value="auto"]').checked = true;
+    pwMode(); idMode();
+    document.getElementById('add-modal').classList.add('open');
+    setTimeout(function () { document.getElementById('add-first').focus(); }, 50);
+}
+function closeAddModal() { document.getElementById('add-modal').classList.remove('open'); }
+document.getElementById('add-modal').addEventListener('click', function (e) { if (e.target === this) closeAddModal(); });
+function idMode() {
+    var own = document.querySelector('input[name="add-idmode"]:checked').value === 'own';
+    document.getElementById('add-id-wrap').style.display = own ? 'block' : 'none';
+    if (own) document.getElementById('add-id').focus();
+}
+function pwMode() {
+    var own = document.querySelector('input[name="add-pwmode"]:checked').value === 'own';
+    document.getElementById('add-pw-wrap').style.display = own ? 'block' : 'none';
+    if (own) document.getElementById('add-pw').focus();
+}
+
+async function addDriver() {
+    var v = function (id) { return document.getElementById(id).value.trim(); };
+    var own = document.querySelector('input[name="add-pwmode"]:checked').value === 'own';
+    var ownId = document.querySelector('input[name="add-idmode"]:checked').value === 'own';
+    if (ownId && !/^[A-Za-z0-9._@-]{3,40}$/.test(v('add-id'))) { popAlert('Check the ID number', 'Use 3 to 40 letters, numbers, dot, dash, underscore or @. No spaces.', 'warning'); return; }
+    if (!v('add-first') || !v('add-last')) { popAlert('Name needed', 'Type the driver\'s first name and last name.', 'warning'); return; }
+    if (own && document.getElementById('add-pw').value.length < 6) { popAlert('Password too short', 'Use at least 6 characters.', 'warning'); return; }
+    var payload = {
+        username: ownId ? v('add-id') : '',
+        first_name: v('add-first'), last_name: v('add-last'),
+        license: v('add-license'), mobile: v('add-mobile'), email: v('add-email'),
+        emergency_contact: v('add-emergency'), assigned_puv_id: v('add-puv'),
+        password: own ? document.getElementById('add-pw').value : ''
+    };
+    showLoader('Adding driver...');
+    var res = await fetch('/api/coop/drivers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    var data = await res.json().catch(function () { return {}; });
+    hideLoader();
+    if (!data.success) { popAlert("Couldn't add the driver", data.error || 'Please try again.', 'error'); return; }
+    closeAddModal();
+    var mailed = data.notifications && data.notifications.email && data.notifications.email.success;
+    await Swal.fire({
+        title: 'Driver added', icon: 'success', confirmButtonColor: '#2F6F5A',
+        background: 'var(--card-bg)', color: 'var(--text-main)',
+        html: '<div style="text-align:left;font-size:14px;line-height:1.9;">'
+            + '<b>ID / Username:</b> <code style="background:#EEF5F1;padding:2px 7px;border-radius:5px;">' + esc(data.username) + '</code><br>'
+            + '<b>Password:</b> ' + (data.password ? '<code style="background:#EEF5F1;padding:2px 7px;border-radius:5px;">' + esc(data.password) + '</code>' : 'the one you typed')
+            + (data.vehicle ? '<br><b>Assigned to:</b> ' + esc(data.vehicle) : '')
+            + '<br><span style="color:#5E6F67;font-size:12.5px;">' + (mailed ? 'Login details were emailed to them.' : 'Give these login details to the driver.') + '</span>'
+            + '</div>'
+    });
+    location.reload();
+}
+
 function openEditModal(username, fullName, license, operator, mobile, ec, email, assignedPuvId) {
     document.getElementById('edit-username').value      = username;
     document.getElementById('modal-driver-id').textContent = 'ID: ' + username;

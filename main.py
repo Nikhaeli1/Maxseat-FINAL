@@ -137,6 +137,18 @@ templates.env.globals["CARTO_KEY"] = os.environ.get("CARTO_API_KEY", "").strip()
 # (Plain '{{ x }}' inside onclick can be broken out of with a quote.)
 templates.env.filters["js"] = lambda v: Markup(_html.escape(json.dumps(v), quote=True))
 
+def list_name(u: dict) -> str:
+    """Name as shown in account lists: "Dela Cruz, Juan" when first and last name are known."""
+    first, last = (u.get("first_name") or "").strip(), (u.get("last_name") or "").strip()
+    if first and last:
+        return f"{last}, {first}"
+    return u.get("full_name") or ""
+
+templates.env.filters["list_name"] = list_name
+ROLE_LABELS = {"admin": "Administrator", "ltfrb": "LTFRB", "enforcer": "Enforcer",
+               "cooperative": "Cooperative", "driver": "Driver", "passenger": "Passenger"}
+templates.env.globals["ROLE_LABELS"] = ROLE_LABELS
+
 # --- WEBSOCKET MANAGER ---
 class ConnectionManager:
     def __init__(self):
@@ -563,6 +575,7 @@ def TR(request: Request, name: str, context: dict = None):
 def build_credentials_message(full_name: str, username: str, password: str, role: str) -> str:
     role_labels = {
         "admin":       "System Administrator",
+        "ltfrb":       "LTFRB Administrator",
         "enforcer":    "Field Enforcer",
         "driver":      "Driver",
         "cooperative": "Cooperative Manager",
@@ -575,8 +588,9 @@ def build_credentials_message(full_name: str, username: str, password: str, role
         f"Your login credentials:\n"
         f"  Username : {username}\n"
         f"  Password : {password}\n\n"
-        f"Please log in and change your password immediately.\n"
-        f"Login at: https://maxseat-final.vercel.app/login\n\n"
+        + (f"Sign in on the MaxSeat mobile app (Enforcer).\n\n" if role == "enforcer" else
+           f"Login at: https://maxseat-final.vercel.app/login\n"
+           f"You can change your password anytime in Settings.\n\n") +
         f"NOTE: Do not share your credentials with anyone.\n"
         f"- MaxSeat Alert System"
     )
@@ -738,6 +752,9 @@ async def login_post(
     if role == "passenger":
         flash(request, "Passengers use the MaxSeat phone app.")
         return RedirectResponse(url="/login", status_code=302)
+    if role == "enforcer":
+        flash(request, "Enforcer accounts sign in on the MaxSeat mobile app.")
+        return RedirectResponse(url="/login", status_code=302)
     user, err = check_password_login("web", username, password, role)
     if user:
         start_session(request, username, user)
@@ -799,7 +816,7 @@ async def update_settings_post(request: Request):
     username = request.session.get('username')
     role     = get_role(request)
     form_data = await request.form()
-    allowed = {'admin': ['email'], 'enforcer': ['mobile', 'shift_status'], 'driver': ['mobile', 'emergency_contact'], 'cooperative': ['mobile', 'email', 'address']}
+    allowed = {'admin': ['email'], 'ltfrb': ['mobile', 'email'], 'enforcer': ['mobile', 'shift_status'], 'driver': ['mobile', 'emergency_contact'], 'cooperative': ['mobile', 'email', 'address']}
     for key, value in form_data.items():
         if key in allowed.get(role, []):
             users[username][key] = clean_text(value)
@@ -819,7 +836,7 @@ async def dashboard(request: Request):
             "puvs": puv_database, "role": role, "stats": stats,
             "citations": citations_db, "audit_logs": audit_logs
         })
-    elif role == 'enforcer':
+    elif role == 'ltfrb':
         sorted_puvs = sorted(puv_database, key=lambda x: (x['passengers'] / x['capacity']) if x['capacity'] > 0 else 0, reverse=True)
         return TR(request, "enforcer/dashboard.html", {"puvs": sorted_puvs, "role": role, "stats": stats,
                                                        "recent_reports": visible_reports(request)[:4]})
@@ -854,41 +871,72 @@ async def user_management(request: Request):
     if get_role(request) != 'admin': return RedirectResponse(url="/dashboard", status_code=302)
     return TR(request, "admin/user_management.html", {"role": "admin", "users_db": users, "messages": get_flash(request)})
 
-@app.post("/api/create_user")
-async def create_user(request: Request):
-    if get_role(request) != 'admin':
-        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
+# --- ACCOUNTS: one way to create them, used by the admin, LTFRB (enforcers) and co-ops (drivers) ---
+ACCOUNT_ROLES = ("admin", "ltfrb", "enforcer", "driver", "cooperative")
+_ID_PREFIX    = {"admin": "2026", "enforcer": "2027", "driver": "2028", "cooperative": "2029", "ltfrb": "2031"}
 
-    data     = await request.json()
+def next_account_id(role: str) -> str:
+    """Next free ID number for a role, e.g. 2027004. It is also the username."""
+    prefix = _ID_PREFIX.get(role, "2030")
+    taken  = [int(uid[4:]) for uid in users if uid.startswith(prefix) and uid[4:].isdigit()]
+    return f"{prefix}{(max(taken) + 1) if taken else 1:03d}"
+
+def random_password(length: int = 10) -> str:
+    abc = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
+    return "".join(secrets.choice(abc) for _ in range(length))
+
+async def create_account(request: Request, data: dict, role: str, created_by: str, extra: dict = None) -> JSONResponse:
+    """Create an account. The password is the one typed in, or a random one when left empty.
+    New accounts are NOT forced to change their password (they can change it in Settings)."""
     data     = {k: (clean_text(v, 200) if k != "password" else v) for k, v in data.items()} if isinstance(data, dict) else {}
-    username = data.get("username", "").strip()
-    role     = data.get("role", "driver")
-    password = data.get("password", "")
+    username = (data.get("username") or "").strip() or next_account_id(role)
+    password = data.get("password") or ""
+    generated = not password
+    if generated:
+        password = random_password()
 
-    if role not in ("admin", "enforcer", "driver", "cooperative"):
+    if role not in ACCOUNT_ROLES:
         return JSONResponse({"success": False, "error": "Unknown role."})
     if not isinstance(password, str):
         return JSONResponse({"success": False, "error": "Password must be text."})
     if not re.fullmatch(r"[A-Za-z0-9._@-]{3,40}", username or ""):
         return JSONResponse({"success": False, "error": "Username can only use letters, numbers, dot, dash, underscore or @."})
-    if not username or username in users:
-        return JSONResponse({"success": False, "error": "Username already exists or is empty."})
+    if username in users:
+        return JSONResponse({"success": False, "error": "That ID or username is already taken. Please try again."})
     if len(password) < 6:
         return JSONResponse({"success": False, "error": "Password must be at least 6 characters."})
+
+    # Name: first and last name boxes (older forms send only full_name)
+    first_name = data.get("first_name", "").strip()
+    last_name  = data.get("last_name", "").strip()
+    full_name  = data.get("full_name", "").strip() or f"{first_name} {last_name}".strip()
+    if not full_name:
+        return JSONResponse({"success": False, "error": "First name and last name are required."})
 
     # Base record — shared by every role
     record = {
         "password":             hash_password(password),
         "role":                 role,
-        "full_name":            data.get("full_name", ""),
-        "must_change_password": True,
+        "full_name":            full_name,
+        "must_change_password": False,
+        "created_by":           created_by,
+        "created_at":           ph_now_iso(),
     }
+    if first_name and last_name:
+        record["first_name"] = first_name
+        record["last_name"]  = last_name
 
     # Role-specific fields
     if role == "admin":
         record["email"]      = data.get("email", "")
         record["department"] = data.get("department", "")
         record["clearance"]  = "Level 1"
+
+    elif role == "ltfrb":
+        record["email"]    = data.get("email", "")
+        record["mobile"]   = data.get("mobile", "")
+        record["office"]   = data.get("office", "")
+        record["position"] = data.get("position", "")
 
     elif role == "enforcer":
         record["email"]        = data.get("email", "")
@@ -912,21 +960,27 @@ async def create_user(request: Request):
         record["mobile"]       = data.get("mobile", "")
         record["address"]      = data.get("address", "")
 
-    elif role == "passenger":
-        record["mobile"] = data.get("mobile", "")
-        record["email"]  = data.get("email", "")
+    if extra:
+        record.update(extra)
 
     users[username] = record
     db_save_user(username, record)
-    log_audit(
-        request.session.get('username', 'admin'),
-        f"USER_CREATED: {username} ({role.upper()})",
-        request.client.host if request.client else "unknown",
-        "blue"
-    )
+    log_audit(created_by, f"USER_CREATED: {username} ({role.upper()})",
+              request.client.host if request.client else "unknown", "blue")
     # Email the login details to the new user
     notify_results = await notify_new_user(record, username, password)
-    return JSONResponse({"success": True, "notifications": notify_results})
+    return JSONResponse({"success": True, "username": username,
+                         "password": password if generated else None,
+                         "notifications": notify_results})
+
+
+@app.post("/api/create_user")
+async def create_user(request: Request):
+    if get_role(request) != 'admin':
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=403)
+    data = await request.json()
+    role = (data or {}).get("role", "driver") if isinstance(data, dict) else "driver"
+    return await create_account(request, data, role, request.session.get('username', 'admin'))
 
 @app.post("/api/delete_puv")
 async def delete_puv(request: Request):
@@ -954,14 +1008,24 @@ async def delete_user(request: Request):
     if username in users:
         del users[username]
         db_delete_user(username)
+        # A deleted driver no longer drives anything: free their vehicle so the name doesn't linger
+        freed = False
+        for p in puv_database:
+            if p.get("username") == username:
+                p["username"], p["driver"] = "", "Unassigned"
+                db_save_puv(p["id"], p)
+                freed = True
         log_audit(request.session.get('username', 'admin'), f"USER_DELETED: {username}",
                   request.client.host if request.client else "unknown", "red")
+        if freed:
+            await notify_data_changed("fleet")
         return JSONResponse({"success": True})
     return JSONResponse({"success": False, "error": "User not found."})
 
 # --- ADMIN: view account details / reset password ---
 _ROLE_FIELDS = {
     "admin":       [("email", "Email"), ("department", "Department"), ("clearance", "Clearance")],
+    "ltfrb":       [("email", "Email"), ("mobile", "Mobile"), ("office", "Office"), ("position", "Position")],
     "enforcer":    [("email", "Email"), ("mobile", "Mobile"), ("badge", "Badge no."), ("precinct", "Precinct"), ("shift_status", "Shift status")],
     "driver":      [("mobile", "Mobile"), ("license", "License no."), ("operator", "Operator"), ("emergency_contact", "Emergency contact")],
     "cooperative": [("email", "Email"), ("mobile", "Mobile"), ("organization", "Organization"), ("position", "Position"), ("address", "Address")],
@@ -992,6 +1056,10 @@ async def admin_user_details(username: str, request: Request):
         "success":          True,
         "username":         username,
         "full_name":        u.get("full_name", ""),
+        "first_name":       u.get("first_name", ""),
+        "last_name":        u.get("last_name", ""),
+        "list_name":        list_name(u),
+        "created_by":       u.get("created_by", ""),
         "role":             role,
         "password_pending": bool(u.get("must_change_password", False)),
         "details":          details,
@@ -1047,7 +1115,7 @@ async def audit_logs_page(request: Request):
 @app.get("/records", response_class=HTMLResponse)
 async def records(request: Request):
     role = get_role(request)
-    if role not in ['admin', 'enforcer', 'cooperative']: return RedirectResponse(url="/dashboard", status_code=302)
+    if role not in ['admin', 'ltfrb', 'cooperative']: return RedirectResponse(url="/dashboard", status_code=302)
     if role == 'cooperative':
         username  = request.session.get('username')
         puvs      = get_coop_puvs(username)
@@ -1068,32 +1136,32 @@ async def admin_reports(request: Request):
 @app.get("/intercepts", response_class=HTMLResponse)
 async def intercepts(request: Request):
     if not is_logged_in(request): return RedirectResponse(url="/login", status_code=302)
-    if get_role(request) not in ('admin', 'enforcer', 'cooperative'): return RedirectResponse(url="/dashboard", status_code=302)
+    if get_role(request) not in ('admin', 'ltfrb', 'cooperative'): return RedirectResponse(url="/dashboard", status_code=302)
     violators = [p for p in puv_database if p['passengers'] > p['capacity'] or p.get('temp', 0) >= 37.5]
     stats     = compute_puv_stats()
     return TR(request, "intercepts.html", {"role": get_role(request), "puvs": violators, "stats": stats})
 
 @app.get("/citations", response_class=HTMLResponse)
 async def citations(request: Request):
-    if get_role(request) != 'enforcer': return RedirectResponse(url="/dashboard", status_code=302)
-    return TR(request, "enforcer/citations.html", {"role": "enforcer", "citations": citations_db})
+    if get_role(request) != 'ltfrb': return RedirectResponse(url="/dashboard", status_code=302)
+    return TR(request, "enforcer/citations.html", {"role": "ltfrb", "citations": citations_db})
 
 @app.get("/reports", response_class=HTMLResponse)
 async def reports(request: Request):
-    if get_role(request) != 'enforcer': return RedirectResponse(url="/dashboard", status_code=302)
-    return TR(request, "enforcer/reports.html", {"role": "enforcer", "citations": citations_db})
+    if get_role(request) != 'ltfrb': return RedirectResponse(url="/dashboard", status_code=302)
+    return TR(request, "enforcer/reports.html", {"role": "ltfrb", "citations": citations_db})
 
 @app.get("/dispatch_orders", response_class=HTMLResponse)
 async def dispatch_orders(request: Request):
-    if get_role(request) != 'enforcer': return RedirectResponse(url="/dashboard", status_code=302)
+    if get_role(request) != 'ltfrb': return RedirectResponse(url="/dashboard", status_code=302)
     violators = [p for p in puv_database if p['passengers'] > p['capacity'] or p.get('temp', 0) >= 37.5]
-    return TR(request, "enforcer/dispatch_order.html", {"role": "enforcer", "puvs": violators})
+    return TR(request, "enforcer/dispatch_order.html", {"role": "ltfrb", "puvs": violators})
 
 @app.get("/interception_status", response_class=HTMLResponse)
 async def interception_status(request: Request):
-    if get_role(request) != 'enforcer': return RedirectResponse(url="/dashboard", status_code=302)
+    if get_role(request) != 'ltfrb': return RedirectResponse(url="/dashboard", status_code=302)
     violators = [p for p in puv_database if p['passengers'] > p['capacity'] or p.get('temp', 0) >= 37.5]
-    return TR(request, "enforcer/interception_status.html", {"role": "enforcer", "puvs": violators, "messages": get_flash(request)})
+    return TR(request, "enforcer/interception_status.html", {"role": "ltfrb", "puvs": violators, "messages": get_flash(request)})
 
 @app.post("/submit_interception")
 async def submit_interception(
@@ -1102,7 +1170,7 @@ async def submit_interception(
     action: str = Form(...),
     notes:  str = Form(...)
 ):
-    if get_role(request) != 'enforcer': return RedirectResponse(url="/login", status_code=302)
+    if get_role(request) != 'ltfrb': return RedirectResponse(url="/login", status_code=302)
     plate, notes = clean_text(plate, 20), clean_text(notes, 1000)
     citation = {
         "serial":  f"CT-{len(citations_db)+1:04d}-X",
@@ -1123,13 +1191,68 @@ async def submit_interception(
 # ==========================================
 # COOPERATIVE ROUTES
 # ==========================================
+def assignable_drivers(coop_username: str) -> dict:
+    """Drivers a cooperative can pick for a vehicle: existing driver accounts that are free,
+    or already drive one of this cooperative's vehicles. Deleted accounts and drivers on
+    another cooperative's vehicle are left out. Sorted by last name."""
+    mine = {p["id"] for p in get_coop_puvs(coop_username)}
+    taken_elsewhere = {p.get("username") for p in puv_database if p.get("username") and p["id"] not in mine}
+    pool = {k: v for k, v in users.items() if v.get("role") == "driver" and k not in taken_elsewhere
+            and v.get("coop_owner") in (None, "", coop_username)}
+    return dict(sorted(pool.items(), key=lambda kv: (list_name(kv[1]) or kv[0]).lower()))
+
+# --- LTFRB: enforcer accounts (enforcers sign in on the mobile app) ---
+@app.get("/ltfrb/enforcers", response_class=HTMLResponse)
+async def ltfrb_enforcers(request: Request):
+    if get_role(request) != 'ltfrb': return RedirectResponse(url="/dashboard", status_code=302)
+    enforcers = sorted(((k, v) for k, v in users.items() if v.get("role") == "enforcer"),
+                       key=lambda kv: (list_name(kv[1]) or kv[0]).lower())
+    return TR(request, "enforcer/enforcers.html", {"role": "ltfrb", "enforcers": enforcers})
+
+@app.post("/api/ltfrb/enforcers")
+async def ltfrb_create_enforcer(request: Request):
+    if get_role(request) not in ('ltfrb', 'admin'):
+        return JSONResponse({"success": False, "error": "Only LTFRB can create enforcer accounts."}, status_code=403)
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    data = data if isinstance(data, dict) else {}
+    # "username" (the ID number) may be typed in; left empty, the system gives the next one
+    return await create_account(request, data, "enforcer", request.session.get('username', 'ltfrb'))
+
+# --- CO-OPS: their own driver accounts ---
+@app.post("/api/coop/drivers")
+async def coop_create_driver(request: Request):
+    if get_role(request) != 'cooperative':
+        return JSONResponse({"success": False, "error": "Only cooperatives can add drivers here."}, status_code=403)
+    me = request.session.get('username', '')
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    data = data if isinstance(data, dict) else {}
+    data["operator"] = users.get(me, {}).get("organization") or me
+    puv_id = data.pop("assigned_puv_id", None)
+    res = await create_account(request, data, "driver", me, extra={"coop_owner": me})
+    out = json.loads(res.body)
+    if out.get("success") and puv_id not in (None, ""):
+        puv = next((p for p in get_coop_puvs(me) if p["id"] == _as_int(puv_id, -1)), None)
+        if puv:
+            puv["username"] = out["username"]
+            puv["driver"]   = users[out["username"]].get("full_name", out["username"])
+            db_save_puv(puv["id"], puv)
+            out["vehicle"] = puv.get("plate")
+            await notify_data_changed("fleet")
+    return JSONResponse(out, status_code=res.status_code)
+
 @app.get("/coop/fleet", response_class=HTMLResponse)
 async def coop_fleet(request: Request):
     if get_role(request) != 'cooperative': return RedirectResponse(url="/dashboard", status_code=302)
     username  = request.session.get('username')
     udata     = users.get(username, {})
     coop_puvs = get_coop_puvs(username)
-    drivers   = {k: v for k, v in users.items() if v.get('role') == 'driver'}
+    drivers   = assignable_drivers(username)
     return TR(request, "cooperative/fleet.html", {"role": "cooperative", "puvs": coop_puvs, "drivers": drivers, "user_data": udata})
 
 @app.get("/coop/drivers", response_class=HTMLResponse)
@@ -1137,11 +1260,12 @@ async def coop_drivers(request: Request):
     if get_role(request) != 'cooperative': return RedirectResponse(url="/dashboard", status_code=302)
     username  = request.session.get('username')
     coop_puvs = get_coop_puvs(username)
-    # Only show drivers assigned to this coop's vehicles
+    # Drivers on this coop's vehicles, plus drivers this coop created (even before they get a vehicle)
     coop_driver_usernames = {p.get('username') for p in coop_puvs if p.get('username')}
-    drivers = {k: v for k, v in users.items() if v.get('role') == 'driver' and k in coop_driver_usernames}
+    drivers = {k: v for k, v in users.items() if v.get('role') == 'driver'
+               and (k in coop_driver_usernames or v.get('coop_owner') == username)}
     # Also include unassigned drivers for assignment purposes
-    all_drivers = {k: v for k, v in users.items() if v.get('role') == 'driver'}
+    all_drivers = assignable_drivers(username)
     return TR(request, "cooperative/drivers.html", {"role": "cooperative", "drivers": drivers, "all_drivers": all_drivers, "puvs": coop_puvs, "messages": get_flash(request)})
 
 @app.get("/coop/violations", response_class=HTMLResponse)
@@ -1194,6 +1318,9 @@ async def coop_update_driver(request: Request):
         return JSONResponse({"success": False, "error": "This driver belongs to another cooperative's vehicle."}, status_code=403)
     for field in allowed_fields:
         if field in data and data[field] is not None:
+            if field == "full_name" and clean_text(data[field]) != users[username].get("full_name"):
+                users[username].pop("first_name", None)      # name changed: the old split no longer matches
+                users[username].pop("last_name", None)
             users[username][field] = clean_text(data[field])
     assigned_puv_id = data.get("assigned_puv_id")
     if assigned_puv_id is not None:
@@ -1581,8 +1708,8 @@ REPORT_TYPES = {
     "other":    "Other violation",
 }
 REPORT_STATUSES = ("open", "reviewed", "resolved")
-REPORT_VIEWERS  = ("admin", "enforcer", "cooperative")
-REPORT_EDITORS  = ("admin", "enforcer")
+REPORT_VIEWERS  = ("admin", "ltfrb", "cooperative")
+REPORT_EDITORS  = ("admin", "ltfrb")
 
 
 def ph_now_iso() -> str:
@@ -1764,19 +1891,10 @@ async def passenger_change_password(request: Request):
 # --- ID GENERATOR ---
 @app.get("/api/next_id")
 async def next_id(role: str, request: Request):
-    if get_role(request) != 'admin':
+    me = get_role(request)
+    if not (me == 'admin' or (me == 'ltfrb' and role == 'enforcer') or (me == 'cooperative' and role == 'driver')):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
-    # Prefix per role: admin=2026, enforcer=2027, driver=2028, cooperative=2029
-    prefixes = {"admin": "2026", "enforcer": "2027", "driver": "2028", "cooperative": "2029"}
-    prefix = prefixes.get(role, "2030")
-    # Find all existing IDs for this role that match the prefix
-    existing = [
-        int(uid[4:]) for uid in users
-        if uid.startswith(prefix) and uid[4:].isdigit()
-    ]
-    next_seq = (max(existing) + 1) if existing else 1
-    next_id_val = f"{prefix}{next_seq:03d}"
-    return JSONResponse({"next_id": next_id_val})
+    return JSONResponse({"next_id": next_account_id(role)})
 
 
 # --- PROFILE & PASSWORD API ---
@@ -1790,6 +1908,7 @@ async def update_profile(request: Request):
 
     allowed = {
         'admin':       ['full_name', 'email'],
+        'ltfrb':       ['full_name', 'email', 'mobile'],
         'enforcer':    ['full_name', 'email', 'mobile', 'shift_status'],
         'driver':      ['full_name', 'mobile', 'emergency_contact'],
         'cooperative': ['full_name', 'email', 'mobile', 'address'],
@@ -1902,8 +2021,10 @@ async def coop_add_vehicle(request: Request):
     # Assign driver if provided
     driver_username = data.get("driver_username", "")
     driver_name     = "Unassigned"
-    if driver_username and driver_username in users:
+    if driver_username and driver_username in assignable_drivers(request.session.get('username', '')):
         driver_name = users[driver_username].get("full_name", driver_username)
+    else:
+        driver_username = ""          # deleted account, or already driving another co-op's vehicle
 
     new_id = max((p["id"] for p in puv_database), default=0) + 1
     coop_username = request.session.get('username', '')

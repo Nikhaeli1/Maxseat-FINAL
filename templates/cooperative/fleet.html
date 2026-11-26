@@ -157,7 +157,7 @@
           <select id="shift-{{ puv.id }}" class="form-control" style="flex:1;padding:9px 12px;font-size:13px;">
             <option value="">— Select driver —</option>
             {% for uname, udata in drivers.items() %}
-            <option value="{{ uname }}" {{ 'selected' if puv.username == uname }}>{{ udata.get('full_name', uname) }}</option>
+            <option value="{{ uname }}" {{ 'selected' if puv.username == uname }}>{{ (udata | list_name) or uname }}</option>
             {% endfor %}
           </select>
           <button class="btn btn-primary" style="padding:9px 14px;" onclick="assignDriver({{ puv.id }}, {{ puv.plate|js }})">
@@ -371,7 +371,7 @@
         <select id="av-driver" class="form-control">
           <option value="">— Unassigned —</option>
           {% for uname, udata in drivers.items() %}
-          <option value="{{ uname }}">{{ udata.get('full_name', uname) }} ({{ uname }})</option>
+          <option value="{{ uname }}">{{ (udata | list_name) or uname }} ({{ uname }})</option>
           {% endfor %}
         </select>
       </div>
