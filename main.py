@@ -17,7 +17,7 @@ from database import (
     db_save_puv,  db_delete_puv,  db_load_puvs,
     db_append_audit,    db_load_audit_logs,
     db_append_citation, db_load_citations,
-    db_append_complaint, db_load_complaints,
+    db_append_complaint, db_load_complaints, db_update_complaint,
     db_save_avatar, db_load_avatar, db_delete_avatar,
     TokenStore, DB_KIND, DB_URL_SOURCE, DB_ENV_NAMES, db_live_snapshot,
 )
@@ -519,6 +519,10 @@ def puv_live_payload(puv: dict) -> dict:
         "loc_name":       puv.get('loc_name', ''),
         "speed":          puv.get('speed', ''),
         "last_update":    puv.get('last_update', ''),
+        "humidity":       puv.get('humidity'),
+        "device_ts":      puv.get('device_ts'),     # when the in-vehicle counter last reported (Unix time)
+        "gps_at":         puv.get('gps_at'),        # time of the last GPS position, e.g. "4:09:33 AM"
+        "gps_ts":         puv.get('gps_ts'),        # same, as Unix time (for "x min ago")
     }
 
 def _as_int(value, fallback):
@@ -549,6 +553,7 @@ def log_audit(actor: str, event: str, ip: str, category: str = "blue"):
 def TR(request: Request, name: str, context: dict = None):
     context = dict(context or {})
     context.setdefault("users_data", users)
+    context.setdefault("new_reports", count_new_reports(request))
     return templates.TemplateResponse(request=request, name=name, context=context)
 
 # ══════════════════════════════════════════════
@@ -816,20 +821,24 @@ async def dashboard(request: Request):
         })
     elif role == 'enforcer':
         sorted_puvs = sorted(puv_database, key=lambda x: (x['passengers'] / x['capacity']) if x['capacity'] > 0 else 0, reverse=True)
-        return TR(request, "enforcer/dashboard.html", {"puvs": sorted_puvs, "role": role, "stats": stats})
+        return TR(request, "enforcer/dashboard.html", {"puvs": sorted_puvs, "role": role, "stats": stats,
+                                                       "recent_reports": visible_reports(request)[:4]})
     elif role == 'driver':
         # my_puv is None when the cooperative hasn't assigned this driver a vehicle yet;
         # the template shows a "no vehicle assigned" screen instead of crashing.
         my_puv = find_driver_puv(request.session.get('username'))
         if my_puv:
             _normalize_puv(my_puv)
-        return TR(request, "driver/dashboard.html", {"puv": my_puv, "role": role})
+        return TR(request, "driver/dashboard.html", {"puv": my_puv, "role": role,
+                                                     "server_now": int(time.time()),
+                                                     "device_online_s": DEVICE_ONLINE_S})
     elif role == 'cooperative':
         username   = request.session.get('username')
         udata      = users.get(username, {})
         coop_puvs  = get_coop_puvs(username)
         coop_stats = compute_puv_stats_for(coop_puvs)
-        return TR(request, "cooperative/dashboard.html", {"puvs": coop_puvs, "role": role, "stats": coop_stats, "user_data": udata})
+        return TR(request, "cooperative/dashboard.html", {"puvs": coop_puvs, "role": role, "stats": coop_stats, "user_data": udata,
+                                                          "recent_reports": visible_reports(request)[:4]})
     return RedirectResponse(url="/logout", status_code=302)
 
 # ==========================================
@@ -1526,18 +1535,26 @@ async def passenger_complaint(request: Request):
         "serial":      serial,
         "plate":       plate,
         "puv_id":      puv["id"]         if puv else None,
+        "company":     puv.get("company", "") if puv else "",
+        "driver":      puv.get("driver", "")  if puv else "",
+        "loc_name":    puv.get("loc_name", "") if puv else "",
         "complaint":   complaint,
         "description": description,
         "passengers":  puv["passengers"] if puv else None,
         "capacity":    puv["capacity"]   if puv else None,
         "temp":        puv["temp"]       if puv else None,
         "reporter":    pax_user["username"],
-        "timestamp":   datetime.datetime.now().isoformat(timespec="seconds"),
+        "timestamp":   ph_now_iso(),
         "status":      "open",
     }
+    try:
+        db_append_complaint(record)          # save first: never tell the passenger it was sent if it wasn't
+    except Exception as e:
+        print(f"[DB] complaint save failed: {e}")
+        return JSONResponse({"error": "Couldn't send the report right now. Please try again."}, status_code=503)
     complaints_db.append(record)
-    db_append_complaint(record)
     log_audit(pax_user["username"], f"PASSENGER_COMPLAINT: {plate} · {complaint.upper()}", request.client.host if request.client else "unknown", "blue")
+    await notify_data_changed("complaints")
     return JSONResponse({
         "message": "Complaint submitted successfully. Thank you for your report.",
         "serial":  serial,
@@ -1551,9 +1568,146 @@ async def passenger_my_complaints(request: Request):
     pax_user = get_passenger_user(request)
     if not pax_user:
         return JSONResponse({"error": "Unauthorized."}, status_code=401)
-    mine = [c for c in complaints_db if c.get("reporter") == pax_user["username"]]
+    mine = [{k: v for k, v in c.items() if k != "status_by"}
+            for c in complaints_db if c.get("reporter") == pax_user["username"]]
     mine.sort(key=lambda c: c.get("timestamp", ""), reverse=True)   # newest first
     return JSONResponse({"complaints": mine})
+
+
+# --- PASSENGER REPORTS: LTFRB / Admin review them, the cooperative sees its own vehicles ---
+REPORT_TYPES = {
+    "overload": "Passenger overloading",
+    "thermal":  "Elevated temperature",
+    "other":    "Other violation",
+}
+REPORT_STATUSES = ("open", "reviewed", "resolved")
+REPORT_VIEWERS  = ("admin", "enforcer", "cooperative")
+REPORT_EDITORS  = ("admin", "enforcer")
+
+
+def ph_now_iso() -> str:
+    """Philippine time like 2026-11-27T09:15:02 (Vercel's clock is UTC)."""
+    return datetime.datetime.now(PH_TZ).replace(tzinfo=None).isoformat(timespec="seconds")
+
+
+def visible_reports(request: Request) -> list:
+    """Passenger reports this user may see, newest first."""
+    role = get_role(request)
+    if role not in REPORT_VIEWERS:
+        return []
+    items = list(complaints_db)
+    if role == "cooperative":
+        plates = {p.get("plate", "").upper() for p in get_coop_puvs(request.session.get("username", ""))}
+        items = [c for c in items if (c.get("plate") or "").upper() in plates]
+    items.sort(key=lambda c: c.get("timestamp", ""), reverse=True)
+    return items
+
+
+def count_new_reports(request: Request) -> int:
+    """Number shown next to "Passenger reports" in the sidebar."""
+    try:
+        return sum(1 for c in visible_reports(request) if c.get("status", "open") == "open")
+    except Exception:
+        return 0
+
+
+@app.get("/passenger_reports", response_class=HTMLResponse)
+async def passenger_reports_page(request: Request, status: str = "all"):
+    if not is_logged_in(request):
+        return RedirectResponse(url="/login", status_code=302)
+    role = get_role(request)
+    if role not in REPORT_VIEWERS:
+        return RedirectResponse(url="/dashboard", status_code=302)
+    items  = visible_reports(request)
+    counts = {s: sum(1 for c in items if c.get("status", "open") == s) for s in REPORT_STATUSES}
+    counts["all"] = len(items)
+    if status not in REPORT_STATUSES:
+        status = "all"
+    shown = items if status == "all" else [c for c in items if c.get("status", "open") == status]
+    company = {p.get("plate", "").upper(): p.get("company", "") for p in puv_database}
+    return TR(request, "passenger_reports.html", {
+        "role": role, "reports": shown, "counts": counts, "filter": status,
+        "types": REPORT_TYPES, "company": company, "can_update": role in REPORT_EDITORS,
+    })
+
+
+async def set_report_status(serial: str, body: dict, username: str, ip: str) -> JSONResponse:
+    """Mark a passenger report open / reviewed / resolved (website and LTFRB mobile app)."""
+    new_status = clean_text(body.get("status", ""), 20).lower()
+    if new_status not in REPORT_STATUSES:
+        return JSONResponse({"error": "Status must be open, reviewed or resolved."}, status_code=400)
+    serial = clean_text(serial, 40).upper()
+    record = next((c for c in complaints_db if c.get("serial") == serial), None)
+    if not record:
+        return JSONResponse({"error": "That report no longer exists."}, status_code=404)
+    changes = {
+        "status":    new_status,
+        "status_by": username,
+        "status_at": ph_now_iso(),
+    }
+    if "note" in body:
+        changes["note"] = clean_text(body.get("note", ""), 300)
+    try:
+        saved = db_update_complaint(serial, changes)
+    except Exception as e:
+        print(f"[DB] report status update failed: {e}")
+        return JSONResponse({"error": "Couldn't save. Please try again."}, status_code=503)
+    record.update(saved or changes)
+    log_audit(username, f"PASSENGER_REPORT_{new_status.upper()}: {serial} · {record.get('plate', '')}",
+              ip, "green" if new_status == "resolved" else "blue")
+    await notify_data_changed("complaints")
+    return JSONResponse({"success": True, "serial": serial, "status": new_status,
+                         "status_at": record.get("status_at"), "note": record.get("note", "")})
+
+
+@app.post("/api/complaints/{serial}/status")
+async def update_report_status(serial: str, request: Request):
+    if not is_logged_in(request):
+        return JSONResponse({"error": "Please log in again."}, status_code=401)
+    role = get_role(request)
+    if role not in REPORT_EDITORS:
+        return JSONResponse({"error": "Only LTFRB and the administrator can update reports."}, status_code=403)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    return await set_report_status(serial, body if isinstance(body, dict) else {},
+                                   request.session.get("username", ""),
+                                   request.client.host if request.client else "unknown")
+
+
+# --- LTFRB field officers: passenger reports in the mobile app ---
+@app.get("/api/mobile/passenger-reports")
+async def mobile_passenger_reports(request: Request, status: str = "all"):
+    mobile_user = get_mobile_user(request)
+    if not mobile_user:
+        return JSONResponse({"success": False, "error": "Unauthorized."}, status_code=401)
+    items = sorted(complaints_db, key=lambda c: c.get("timestamp", ""), reverse=True)
+    counts = {s: sum(1 for c in items if c.get("status", "open") == s) for s in REPORT_STATUSES}
+    counts["all"] = len(items)
+    if status in REPORT_STATUSES:
+        items = [c for c in items if c.get("status", "open") == status]
+    company = {p.get("plate", "").upper(): p.get("company", "") for p in puv_database}
+    reports = [{**{k: v for k, v in c.items() if k != "status_by"},
+                "status":  c.get("status", "open"),
+                "company": company.get((c.get("plate") or "").upper()) or c.get("company", ""),
+                "type_label": REPORT_TYPES.get(c.get("complaint"), (c.get("complaint") or "Report").capitalize())}
+               for c in items[:200]]
+    return JSONResponse({"success": True, "reports": reports, "counts": counts})
+
+
+@app.post("/api/mobile/passenger-reports/{serial}/status")
+async def mobile_passenger_report_status(serial: str, request: Request):
+    mobile_user = get_mobile_user(request)
+    if not mobile_user:
+        return JSONResponse({"success": False, "error": "Unauthorized."}, status_code=401)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    return await set_report_status(serial, body if isinstance(body, dict) else {},
+                                   mobile_user["username"],
+                                   request.client.host if request.client else "unknown")
 
 @app.put("/api/passenger/profile")
 async def passenger_update_profile(request: Request):
@@ -1828,26 +1982,11 @@ async def coop_request_capacity(request: Request):
 # --- SENSOR APIs ---
 PH_TZ = datetime.timezone(datetime.timedelta(hours=8))   # Philippine time (Vercel runs in UTC)
 
+# The counter sends a reading at least every 60 s. No reading for this long = counter offline.
+DEVICE_ONLINE_S = 150
+
 def _stamp_now() -> str:
     return datetime.datetime.now(PH_TZ).strftime("%I:%M:%S %p").lstrip("0")
-
-@app.post("/api/update_sensor")
-async def update_sensor(request: Request):
-    if get_role(request) != 'driver': return JSONResponse({"error": "Unauthorized"})
-    data   = await request.json()
-    action = data.get('action')
-    puv    = find_driver_puv(request.session.get('username'))
-    if puv:
-        if action == 'add':
-            puv['passengers'] += 1
-        elif action == 'sub' and puv['passengers'] > 0:
-            puv['passengers'] -= 1
-        puv['last_update'] = _stamp_now()
-        db_save_puv(puv['id'], puv)
-        payload = puv_live_payload(puv)
-        await manager.broadcast(payload)
-        return JSONResponse({"success": True, **payload})
-    return JSONResponse({"error": "Vehicle not found"})
 
 @app.get("/api/driver/status")
 async def driver_status(request: Request):
@@ -1906,10 +2045,14 @@ def apply_sensor_update(payload: dict):
     if coords:
         puv['lat'], puv['lng'] = coords
         puv['gps_at'] = _stamp_now()
+        puv['gps_ts'] = int(time.time())
     if payload.get("loc_name"):
         puv['loc_name'] = clean_text(payload["loc_name"], 80)
     if payload.get("speed") is not None:
         puv['speed'] = clean_text(payload["speed"], 20)
+    if payload.get("humidity") is not None:
+        puv['humidity'] = _as_float(payload["humidity"], puv.get('humidity'))
+    puv['device_ts']      = int(time.time())     # the counter is online: shown on the driver dashboard
     puv['last_update']    = _stamp_now()
     puv['is_violator']    = puv['passengers'] > puv['capacity']
     puv['is_overheating'] = puv.get('temp', 0) >= 37.5
@@ -1934,7 +2077,7 @@ async def sensor_post(request: Request):
     await manager.broadcast(live)            # reaches WebSocket pages when running outside Vercel
     return JSONResponse({"success": True, **live})
 
-def _live_version(n_citations: int, n_complaints: int) -> str:
+def _live_version(n_citations: int, n_complaints) -> str:
     """Changes whenever anything on the fleet changes (readings, vehicles added/removed,
     capacity, driver, citations). Pages refresh their server-rendered parts when it changes."""
     parts = [str(n_citations), str(n_complaints)]
@@ -1953,7 +2096,10 @@ async def live_feed(request: Request):
         puv_database[:] = fresh
     except Exception as e:
         print(f"[DB] live snapshot failed, sending current data: {e}")
-        n_citations, n_complaints = len(citations_db), len(complaints_db)
+        n_citations = len(citations_db)
+        n_complaints = "{}.{}.{}".format(len(complaints_db),
+                                         sum(1 for c in complaints_db if c.get("status") == "reviewed"),
+                                         sum(1 for c in complaints_db if c.get("status") == "resolved"))
     return JSONResponse(
         {"version": _live_version(n_citations, n_complaints),
          "puvs": [puv_live_payload(p) for p in puv_database]},

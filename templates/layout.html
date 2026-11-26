@@ -6,6 +6,11 @@
     <title>MaxSeat Alert · {{ role|capitalize if role else 'System' }}</title>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>window.MAXSEAT_LIVE_MODE = "{{ LIVE_MODE|default('ws') }}"; window.MAXSEAT_CARTO_KEY = {{ (CARTO_KEY or '')|tojson }};</script>
+    <script>
+        // Turn any value into safe text before putting it inside HTML. Defined here in <head> so page
+        // scripts (maps, popups) can use it while the page is still loading.
+        function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+    </script>
     <script src="{{ url_for('static', path='js/ws-client.js') }}?v={{ ASSET_V }}"></script>
     <script src="{{ url_for('static', path='js/peek.js') }}?v={{ ASSET_V }}" defer></script>
     <link rel="stylesheet" href="{{ url_for('static', path='vendor/leaflet/leaflet.css') }}" />
@@ -38,6 +43,7 @@
         .sidebar { width: 256px; background: var(--sidebar-bg); display: flex; flex-direction: column; padding: 26px 14px; border-right: 1px solid rgba(255,255,255,0.04); flex-shrink: 0; z-index: 10; overflow-y: auto; }
         .sidebar-logo { max-width: 136px; margin-bottom: 32px; margin-left: 8px; filter: brightness(0) invert(1); }
         .nav-section { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.65); text-transform: uppercase; letter-spacing: 1.2px; padding: 0 10px; margin: 18px 0 6px; }
+        .nav-count { margin-left: auto; min-width: 21px; height: 21px; padding: 0 7px; border-radius: 99px; background: var(--mango); color: #14211B; font-size: 11.5px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; }
         .nav-link { display: flex; align-items: center; gap: 11px; padding: 10px 12px; color: rgba(255,255,255,0.9); text-decoration: none; border-radius: var(--radius-sm); margin-bottom: 2px; font-weight: 600; font-size: 13.5px; transition: all 0.17s ease; }
         .nav-link:hover { background: rgba(255,255,255,0.14); color:#FFFFFF; transform: translateX(3px); }
         .nav-link.active { background: var(--primary); color: var(--on-primary); box-shadow: 0 4px 12px rgba(198,242,78,0.30); }
@@ -286,6 +292,10 @@
         <a href="/fleet" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/fleet' }}">
             <i class="fa-solid fa-bus"></i> Vehicles
         </a>
+        <a href="/passenger_reports" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/passenger_reports' }}">
+            <i class="fa-solid fa-bullhorn"></i> Passenger reports
+            {% if new_reports %}<span class="nav-count" title="{{ new_reports }} new">{{ new_reports }}</span>{% endif %}
+        </a>
         <span class="nav-section">Administration</span>
         <a href="/user_management" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/user_management' }}">
             <i class="fa-solid fa-users-gear"></i> Users &amp; accounts
@@ -304,6 +314,10 @@
         <span class="nav-section">Enforcement</span>
         <a href="/intercepts" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/intercepts' }}">
             <i class="fa-solid fa-triangle-exclamation"></i> Active violations
+        </a>
+        <a href="/passenger_reports" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/passenger_reports' }}">
+            <i class="fa-solid fa-bullhorn"></i> Passenger reports
+            {% if new_reports %}<span class="nav-count" title="{{ new_reports }} new">{{ new_reports }}</span>{% endif %}
         </a>
         <a href="/dispatch_orders" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/dispatch_orders' }}">
             <i class="fa-solid fa-location-crosshairs"></i> Dispatch
@@ -336,6 +350,10 @@
         <span class="nav-section">Compliance</span>
         <a href="/coop/violations" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/coop/violations' }}">
             <i class="fa-solid fa-triangle-exclamation"></i> Violations &amp; enforcement
+        </a>
+        <a href="/passenger_reports" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/passenger_reports' }}">
+            <i class="fa-solid fa-bullhorn"></i> Passenger reports
+            {% if new_reports %}<span class="nav-count" title="{{ new_reports }} new">{{ new_reports }}</span>{% endif %}
         </a>
         <a href="/records" onclick="showLoader('Loading...')" class="nav-link {{ 'active' if request.url.path == '/records' }}">
             <i class="fa-solid fa-database"></i> Records
@@ -416,8 +434,6 @@
         function showLoader(t) { t=t||'Loading...'; document.getElementById('loader-text').textContent=t; document.getElementById('loader-overlay').classList.add('active'); }
         function hideLoader() { document.getElementById('loader-overlay').classList.remove('active'); }
         function triggerLogout() { showLoader('Logging out...'); setTimeout(function(){ window.location.replace('/logout'); }, 700); }
-        // Turn any value into safe text before putting it inside HTML
-        function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
         function popAlert(title,text,icon) { Swal.fire({titleText:title,text:text,icon:icon,confirmButtonColor:'#2F6F5A',background:'var(--card-bg)',color:'var(--text-main)'}); }
         function toggleTheme() { document.body.classList.toggle('dark-mode'); localStorage.setItem('theme',document.body.classList.contains('dark-mode')?'dark':'light'); }
         window.addEventListener('load', hideLoader);
