@@ -300,7 +300,9 @@ class TokenStore:
     def __init__(self, kind: str):
         self.kind = kind
 
-    def get(self, token, default=None):
+    def get(self, token, default=None, strict=False):
+        """strict=True: raise if the database can't be reached, so a busy database
+        isn't mistaken for "this login is no longer valid" (which signs people out)."""
         if not token:
             return default
         try:
@@ -315,6 +317,8 @@ class TokenStore:
                 return json.loads(row.data)
         except Exception as e:
             print(f"[DB] token get error: {e}")
+            if strict:
+                raise
             return default
 
     def __setitem__(self, token, value):

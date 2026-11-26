@@ -4,7 +4,7 @@
 <div class="page-row">
     <div class="page-header" style="margin-bottom:0;">
         <h1 class="page-title">Global Command Center</h1>
-        <p class="page-subtitle">Real-time fleet analytics &amp; GNSS spatial tracking — CDO Region</p>
+        <p class="page-subtitle">Real-time fleet analytics &amp; GNSS spatial tracking · CDO Region</p>
     </div>
     <button onclick="showLoader('Generating Report...')" class="btn btn-dark">
         <i class="fa-solid fa-download"></i> Export Report
@@ -86,7 +86,7 @@
     puvData.forEach(p => {
         const color = p.is_violator ? '#C6F24E' : '#2F6F5A';
         L.circleMarker([p.lat, p.lng], {radius:10,fillColor:color,color:'#fff',weight:3,fillOpacity:1}).addTo(map)
-         .bindPopup(`<div style="text-align:center;"><b>${p.company}</b><br>Plate: ${p.plate}<br>Load: ${p.passengers}/${p.capacity}</div>`);
+         .bindPopup(`<div style="text-align:center;"><b>${esc(p.company)}</b><br>Plate: ${esc(p.plate)}<br>Load: ${esc(p.passengers)}/${esc(p.capacity)}</div>`);
     });
     document.querySelectorAll('.feed-item').forEach(item => {
         item.addEventListener('click', function() {

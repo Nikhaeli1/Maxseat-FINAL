@@ -158,7 +158,7 @@
       <div class="activity-item">
         <div class="activity-dot" style="background:var(--mango);box-shadow:0 0 6px var(--mango);"></div>
         <div>
-          <div style="font-size:13px;font-weight:700;">{{ puv.plate }} — Overloaded</div>
+          <div style="font-size:13px;font-weight:700;">{{ puv.plate }} · Overloaded</div>
           <div style="font-size:11px;color:var(--text-muted);"><span data-puv="{{ puv.id }}" data-f="passengers">{{ puv.passengers }}</span>/{{ puv.capacity }} pax · <span data-puv="{{ puv.id }}" data-f="loc">{{ puv.loc_name }}</span></div>
           <div style="font-size:11px;color:var(--text-muted);"><span data-puv="{{ puv.id }}" data-f="updated">{{ puv.last_update }}</span></div>
         </div>
@@ -169,7 +169,7 @@
       <div class="activity-item">
         <div class="activity-dot" style="background:var(--mango-soft);box-shadow:0 0 6px var(--mango-soft);"></div>
         <div>
-          <div style="font-size:13px;font-weight:700;">{{ puv.plate }} — Thermal alert</div>
+          <div style="font-size:13px;font-weight:700;">{{ puv.plate }} · Thermal alert</div>
           <div style="font-size:11px;color:var(--text-muted);"><span data-puv="{{ puv.id }}" data-f="temp">{{ puv.temp }}</span>°C · <span data-puv="{{ puv.id }}" data-f="loc">{{ puv.loc_name }}</span></div>
           <div style="font-size:11px;color:var(--text-muted);"><span data-puv="{{ puv.id }}" data-f="updated">{{ puv.last_update }}</span></div>
         </div>
@@ -192,7 +192,7 @@
 var puvData = JSON.parse(document.getElementById('coop-puv-data').textContent);
 var map = MaxSeatMap.create('coop-map', { fitAll: function () { return MaxSeatLive.trackedPuvs(); } });
 function coopColor(p) { return p.passengers > p.capacity ? '#C6F24E' : (p.temp >= 37.5 ? '#DDF79A' : '#2F6F5A'); }
-function coopPopup(p) { return '<strong>'+p.plate+'</strong><br>'+p.driver+'<br>'+p.passengers+'/'+p.capacity+' pax<br>'+p.temp+'°C'+MaxSeatMap.noGpsNote(p); }
+function coopPopup(p) { return '<strong>'+esc(p.plate)+'</strong><br>'+esc(p.driver)+'<br>'+esc(p.passengers)+'/'+esc(p.capacity)+' pax<br>'+esc(p.temp)+'°C'+MaxSeatMap.noGpsNote(p); }
 function addCoopMarker(p) {
   if (!map) return;
   var m = L.circleMarker(MaxSeatMap.position(p), MaxSeatMap.style(p, coopColor, 12))

@@ -30,12 +30,12 @@
             <div><i class="fa-solid fa-location-dot" style="color:var(--accent-ink);margin-right:7px;width:14px;"></i><strong><span data-puv="{{ puv.id }}" data-f="loc">{{ puv.loc_name }}</span></strong></div>
             {% if puv.passengers > puv.capacity %}
             <div><i class="fa-solid fa-users" style="color:var(--danger-ink);margin-right:7px;width:14px;"></i>
-                <span style="color:var(--danger-ink);font-weight:700;">Overloaded — <span data-puv="{{ puv.id }}" data-f="passengers">{{ puv.passengers }}</span>/{{ puv.capacity }} PAX</span>
+                <span style="color:var(--danger-ink);font-weight:700;">Overloaded · <span data-puv="{{ puv.id }}" data-f="passengers">{{ puv.passengers }}</span>/{{ puv.capacity }} PAX</span>
             </div>
             {% endif %}
             {% if puv.temp >= 37.5 %}
             <div><i class="fa-solid fa-thermometer-half" style="color:var(--warn-ink);margin-right:7px;width:14px;"></i>
-                <span style="color:var(--warn-ink);font-weight:700;">Thermal Limit — <span data-puv="{{ puv.id }}" data-f="temp">{{ puv.temp }}</span>°C</span>
+                <span style="color:var(--warn-ink);font-weight:700;">Thermal Limit · <span data-puv="{{ puv.id }}" data-f="temp">{{ puv.temp }}</span>°C</span>
             </div>
             {% endif %}
         </div>

@@ -49,7 +49,7 @@
 </style>
 
 <!-- ══════════════════════════════
-     VIEW A — Fleet list
+     VIEW A · Fleet list
 ══════════════════════════════ -->
 <div class="fleet-view" id="fleet-view">
 
@@ -160,7 +160,7 @@
             <option value="{{ uname }}" {{ 'selected' if puv.username == uname }}>{{ udata.get('full_name', uname) }}</option>
             {% endfor %}
           </select>
-          <button class="btn btn-primary" style="padding:9px 14px;" onclick="assignDriver({{ puv.id }}, '{{ puv.plate }}')">
+          <button class="btn btn-primary" style="padding:9px 14px;" onclick="assignDriver({{ puv.id }}, {{ puv.plate|js }})">
             <i class="fa-solid fa-check"></i>
           </button>
         </div>
@@ -173,7 +173,7 @@
         <div class="puv-meta-label" style="margin-bottom:8px;"><i class="fa-solid fa-sliders" style="margin-right:5px;color:var(--accent-ink);"></i>Seating configuration</div>
         {% if pending_cap %}
         <div style="margin-bottom:8px;">
-          <span class="badge-pending-ltfrb"><i class="fa-solid fa-clock"></i> Pending LTFRB Approval — {{ pending_cap.seated }} seated + {{ pending_cap.standing }} standing = {{ pending_cap.total }} total</span>
+          <span class="badge-pending-ltfrb"><i class="fa-solid fa-clock"></i> Pending LTFRB Approval · {{ pending_cap.seated }} seated + {{ pending_cap.standing }} standing = {{ pending_cap.total }} total</span>
         </div>
         {% endif %}
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Approved: <strong>{{ seated }} seated + {{ standing }} standing = {{ total_max }} total</strong></div>
@@ -187,7 +187,7 @@
             <input type="number" class="cap-input" id="stand-{{ puv.id }}" value="{{ standing }}" min="0" max="30" style="width:100%;">
           </div>
         </div>
-        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:10px;font-size:12px;" onclick="saveCap({{ puv.id }}, '{{ puv.plate }}')">
+        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:10px;font-size:12px;" onclick="saveCap({{ puv.id }}, {{ puv.plate|js }})">
           <i class="fa-solid fa-paper-plane"></i> Submit to LTFRB
         </button>
         <div style="font-size:11px;color:var(--text-muted);margin-top:5px;"><i class="fa-solid fa-circle-info" style="margin-right:3px;"></i>Changes require LTFRB approval before taking effect.</div>
@@ -196,7 +196,7 @@
       <div class="section-div"></div>
 
       <!-- Remove -->
-      <button onclick="removePuv({{ puv.id }}, '{{ puv.plate }}')"
+      <button onclick="removePuv({{ puv.id }}, {{ puv.plate|js }})"
         style="width:100%;padding:9px;background:rgba(198,242,78,.07);border:1.5px solid rgba(198,242,78,.2);color:var(--danger-ink);border-radius:var(--radius-sm);font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;transition:all .2s;"
         onmouseover="this.style.background='rgba(198,242,78,.15)'" onmouseout="this.style.background='rgba(198,242,78,.07)'">
         <i class="fa-solid fa-trash" style="margin-right:6px;"></i>Remove vehicle
@@ -230,7 +230,7 @@
 
 
 <!-- ══════════════════════════════
-     VIEW B — Add vehicle (full page)
+     VIEW B · Add vehicle (full page)
 ══════════════════════════════ -->
 <div class="add-page" id="add-page">
 
@@ -241,7 +241,7 @@
   <div class="page-row" style="margin-bottom:26px;">
     <div>
       <h1 class="page-title">Add a vehicle</h1>
-      <p class="page-subtitle">Register a new PUV — fill in all details below</p>
+      <p class="page-subtitle">Register a new PUV · fill in all details below</p>
     </div>
   </div>
 
@@ -488,8 +488,8 @@ async function saveCap(puvId, plate) {
   if (data.success) {
     await Swal.fire({
       title:'Submitted',
-      html:'Capacity change for <b>'+plate+'</b> submitted.<br><br>'
-         + '<span style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--text-main);border:1px solid color-mix(in srgb, var(--text-main) 20%, transparent);padding:4px 12px;border-radius:6px;font-weight:700;font-size:12px;display:inline-flex;align-items:center;gap:5px;"><i class="fa-solid fa-clock"></i> Pending LTFRB Approval — '+seated+' seated + '+standing+' standing = '+(seated+standing)+' total</span>',
+      html:'Capacity change for <b>'+esc(plate)+'</b> submitted.<br><br>'
+         + '<span style="background:color-mix(in srgb, var(--text-main) 10%, transparent);color:var(--text-main);border:1px solid color-mix(in srgb, var(--text-main) 20%, transparent);padding:4px 12px;border-radius:6px;font-weight:700;font-size:12px;display:inline-flex;align-items:center;gap:5px;"><i class="fa-solid fa-clock"></i> Pending LTFRB Approval · '+seated+' seated + '+standing+' standing = '+(seated+standing)+' total</span>',
       icon:'success', confirmButtonColor:'#2F6F5A', background:'var(--card-bg)', color:'var(--text-main)'
     });
     location.reload();
@@ -497,7 +497,7 @@ async function saveCap(puvId, plate) {
 }
 
 async function removePuv(puvId, plate) {
-  var result = await Swal.fire({ title:'Remove '+plate+'?', text:'This will permanently remove the vehicle from your fleet.', icon:'warning', showCancelButton:true, confirmButtonColor:'#2F6F5A', cancelButtonColor:'#5E6F67', confirmButtonText:'<i class="fa-solid fa-trash"></i> Yes, remove', cancelButtonText:'Cancel', background:'var(--card-bg)', color:'var(--text-main)' });
+  var result = await Swal.fire({ titleText:'Remove '+plate+'?', text:'This will permanently remove the vehicle from your fleet.', icon:'warning', showCancelButton:true, confirmButtonColor:'#2F6F5A', cancelButtonColor:'#5E6F67', confirmButtonText:'<i class="fa-solid fa-trash"></i> Yes, remove', cancelButtonText:'Cancel', background:'var(--card-bg)', color:'var(--text-main)' });
   if (!result.isConfirmed) return;
   var res  = await fetch('/api/delete_puv', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ puv_id: puvId }) });
   var data = await res.json();

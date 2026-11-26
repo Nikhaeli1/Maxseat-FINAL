@@ -209,10 +209,10 @@
               {{ 'Active' if pw_ok else 'Reset pending' }}
             </span>
             <div class="um-card-actions">
-              <button class="um-view-btn" onclick="umView('{{ uname }}')" title="View account details">
+              <button class="um-view-btn" onclick="umView({{ uname|js }})" title="View account details">
                 <i class="fa-solid fa-eye"></i> View
               </button>
-              <button class="um-del-btn" onclick="umDelete('{{ uname }}')" title="Remove user">
+              <button class="um-del-btn" onclick="umDelete({{ uname|js }})" title="Remove user">
                 <i class="fa-solid fa-trash"></i>
               </button>
             </div>
@@ -223,7 +223,7 @@
           <i class="fa-regular fa-user"></i>No {{ label | lower }} yet
         </div>
         {% endfor %}
-        <button class="um-add-btn" onclick="showCreate('{{ rkey }}')">
+        <button class="um-add-btn" onclick="showCreate({{ rkey|js }})">
           <i class="fa-solid fa-plus"></i> Add {{ rkey }}
         </button>
       </div>
@@ -260,10 +260,10 @@
           <div class="um-card-foot">
             <span class="um-self-reg"><i class="fa-solid fa-mobile-screen-button"></i> Self-registered</span>
             <div class="um-card-actions">
-              <button class="um-view-btn" onclick="umView('{{ uname }}')" title="View account details">
+              <button class="um-view-btn" onclick="umView({{ uname|js }})" title="View account details">
                 <i class="fa-solid fa-eye"></i> View
               </button>
-              <button class="um-del-btn" onclick="umDelete('{{ uname }}')" title="Remove account">
+              <button class="um-del-btn" onclick="umDelete({{ uname|js }})" title="Remove account">
                 <i class="fa-solid fa-trash"></i>
               </button>
             </div>
@@ -291,7 +291,7 @@
   <div class="page-row" style="margin-bottom:28px;">
     <div>
       <h1 class="page-title">Add a new user</h1>
-      <p class="page-subtitle">Choose a role — the ID and password will be generated automatically</p>
+      <p class="page-subtitle">Choose a role · the ID and password will be generated automatically</p>
     </div>
   </div>
 
@@ -486,11 +486,21 @@ async function fetchNextId(role) {
   return data.next_id;
 }
 
+/* Random first password. (It used to be ID@ID, which anyone could guess.) */
+var _cuPw = '';
+function makePassword() {
+  var abc = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  var out = '', buf = new Uint32Array(10);
+  crypto.getRandomValues(buf);
+  for (var i = 0; i < buf.length; i++) out += abc[buf[i] % abc.length];
+  return out;
+}
 function updatePasswordPreview() {
   var id    = document.getElementById('f-username').value;
   var el    = document.getElementById('f-password-preview');
   if (id) {
-    el.value = id + '@' + id;
+    _cuPw = makePassword();
+    el.value = _cuPw;
   } else {
     el.value = '';
     el.placeholder = 'Choose a role first…';
@@ -565,7 +575,7 @@ async function cuSubmit() {
   if (!_cuId)   { cuShowError('ID number not generated yet. Please try again.'); return; }
   if (!cuVal('f-fullname')) { cuShowError('Full name is required.'); return; }
 
-  var password = _cuId + '@' + _cuId;   /* username@idnumber */
+  var password = _cuPw || makePassword();
   var payload  = { username:_cuId, full_name:cuVal('f-fullname'), role:_cuRole, password:password };
 
   if (_cuRole === 'admin') {
@@ -603,7 +613,7 @@ async function cuSubmit() {
     if (emailOk) {
       sentLine = '<br><span style="color:var(--ok);font-size:12px;"><i class="fa-solid fa-check-circle"></i> Login details sent by email.</span>';
     } else if (emailErr) {
-      sentLine = '<br><span style="color:var(--danger-ink);font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> Email failed: ' + emailErr + '</span>';
+      sentLine = '<br><span style="color:var(--danger-ink);font-size:11px;"><i class="fa-solid fa-triangle-exclamation"></i> Email failed: ' + esc(emailErr) + '</span>';
     } else {
       sentLine = '<br><span style="color:var(--warn-ink);font-size:12px;"><i class="fa-solid fa-exclamation-circle"></i> No email given. Share the login details with them yourself.</span>';
     }
@@ -611,8 +621,8 @@ async function cuSubmit() {
     await Swal.fire({
       title: 'Account created',
       html:  '<div style="text-align:left;font-size:14px;line-height:1.9;">'
-           + '<b>ID / Username:</b> <code style="background:#EEF5F1;padding:2px 7px;border-radius:5px;">' + _cuId + '</code><br>'
-           + '<b>Initial password:</b> <code style="background:#EEF5F1;padding:2px 7px;border-radius:5px;">' + password + '</code>'
+           + '<b>ID / Username:</b> <code style="background:#EEF5F1;padding:2px 7px;border-radius:5px;">' + esc(_cuId) + '</code><br>'
+           + '<b>Initial password:</b> <code style="background:#EEF5F1;padding:2px 7px;border-radius:5px;">' + esc(password) + '</code>'
            + sentLine + '<br><br>'
            + '<span style="color:#5E6F67;font-size:12px;">The user will be asked to change their password on first login.</span>'
            + '</div>',
@@ -628,7 +638,7 @@ async function cuSubmit() {
 /* ── delete ── */
 async function umDelete(username) {
   var result = await Swal.fire({
-    title:'Remove '+username+'?', text:'This action cannot be undone.',
+    titleText:'Remove '+username+'?', text:'This action cannot be undone.',
     icon:'warning', showCancelButton:true,
     confirmButtonColor:'#2F6F5A', cancelButtonColor:'#5E6F67',
     confirmButtonText:'<i class="fa-solid fa-trash"></i> Yes, remove',
@@ -711,9 +721,7 @@ async function umView(username) {
     + '<div class="umd-box">'
     + umdRow('Username', '<span class="umd-code">' + umEsc(d.username) + '</span>'
         + '<button class="umd-icon-btn" title="Copy username" onclick="umCopy(' + umEsc(JSON.stringify(d.username)) + ', this)"><i class="fa-regular fa-copy"></i></button>')
-    + umdRow('Password', '<span class="umd-code" id="umd-pw">••••••••</span>'
-        + '<button class="umd-icon-btn" id="umd-eye" title="Show / hide" onclick="umTogglePw()"><i class="fa-solid fa-eye"></i></button>'
-        + '<button class="umd-icon-btn" title="Copy password" onclick="umCopy(_umdPw, this)"><i class="fa-regular fa-copy"></i></button>')
+    + umdRow('Password', '<span style="color:var(--text-muted);font-size:12.5px;">Hidden. Passwords are stored scrambled, so nobody can read them. Use Reset password to make a new one.</span>')
     + umdRow('Password status', status)
     + '</div>';
 
@@ -735,7 +743,7 @@ async function umView(username) {
 
 async function umResetPassword(username) {
   var ok = await Swal.fire({
-    title:'Reset password for ' + username + '?',
+    titleText:'Reset password for ' + username + '?',
     text: 'Their current password will stop working. They will get a temporary password and must change it on next login.',
     icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, reset', confirmButtonColor: '#2F6F5A',
     cancelButtonColor: '#5E6F67', background: 'var(--card-bg)', color: 'var(--text-main)'

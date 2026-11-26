@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MaxSeat Alert — {{ role|capitalize if role else 'System' }}</title>
+    <title>MaxSeat Alert · {{ role|capitalize if role else 'System' }}</title>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>window.MAXSEAT_LIVE_MODE = "{{ LIVE_MODE|default('ws') }}"; window.MAXSEAT_CARTO_KEY = {{ (CARTO_KEY or '')|tojson }};</script>
     <script src="{{ url_for('static', path='js/ws-client.js') }}?v={{ ASSET_V }}"></script>
+    <script src="{{ url_for('static', path='js/peek.js') }}?v={{ ASSET_V }}" defer></script>
     <link rel="stylesheet" href="{{ url_for('static', path='vendor/leaflet/leaflet.css') }}" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -166,6 +167,102 @@
             }
             .main-content table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
         }
+
+        /* ═════════ MODERN LAYER: gradients, soft floating cards, larger easy-to-read text ═════════
+           Placed last and prefixed with "html body" so it also restyles each page's own classes. */
+        :root {
+            --grad-brand: linear-gradient(160deg, #3F8D70 0%, #2F6F5A 42%, #1C4A3B 100%);
+            --grad-btn:   linear-gradient(135deg, #3F8D70 0%, #245847 100%);
+            --grad-lime:  linear-gradient(135deg, #E1FC84 0%, #B6E23A 100%);
+            --grad-mint:  linear-gradient(135deg, #F1FAE3 0%, #FFFFFF 70%);
+            --shadow-soft: 0 14px 34px -16px rgba(20,33,27,0.22), 0 2px 6px rgba(20,33,27,0.04);
+            --shadow-lift: 0 22px 44px -18px rgba(20,33,27,0.30), 0 4px 10px rgba(20,33,27,0.05);
+            --radius-lg: 22px; --radius: 16px; --radius-sm: 12px;
+        }
+        body.dark-mode { --grad-mint: linear-gradient(135deg, rgba(198,242,78,0.10) 0%, rgba(198,242,78,0.02) 70%);
+                         --shadow-soft: 0 14px 34px -16px rgba(0,0,0,0.6); --shadow-lift: 0 22px 44px -18px rgba(0,0,0,0.7); }
+        html body {
+            font-size: 15px;
+            background:
+                radial-gradient(900px 520px at 108% -10%, rgba(198,242,78,0.22), transparent 62%),
+                radial-gradient(760px 520px at 18% 112%, rgba(47,111,90,0.13), transparent 60%),
+                var(--bg);
+        }
+        html body.dark-mode {
+            background:
+                radial-gradient(900px 520px at 108% -10%, rgba(198,242,78,0.07), transparent 62%),
+                radial-gradient(760px 520px at 18% 112%, rgba(63,141,112,0.16), transparent 60%),
+                var(--bg);
+        }
+
+        /* Sidebar: deep green gradient with a soft lime light in the corner */
+        html body .sidebar { background: var(--grad-brand); border-right: none; box-shadow: 8px 0 30px -18px rgba(20,33,27,0.5); }
+        @media (min-width: 901px) { html body .sidebar { position: relative; } }   /* phones keep the slide-out menu */
+        html body.dark-mode .sidebar { background: linear-gradient(160deg, #2D604E 0%, #1E2C26 55%, #161B18 100%); }
+        html body .sidebar::before { content: ""; position: absolute; width: 300px; height: 300px; top: -150px; right: -170px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(198,242,78,0.38), transparent 66%); pointer-events: none; }
+        html body .sidebar::after { content: ""; position: absolute; width: 260px; height: 260px; bottom: -120px; left: -140px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(255,255,255,0.12), transparent 66%); pointer-events: none; }
+        html body .sidebar > * { position: relative; z-index: 1; }
+        html body .nav-section { font-size: 11px; letter-spacing: 1.4px; color: rgba(255,255,255,0.6); }
+        html body .nav-link { border-radius: 12px; padding: 11px 13px; font-size: 14.5px; }
+        html body .nav-link.active { background: var(--grad-lime); color: #14211B; box-shadow: 0 10px 22px -8px rgba(198,242,78,0.6); }
+        html body .sidebar-user { border-radius: 16px; background: rgba(255,255,255,0.12); backdrop-filter: blur(6px); }
+
+        /* Top bar: frosted glass */
+        html body .top-nav { height: 66px; background: rgba(255,255,255,0.72); backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+            border-bottom: 1px solid rgba(220,232,225,0.7); box-shadow: none; }
+        html body.dark-mode .top-nav { background: rgba(38,43,40,0.72); border-bottom-color: rgba(52,58,54,0.8); }
+        html body .main-wrapper { background: transparent; }
+
+        /* Page headings: big, with a green gradient on the title */
+        html body .page-title { font-size: 31px; letter-spacing: -0.7px; line-height: 1.15;
+            background: linear-gradient(92deg, #14211B 0%, #2F6F5A 75%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        html body.dark-mode .page-title { background: linear-gradient(92deg, #FFFFFF 0%, #C6F24E 90%); -webkit-background-clip: text; background-clip: text; }
+        html body .page-subtitle { font-size: 15px; margin-top: 6px; }
+
+        /* Cards of every page: rounder, soft shadow, lift on hover */
+        html body :is(.card, .stat-card, .db-card, .db-stat, .um-stat, .um-col, .settings-card, .puv-card, .cu-form-card, .av-step,
+                      .activity-card, .report-section, .driver-card, .alert-card, .table-wrap) {
+            border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); border-color: rgba(220,232,225,0.85);
+        }
+        html body.dark-mode :is(.card, .stat-card, .db-card, .db-stat, .um-stat, .um-col, .settings-card, .puv-card, .cu-form-card, .av-step,
+                      .activity-card, .report-section, .driver-card, .alert-card, .table-wrap) { border-color: var(--border-color); }
+        html body :is(.card, .stat-card, .db-stat, .um-stat, .puv-card, .driver-card, .alert-card):hover { box-shadow: var(--shadow-lift); transform: translateY(-3px); }
+        /* Number tiles get a soft mint wash */
+        html body :is(.stat-card, .db-stat, .um-stat) { background-image: var(--grad-mint); }
+        /* Icon squares: keep their color, add a glossy gradient on top */
+        html body :is(.stat-icon, .db-stat-icon, .um-stat-icon) { border-radius: 16px; background-image: linear-gradient(140deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 60%) !important;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35); }
+        html body :is(.stat-value, .db-stat-value) { font-size: 32px; letter-spacing: -0.5px; }
+
+        /* Small labels: sentence case and larger (easier to read than tiny capitals) */
+        html body :is(.form-label, .stat-label, .db-stat-label, .db-card-title, .um-stat-label, .um-col-title, .cu-section-title,
+                      .info-label, .panel-label, .puv-meta-label, .total-load-label, .fine-label, .driver-name-label, .av-step-title,
+                      .cap-summary-lbl, .umd-label) {
+            text-transform: none; letter-spacing: 0; font-size: 13px;
+        }
+        html body :is(.db-card-title, .cu-section-title, .av-step-title, .um-col-title) { font-size: 15px; color: var(--text-main); font-weight: 800; }
+        html body th { font-size: 12px; letter-spacing: 0.6px; padding: 14px 18px; }
+        html body td { padding: 16px 18px; font-size: 14.5px; }
+
+        /* Buttons: gradient fills, a bit taller */
+        html body .btn { padding: 11px 20px; border-radius: 12px; font-size: 14px; min-height: 44px; }
+        html body :is(.btn-primary, .btn-danger) { background: var(--grad-lime); color: #14211B; box-shadow: 0 10px 22px -10px rgba(182,226,58,0.8); }
+        html body :is(.btn-primary, .btn-danger):hover { filter: brightness(1.03); box-shadow: 0 14px 26px -10px rgba(182,226,58,0.9); }
+        html body :is(.btn-dark, .btn-action) { background: var(--grad-btn); color: #FFFFFF; box-shadow: 0 10px 22px -10px rgba(47,111,90,0.75); }
+        html body .btn-outline { background: var(--card-bg); }
+
+        /* Inputs */
+        html body .form-control { padding: 13px 16px; border-radius: 12px; font-size: 15px; background: var(--card-bg); }
+        html body .form-control:focus { border-color: #2F6F5A; box-shadow: 0 0 0 4px rgba(47,111,90,0.14); }
+
+        /* Badges: rounded pills */
+        html body .badge { border-radius: 999px; padding: 5px 11px; font-size: 11.5px; }
+
+        /* Pop-ups match */
+        html body .swal2-popup { border-radius: 24px !important; }
+        html body .swal2-confirm { background: var(--grad-btn) !important; border-radius: 12px !important; }
     </style>
 </head>
 <body>
@@ -318,8 +415,10 @@
         })();
         function showLoader(t) { t=t||'Loading...'; document.getElementById('loader-text').textContent=t; document.getElementById('loader-overlay').classList.add('active'); }
         function hideLoader() { document.getElementById('loader-overlay').classList.remove('active'); }
-        function triggerLogout() { showLoader('Logging out...'); setTimeout(function(){ window.location.href='/logout'; }, 700); }
-        function popAlert(title,text,icon) { Swal.fire({title:title,text:text,icon:icon,confirmButtonColor:'#2F6F5A',background:'var(--card-bg)',color:'var(--text-main)'}); }
+        function triggerLogout() { showLoader('Logging out...'); setTimeout(function(){ window.location.replace('/logout'); }, 700); }
+        // Turn any value into safe text before putting it inside HTML
+        function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+        function popAlert(title,text,icon) { Swal.fire({titleText:title,text:text,icon:icon,confirmButtonColor:'#2F6F5A',background:'var(--card-bg)',color:'var(--text-main)'}); }
         function toggleTheme() { document.body.classList.toggle('dark-mode'); localStorage.setItem('theme',document.body.classList.contains('dark-mode')?'dark':'light'); }
         window.addEventListener('load', hideLoader);
     </script>

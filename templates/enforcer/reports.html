@@ -68,12 +68,12 @@ function generateReport(e) {
     citations.forEach(c => {
         const badge = c.status === 'RESOLVED' ? 'badge-green' : 'badge-red';
         html += `<tr>
-            <td><code style="font-family:inherit;font-variant-numeric:tabular-nums;font-weight:700;">#${c.serial}</code></td>
-            <td><strong>${c.plate}</strong><br><small style="color:var(--text-muted);">${c.company}</small></td>
-            <td>${c.officer}</td>
-            <td style="font-weight:700;">${c.fine}</td>
-            <td><span class="badge ${badge}">${c.status}</span></td>
-            <td>${c.date}</td>
+            <td><code style="font-family:inherit;font-variant-numeric:tabular-nums;font-weight:700;">#${esc(c.serial)}</code></td>
+            <td><strong>${esc(c.plate)}</strong><br><small style="color:var(--text-muted);">${esc(c.company)}</small></td>
+            <td>${esc(c.officer)}</td>
+            <td style="font-weight:700;">${esc(c.fine)}</td>
+            <td><span class="badge ${badge}">${esc(c.status)}</span></td>
+            <td>${esc(c.date)}</td>
         </tr>`;
     });
     html += '</tbody></table>';
