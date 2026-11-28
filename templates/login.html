@@ -6,6 +6,7 @@
     <title>MaxSeat Alert · Sign in</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
     <style>
         button, input, select, textarea { font-family: inherit; }
         :root { --navy:#14211B; --mango:#C6F24E; --text-main:#14211B; --text-muted:#5E6F67; --accent-ink:#14211B; --ok:#14211B; --warn-ink:#4D6B00; --danger-ink:#4D6B00; }
@@ -16,8 +17,8 @@
         #bg-enforcer    { background:linear-gradient(135deg, #F3FBDC 0%, #DDF79A 100%); }
         #bg-driver      { background:linear-gradient(135deg, #F3FBDC 0%, #E8F7B8 100%); }
         #bg-cooperative { background:linear-gradient(135deg, #FFFFFF 0%, #DCE8E1 100%); }
-        .glass-card { background: rgba(255,255,255,0.95); backdrop-filter: blur(25px); padding: 45px; border-radius: 32px; width: 420px; box-shadow: 0 30px 60px -15px rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.6); animation: cardEnter 0.6s cubic-bezier(0.16, 1, 0.3, 1); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        @keyframes cardEnter { from { opacity: 0; transform: translateY(30px); filter: blur(5px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }
+        .glass-card { background: rgba(255,255,255,0.95); backdrop-filter: blur(25px); padding: 45px; border-radius: 32px; width: 420px; box-shadow: 0 30px 60px -15px rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.6); animation: cardEnter 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        @keyframes cardEnter { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
         .alert { background:#F3FBDC; color:var(--danger-ink); padding: 15px; border-radius: 16px; margin-bottom: 20px; font-size: 14px; font-weight: 600; display:flex; gap:10px; align-items:center; }
         .input-group { position: relative; margin-bottom: 20px; width: 100%; }
         select, input { width: 100%; padding: 18px 20px; border:2px solid #DCE8E1; border-radius: 16px; box-sizing: border-box; font-family: inherit; transition: 0.3s; font-size: 15px; background:#F5F9F7; }
@@ -43,12 +44,25 @@
         .theme-layer { opacity: 0 !important; }
         .auth { display: grid; grid-template-columns: 1.05fr 1fr; min-height: 100vh; width: 100%; }
         .hero { position: relative; overflow: hidden; color: #fff; padding: 56px 64px; display: flex; flex-direction: column; justify-content: space-between;
-                background: linear-gradient(160deg, #3F8D70 0%, #2F6F5A 42%, #1C4A3B 100%); }
+                /* green tint over a faded photo of an empty PUV interior */
+                background: linear-gradient(160deg, rgba(63,141,112,0.86) 0%, rgba(47,111,90,0.88) 42%, rgba(28,74,59,0.93) 100%),
+                            url('/static/img/puv-interior.jpg') center / cover no-repeat, #2F6F5A; }
         .hero::before { content: ""; position: absolute; width: 620px; height: 620px; top: -260px; right: -240px; border-radius: 50%;
                 background: radial-gradient(circle, rgba(198,242,78,0.45), transparent 64%); }
         .hero::after { content: ""; position: absolute; width: 520px; height: 520px; bottom: -260px; left: -200px; border-radius: 50%;
                 background: radial-gradient(circle, rgba(255,255,255,0.14), transparent 66%); }
         .hero > * { position: relative; z-index: 1; }
+        /* The green side reaches 140px under the map side and fades out on an eased curve
+           (slow start, slow finish), so there is no visible line where the two halves meet.
+           Its right part turns a lighter green first, so the middle of the fade stays green, not grey. */
+        .hero-wrap { position: relative; z-index: 1; display: flex; margin-right: -140px;
+                -webkit-mask-image: linear-gradient(to right, rgba(0,0,0,1.000) calc(100% - 340px), rgba(0,0,0,0.995) calc(100% - 312px), rgba(0,0,0,0.965) calc(100% - 283px), rgba(0,0,0,0.896) calc(100% - 255px), rgba(0,0,0,0.790) calc(100% - 227px), rgba(0,0,0,0.653) calc(100% - 198px), rgba(0,0,0,0.500) calc(100% - 170px), rgba(0,0,0,0.347) calc(100% - 142px), rgba(0,0,0,0.210) calc(100% - 113px), rgba(0,0,0,0.104) calc(100% - 85px), rgba(0,0,0,0.035) calc(100% - 57px), rgba(0,0,0,0.005) calc(100% - 28px), rgba(0,0,0,0.000) calc(100% - 0px));
+                        mask-image: linear-gradient(to right, rgba(0,0,0,1.000) calc(100% - 340px), rgba(0,0,0,0.995) calc(100% - 312px), rgba(0,0,0,0.965) calc(100% - 283px), rgba(0,0,0,0.896) calc(100% - 255px), rgba(0,0,0,0.790) calc(100% - 227px), rgba(0,0,0,0.653) calc(100% - 198px), rgba(0,0,0,0.500) calc(100% - 170px), rgba(0,0,0,0.347) calc(100% - 142px), rgba(0,0,0,0.210) calc(100% - 113px), rgba(0,0,0,0.104) calc(100% - 85px), rgba(0,0,0,0.035) calc(100% - 57px), rgba(0,0,0,0.005) calc(100% - 28px), rgba(0,0,0,0.000) calc(100% - 0px)); }
+        .hero-wrap > .hero { flex: 1; padding-right: 204px; }
+        .hero-wrap > .hero { background:
+                linear-gradient(to right, rgba(63,141,112,0) calc(100% - 440px), rgba(63,141,112,0.5) calc(100% - 150px), rgba(118,172,147,0.7) 100%),
+                linear-gradient(160deg, rgba(63,141,112,0.86) 0%, rgba(47,111,90,0.88) 42%, rgba(28,74,59,0.93) 100%),
+                url('/static/img/puv-interior.jpg') center / cover no-repeat, #2F6F5A; }
         .hero-logo { max-width: 150px; filter: brightness(0) invert(1); }
         .hero h1 { font-size: 46px; line-height: 1.08; letter-spacing: -1.2px; margin: 0 0 16px; font-weight: 800; }
         .hero h1 span { background: linear-gradient(92deg, #E1FC84, #C6F24E); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -66,11 +80,29 @@
         select:focus, input:focus { border-color: #2F6F5A; box-shadow: 0 0 0 4px rgba(47,111,90,0.14); }
         button[type="submit"] { border-radius: 14px; background: linear-gradient(135deg, #3F8D70 0%, #245847 100%); box-shadow: 0 14px 28px -12px rgba(47,111,90,0.8); font-size: 17px; }
         button[type="submit"]:hover { background: linear-gradient(135deg, #E1FC84 0%, #B6E23A 100%); }
+        /* Right side: the same CDO map as the dashboards and the mobile app, faded and tinted green */
+        /* The map also runs 340px under the fading green side, so the fade shows map, not a map edge */
+        .side-map { position: absolute; inset: 0 0 0 -340px; z-index: 0; pointer-events: none; }
+        .side-map.leaflet-container { background: #F1F6F3; }
+        /* Two-tone green map: dark parts become MaxSeat green (#2F6F5A), light parts the page color (#F1F6F3) */
+        .side-map .leaflet-tile-pane { filter: contrast(1.35) brightness(0.93) url(#ms-green); opacity: 0.9; }
+        .side-map::after { content: ""; position: absolute; inset: 0; z-index: 450; pointer-events: none;
+                background: radial-gradient(700px 420px at 100% 0%, rgba(198,242,78,0.20), transparent 60%); }
+        .side-map .leaflet-tile-pane { transition: opacity 0.9s ease; }
+        .side-map:not(.ready) .leaflet-tile-pane { opacity: 0; }
+        .map-credit { position: absolute; left: 0; right: 0; bottom: 12px; z-index: 3; text-align: center; font-size: 11px; color: #7E8F87; display: none; }
+        .role-swap { transition: opacity 0.18s ease; }
+        .role-swap.fading { opacity: 0; }
+        @media (prefers-reduced-motion: reduce) { .side-map .leaflet-tile-pane, .role-swap { transition: none; } .glass-card { animation: none; } }
+        .card-wrap { position: relative; z-index: 3; width: min(524px, 100%); }
+        .card-wrap .glass-card { width: 100%; box-sizing: border-box; }
         .card-logo { display: none; }
         @media (max-width: 900px) {
             .auth { grid-template-columns: 1fr; }
-            .hero { display: none; }
+            .hero, .hero-wrap { display: none; }
+            .side-map { left: 0; }
             .card-logo { display: block; }
+            .map-credit { display: block; }
             .glass-card { padding: 30px 24px; }
         }
     </style>
@@ -87,6 +119,7 @@
     </div>
 
     <div class="auth">
+    <div class="hero-wrap">
     <section class="hero" aria-hidden="false">
         <img src="/static/logo.png" alt="MaxSeat Alert" class="hero-logo">
         <div>
@@ -98,9 +131,15 @@
                 <div class="feat"><i class="fa-solid fa-location-dot"></i> GPS map of the Bugo to Igpit route</div>
             </div>
         </div>
-        <small>MaxSeat Alert · Cagayan de Oro</small>
+        <small>MaxSeat Alert · Cagayan de Oro · Map &copy; OpenStreetMap contributors{% if CARTO_KEY %}, CARTO{% endif %}</small>
     </section>
+    </div>
     <section class="side">
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+        <filter id="ms-green" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0.1617 0.5441 0.0549 0 0.1843  0.1126 0.3786 0.0382 0 0.4353  0.1276 0.4291 0.0433 0 0.3529  0 0 0 1 0"/></filter>
+    </svg>
+    <div id="side-map" class="side-map" aria-hidden="true"></div>
+    <div class="card-wrap">
     <div class="glass-card" id="main-card">
         <div class="card-logo" style="text-align:center; margin-bottom:22px;">
             <img src="/static/logo.png" alt="MaxSeat Alert" style="max-width:150px;filter:brightness(0);opacity:0.9;">
@@ -110,8 +149,8 @@
             <div class="alert"><i class="fa-solid fa-triangle-exclamation"></i> {{ m }}</div>
         {% endfor %}
 
-        <span id="role-badge" class="role-badge admin"><i class="fa-solid fa-shield-halved"></i> System Administrator</span>
-        <h2 id="role-title" style="margin: 0 0 5px 0; font-weight: 800; font-size: 26px; color:#14211B; transition:0.3s;">Admin Hub</h2>
+        <span id="role-badge" class="role-badge admin role-swap"><i class="fa-solid fa-shield-halved"></i> System Administrator</span>
+        <h2 id="role-title" class="role-swap" style="margin: 0 0 5px 0; font-weight: 800; font-size: 26px; color:#14211B;">Admin Hub</h2>
         <p style="color:#5E6F67; font-size: 15px; margin-bottom: 28px;">Welcome back. Choose your role and sign in.</p>
 
         <form method="POST" onsubmit="showLoader()">
@@ -137,9 +176,14 @@
             <button type="submit">Log in</button>
         </form>
     </div>
+    </div>
+    <div class="map-credit">Map &copy; OpenStreetMap contributors{% if CARTO_KEY %}, CARTO{% endif %}</div>
     </section>
     </div>
 
+    <script>window.MAXSEAT_CARTO_KEY = {{ (CARTO_KEY or '')|tojson }};</script>
+    <script src="/static/vendor/leaflet/leaflet.js"></script>
+    <script src="/static/js/maxseat-map.js?v={{ ASSET_V }}"></script>
     <script>
         const roleConfig = {
             admin:       { bg: 'bg-admin',       title: 'Admin Hub',              badge: 'admin',       label: 'System Administrator',           icon: 'fa-shield-halved' },
@@ -165,16 +209,19 @@
                 document.getElementById(roleConfig[r].bg).classList.toggle('active', r === role);
             });
 
-            // update title & badge
-            document.getElementById('role-title').innerText = cfg.title;
+            // update title & badge with a quick fade (instant on page load)
+            const title = document.getElementById('role-title');
             const badge = document.getElementById('role-badge');
-            badge.className = `role-badge ${cfg.badge}`;
-            badge.innerHTML = `<i class="fa-solid ${cfg.icon}"></i> ${cfg.label}`;
-
-            // card bounce
-            const card = document.getElementById('main-card');
-            card.style.transform = 'scale(0.96)';
-            setTimeout(() => { card.style.transform = 'scale(1)'; }, 150);
+            const apply = () => {
+                title.innerText = cfg.title;
+                badge.className = `role-badge ${cfg.badge} role-swap`;
+                badge.innerHTML = `<i class="fa-solid ${cfg.icon}"></i> ${cfg.label}`;
+                title.classList.remove('fading');
+            };
+            if (!updateUI.ready) { updateUI.ready = true; apply(); return; }
+            clearTimeout(updateUI.timer);
+            title.classList.add('fading'); badge.classList.add('fading');
+            updateUI.timer = setTimeout(apply, 180);
         }
 
         function showLoader() { document.getElementById('loader-overlay').classList.add('active'); }
@@ -184,6 +231,13 @@
             const valid = Object.keys(roleConfig).includes(saved) ? saved : 'admin';
             document.getElementById('role-select').value = valid;
             updateUI();
+            // Background map of CDO (look only: no dragging, zooming or buttons)
+            // It fades in once its tiles have drawn, so it never pops in piece by piece.
+            const mapEl = document.getElementById('side-map');
+            const showMap = () => mapEl.classList.add('ready');
+            const sideMap = typeof MaxSeatMap !== 'undefined'
+                ? MaxSeatMap.create('side-map', { background: true, center: [8.468, 124.645], zoom: 13 }) : null;
+            if (sideMap) { sideMap.once('maxseat:tilesready', showMap); setTimeout(showMap, 4000); }
         };
     </script>
 </body>

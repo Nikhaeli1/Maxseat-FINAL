@@ -14,6 +14,7 @@
  *   • A fullscreen button (top right) opens the map on the whole screen; Esc or the button closes it.
  *
  *   const map = MaxSeatMap.create('map', { fitAll: () => currentPuvs });
+ *   MaxSeatMap.create('side-map', { background: true });   // still, decorative map (login page)
  *   MaxSeatMap.fit(map, puvs);
  *   L.circleMarker(MaxSeatMap.position(p), MaxSeatMap.style(p, colorFn, 12))
  */
@@ -96,6 +97,7 @@ const MaxSeatMap = (() => {
       const src = TILE_SOURCES[i];
       layer = L.tileLayer(src.url, src.opts).addTo(map);
       layer.on('tileload', () => { loaded++; });
+      layer.on('load', () => { if (loaded > 0) map.fire('maxseat:tilesready'); });   // tiles in view have drawn
       layer.on('tileerror', () => {
         failed++;
         // Several failures before anything loaded: this tile server is blocked or down
@@ -199,15 +201,19 @@ const MaxSeatMap = (() => {
       return null;
     }
     opts = opts || {};
-    const map = L.map(el, {
-      zoomControl:        opts.zoomControl !== false,
-      attributionControl: true,
+    // background: true = a still map used as decoration (login page): no buttons, no dragging or zooming
+    const bg = !!opts.background;
+    const map = L.map(el, Object.assign({
+      zoomControl:        !bg && opts.zoomControl !== false,
+      attributionControl: !bg,                    // the still login map credits the map in the page text instead
       center:             opts.center || CDO,
       zoom:               opts.zoom || DEFAULT_ZOOM,
-    });
-    map.attributionControl.setPrefix(false);
+    }, bg ? { dragging: false, touchZoom: false, scrollWheelZoom: false, doubleClickZoom: false,
+              boxZoom: false, keyboard: false, tap: false } : {}));
+    if (map.attributionControl) map.attributionControl.setPrefix(false);
     addTiles(map);
     keepSized(map, el);
+    if (bg) return map;
     if (opts.fullscreen !== false) addFullscreenButton(map, el);
     if (typeof opts.fitAll === 'function') addFitButton(map, opts.fitAll);
     if (opts.wheelScrollsPage !== false) wheelScrollsPage(el);
